@@ -1,7 +1,7 @@
 # Michael Peacock — Design Engineer
 
 I run [Windward Line](https://windwardline.com), a one-person software company.
-Seven products shipped May–July 2026 — all live today, sharing one design
+Six products shipped May–July 2026 — all live today, sharing one design
 language: written design specs, a token contract, and WCAG contrast rules
 enforced in CI.
 
@@ -11,7 +11,7 @@ enforced in CI.
 |---|---|---|
 | [Pathfinder](https://github.com/windwardline/pathfinder) | Reentry routing — only confirmed facts affect the route | [pathfinder.windwardline.com](https://pathfinder.windwardline.com) |
 | [LevelFlow Cloud](https://github.com/windwardline/levelflow-cloud) | Disciplined market review — RLS on every table, contrast tested in CI | [levelflow.windwardline.com](https://levelflow.windwardline.com) |
-| [TimeShift](https://github.com/windwardline/timeshift) | Jetlag visualizer, built test-first — 186 tests | [timeshift.windwardline.com](https://timeshift.windwardline.com) |
+| [TimeShift](https://github.com/windwardline/timeshift) | Jetlag visualizer, built test-first — 183 tests | [timeshift.windwardline.com](https://timeshift.windwardline.com) |
 | [Mimic](https://github.com/windwardline/mimic) | D&D Beyond PDF → Roll20 JSON, no OCR | [mimic.windwardline.com](https://mimic.windwardline.com) |
 | [That's Extra](https://github.com/windwardline/thats-extra) | Change-order automation for subcontractors | [thats-extra.windwardline.com](https://thats-extra.windwardline.com) |
 | [Proper Form](https://github.com/windwardline/proper-form) | A judgment-free menswear guide — design-token theming | [proper-form.windwardline.com](https://proper-form.windwardline.com) |
