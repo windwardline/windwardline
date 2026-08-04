@@ -3,16 +3,35 @@
 # Requires an authenticated `gh`. Reads remote state only (no local checkouts),
 # so it can run from any machine. Exit 0 = fully conformant; 1 = drift found.
 #
+# The fleet is derived live: every non-archived, non-template repo under the
+# owner, minus the exceptions register (FLEET.md). A new repo is in scope the
+# moment it exists — inclusion is the default, exemption is the explicit act.
+#
 # FLEET.md is the standard; this script is its enforcement. Change them together.
 
 set -u
 OWNER="windwardline"
-REPOS="craft levelflow-cloud mimic pathfinder portfolio proper-form thats-extra timeshift windwardline-com windwardline-capital windwardline-labs windwardline-media windwardline-strategy"
+EXEMPT="windwardline venture fleet-template"   # mirrors FLEET.md's exceptions register exactly
 FILES="AGENTS.md CLAUDE.md LICENSE SECURITY.md .github/dependabot.yml .github/workflows/ci.yml .github/workflows/security.yml .github/workflows/claude-review.yml"
 # Detectable parallel-stack markers (FLEET.md Preferred stack). A recorded
 # "Stack exception (owner-approved" line in the repo's AGENTS.md waives them.
 STACK_DENY_DEPS="mongodb mongoose firebase firebase-admin @planetscale/database"
 ALT_HOST_FILES="netlify.toml fly.toml render.yaml railway.json"
+
+ALL=$(gh repo list "$OWNER" --limit 200 --json name,isArchived,isTemplate \
+  --jq '[.[] | select((.isArchived or .isTemplate) | not) | .name] | sort | join(" ")' 2>/dev/null) || ALL=""
+REPOS=""
+for r in $ALL; do
+  skip=0
+  for e in $EXEMPT; do [ "$r" = "$e" ] && skip=1; done
+  [ "$skip" -eq 0 ] && REPOS="$REPOS $r"
+done
+if [ -z "${REPOS// /}" ]; then
+  echo "ERROR: fleet enumeration returned no repos — refusing a vacuous pass." >&2
+  exit 1
+fi
+echo "Fleet (live from github.com/$OWNER, minus exceptions register):$REPOS"
+echo
 
 fail=0
 printf '%-22s %s\n' "REPO" "DRIFT (empty = conformant)"
@@ -20,6 +39,7 @@ printf '%-22s %s\n' "----" "----"
 
 for r in $REPOS; do
   drift=""
+  note=""
 
   # Required files on main
   for f in $FILES; do
@@ -31,21 +51,45 @@ for r in $REPOS; do
   am=$(gh api "repos/$OWNER/$r" --jq '.allow_auto_merge' 2>/dev/null)
   [ "$am" = "true" ] || drift="$drift auto-merge:off"
 
-  # Ruleset exists and requires the scan jobs
+  # Ruleset: exists, requires the scan jobs, enforces linear history, no bypass
   rid=$(gh api "repos/$OWNER/$r/rulesets" --jq '.[] | select(.name=="main-requires-green-ci") | .id' 2>/dev/null | head -1)
   haspkg=0
   gh api "repos/$OWNER/$r/contents/package.json?ref=main" --silent >/dev/null 2>&1 && haspkg=1
+  ctx=""
   if [ -z "$rid" ]; then
     drift="$drift ruleset:missing"
   else
-    ctx=$(gh api "repos/$OWNER/$r/rulesets/$rid" \
-      --jq '[.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[].context] | join("|")' 2>/dev/null)
+    rs=$(gh api "repos/$OWNER/$r/rulesets/$rid" 2>/dev/null)
+    ctx=$(printf '%s' "$rs" | jq -r '[.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[].context] | join("|")' 2>/dev/null)
     for want in "Semgrep CE" "Secret scan"; do
-      case "$ctx" in *"$want"*) ;; *) drift="$drift ruleset-lacks:${want// /_}";; esac
+      case "|$ctx|" in *"|$want|"*) ;; *) drift="$drift ruleset-lacks:${want// /_}";; esac
     done
     if [ "$haspkg" -eq 1 ]; then
-      case "$ctx" in *"Dependency scan / osv-scan"*) ;; *) drift="$drift ruleset-lacks:osv-scan";; esac
+      case "|$ctx|" in *"|Dependency scan / osv-scan|"*) ;; *) drift="$drift ruleset-lacks:osv-scan";; esac
     fi
+    printf '%s' "$rs" | jq -e '[.rules[].type] | contains(["required_linear_history"])' >/dev/null 2>&1 \
+      || drift="$drift ruleset-lacks:linear-history"
+    nb=$(printf '%s' "$rs" | jq -r '.bypass_actors | length' 2>/dev/null)
+    [ "${nb:-1}" -eq 0 ] || drift="$drift ruleset:bypass-actors($nb)"
+  fi
+
+  # Required-checks completeness: every successful Actions job on the latest
+  # merged PR must be a required context. The advisory review ("review / *")
+  # is excluded by design; skipped/cancelled runs and non-Actions apps
+  # (deploy platforms) are filtered out.
+  sha=$(gh pr list -R "$OWNER/$r" --state merged -L1 --json headRefOid --jq '.[0].headRefOid' 2>/dev/null)
+  if [ -n "$sha" ] && [ "$sha" != "null" ] && [ -n "$ctx" ]; then
+    run_names=$(gh api "repos/$OWNER/$r/commits/$sha/check-runs" --paginate \
+      --jq '.check_runs[] | select(.app.slug=="github-actions" and .conclusion=="success") | .name' 2>/dev/null | sort -u)
+    oldifs=$IFS
+    IFS=$'\n'
+    for n in $run_names; do
+      case "$n" in ""|"review / "*) continue;; esac
+      case "|$ctx|" in *"|$n|"*) ;; *) drift="$drift unrequired-job:${n// /_}";; esac
+    done
+    IFS=$oldifs
+  else
+    note=" (no merged-PR sample for required-checks audit)"
   fi
 
   # Review-lane secret
@@ -90,7 +134,7 @@ for r in $REPOS; do
     fail=1
     printf '%-22s %s\n' "$r" "$drift"
   else
-    printf '%-22s %s\n' "$r" "✓"
+    printf '%-22s %s\n' "$r" "✓$note"
   fi
 done
 
