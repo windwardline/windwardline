@@ -47,6 +47,28 @@ App-class repos (a `package.json` at root) additionally: `typecheck` (or
 (`package-lock.json`, `pnpm-lock.yaml`, or equivalent); security headers via
 `vercel.json` with a contract test enforcing the set.
 
+## Preferred stack
+
+The default stack for every project. Deviations follow the protocol below —
+never silent adoption.
+
+| Layer | Default | Recorded alternates |
+|---|---|---|
+| Database / backend | Supabase (org "Windward Line") | Neon via the Vercel Marketplace where it fits (precedent: pathfinder) |
+| Hosting | Vercel | — |
+| DNS / edge | Cloudflare (Windward Line account) | — |
+| Source | GitHub `windwardline` | — |
+| AI inference | Groq (the `openai` SDK pointed at Groq is the house client) | Better-fit provider with owner approval |
+| Email | Resend on `windwardline.com` | — |
+| Automation | Zapier | — |
+
+**Deviation protocol:** an agent recommending a genuinely better option must put
+the question to the owner *before* adopting anything — never adopt silently. An
+approved deviation is recorded in that repo's `AGENTS.md` as a line beginning
+`Stack exception (owner-approved YYYY-MM-DD):` with the reasoning. The
+conformance checker fails any detectable deviation without a recorded approval,
+and the review lane holds every PR diff against this table.
+
 ## Exceptions register
 
 | Repo | Exception | Why |
