@@ -50,6 +50,9 @@ jobs:
           # id-token permission and no app install needed; the declared
           # pull-requests/issues write grants are sufficient for comments.
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Without this, the review runs but posts nothing on pull_request
+          # events — track_progress creates the PR comment the result lands in.
+          track_progress: true
           # Frontier models standing rule (owner-confirmed 2026-08-04): reviews
           # run the current frontier Opus. The tier alias resolves to the newest
           # Opus release automatically — never pin a versioned model ID here.
