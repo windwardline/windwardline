@@ -63,4 +63,9 @@ jobs:
             only real findings: contract violations, bugs, security issues,
             silent failures, missing or weakened tests, and docs that should
             have ridden along in this change set. No style nits, no restating
-            the diff. If nothing is wrong, say so in one line.
+            the diff. Also fetch the fleet standard
+            (curl -s https://raw.githubusercontent.com/windwardline/windwardline/main/FLEET.md)
+            and hold the diff against its Preferred stack section: flag any new
+            dependency, service, or hosting artifact that deviates without a
+            recorded "Stack exception (owner-approved ...)" line in this repo's
+            AGENTS.md. If nothing is wrong, say so in one line.
