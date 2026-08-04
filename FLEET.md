@@ -74,3 +74,13 @@ App-class repos (a `package.json` at root) additionally: `typecheck` (or
 
 Changing this document is changing the fleet standard: land it by PR here, then
 make the conformance checker agree with it in the same change set.
+
+## Closure rule (owner-ruled 2026-08-04)
+
+Any fleet-wide improvement — a gap fix from the agentic-workflow backlog, a
+newly identified standard, a practice one repo pioneers — is **closed only when
+all four hold**: codified in this document; enforced by the conformance checker
+or another named pathway above; applied to every existing fleet repo; and seeded
+into `fleet-template` for future repos. This applies retroactively to gaps 1–3
+(contracts, done-gate, security + review lanes — all four conditions verified
+2026-08-04) and prospectively to every remaining and future gap.
