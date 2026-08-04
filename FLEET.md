@@ -77,12 +77,23 @@ and the review lane holds every PR diff against this table.
 | `venture` | Outside the fleet standard entirely | Private venture outside the Windward Line family |
 | `fleet-template` | No CI, no ruleset, placeholders by design | The seeding template; the checker, not the template, is the authority |
 
+This register is mechanized: the conformance checker's exemption list mirrors it
+exactly, and everything else under the account is checked by default. Adding an
+exception means amending this table and the checker in the same change set.
+
 ## Enforcement pathways
 
-1. **`scripts/fleet-conformance.sh`** (this repo) — deterministic checker: walks
-   every fleet repo via the GitHub API and verifies each item above; prints a
-   per-repo table and exits non-zero on any drift. Run it from any machine with
-   `gh` authenticated. Scheduled execution rides the weekly fleet-health cadence.
+1. **`scripts/fleet-conformance.sh`** (this repo) — deterministic checker. It
+   derives the fleet live from the GitHub account (every non-archived,
+   non-template repo minus the exceptions register), so a new repo is in scope
+   the moment it exists — inclusion is the default, exemption is the explicit
+   act — and it refuses a vacuous pass if enumeration returns nothing. Per repo
+   it verifies each item above, including ruleset depth (linear history rule
+   present, zero bypass actors) and required-checks completeness: every
+   successful Actions job on the latest merged PR must be a required context,
+   with only the advisory review excluded. Prints a per-repo table and exits
+   non-zero on any drift. Run it from any machine with `gh` authenticated.
+   Scheduled execution rides the weekly fleet-health cadence.
 2. **Rulesets** hold the merge gates; converting or creating a repo never drops
    a check it already required.
 3. **The review lane** holds diffs against each repo's operating contract on
