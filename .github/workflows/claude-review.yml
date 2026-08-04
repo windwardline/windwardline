@@ -46,6 +46,10 @@ jobs:
       - uses: anthropics/claude-code-action@86180fa9e4d311eed10c9cc49854c53dab5d517a # v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # The workflow's own token, not the OIDC/GitHub-App exchange — no
+          # id-token permission and no app install needed; the declared
+          # pull-requests/issues write grants are sufficient for comments.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           # Frontier models standing rule (owner-confirmed 2026-08-04): reviews
           # run the current frontier Opus. The tier alias resolves to the newest
           # Opus release automatically — never pin a versioned model ID here.
