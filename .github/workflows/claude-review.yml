@@ -7,7 +7,11 @@ name: Claude review (fleet reusable)
 # skipped, never failed.
 
 on:
-  workflow_call: {}
+  workflow_call:
+    secrets:
+      ANTHROPIC_API_KEY:
+        description: "Anthropic API key. Absent = the gate skips review cleanly."
+        required: false
 
 permissions:
   contents: read
