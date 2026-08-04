@@ -1,0 +1,51 @@
+name: Claude review (fleet reusable)
+
+# Called by every fleet repo's claude-review.yml. workflow_call only — this
+# never runs in this repo, preserving its documented no-CI status. The gate
+# job makes the whole thing activation-ready: reviews run if and only if the
+# calling repo has the ANTHROPIC_API_KEY secret; without it the review is
+# skipped, never failed.
+
+on:
+  workflow_call: {}
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      haskey: ${{ steps.k.outputs.haskey }}
+    steps:
+      - id: k
+        env:
+          K: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: echo "haskey=${K:+yes}" >> "$GITHUB_OUTPUT"
+
+  review:
+    needs: gate
+    if: needs.gate.outputs.haskey == 'yes'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: anthropics/claude-code-action@86180fa9e4d311eed10c9cc49854c53dab5d517a # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this pull request as the fleet reviewer. Read AGENTS.md (the
+            repo operating contract) first and hold the diff against it. Report
+            only real findings: contract violations, bugs, security issues,
+            silent failures, missing or weakened tests, and docs that should
+            have ridden along in this change set. No style nits, no restating
+            the diff. If nothing is wrong, say so in one line.
