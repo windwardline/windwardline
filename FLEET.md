@@ -53,6 +53,7 @@ App-class repos (a `package.json` at root) additionally: `typecheck` (or
 |---|---|---|
 | `windwardline` (this repo) | No CI on its own content; PRs merge manually. Hosts the fleet reusable, this standard, and the conformance checker — its workflows gate the fleet, never itself. | Meta/standards home |
 | `venture` | Outside the fleet standard entirely | Private venture outside the Windward Line family |
+| `fleet-template` | No CI, no ruleset, placeholders by design | The seeding template; the checker, not the template, is the authority |
 
 ## Enforcement pathways
 
