@@ -41,6 +41,10 @@ owner-decision items last.
    - Model defaults: `~/.claude/settings.json` still `"model": "opus"` with
      `"effortLevel": "high"`; `~/.codex/config.toml` still frontier at high.
    - `gh auth status` healthy.
+   - Permission surface: `scripts/permission-audit.sh` (this repo) exits
+     clean — no interpreter or task-runner wildcards on standing allow,
+     credential reads ask-gated, no fence-defeating local wildcards, no
+     connection-string material in any settings file, house skills present.
 6. **Stray-repo sweep** — `.git` directories under `$HOME` outside
    `~/Projects` and client-internal zones; propose a safe move for any found.
 7. **Trajectory review** — read the week's `~/Projects/.remember/` dailies
