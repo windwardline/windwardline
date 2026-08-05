@@ -33,14 +33,16 @@ owner-decision items last.
    - `gh auth status` healthy.
 6. **Stray-repo sweep** — `.git` directories under `$HOME` outside
    `~/Projects` and client-internal zones; propose a safe move for any found.
-7. **Meta-snapshot** — run `snapshot.sh` in `windwardline/ops` (private):
-   versions the canonical standards file, global and workspace agent config,
-   hooks, and agent memory. Lands by PR; aborts on key-shaped content.
-8. **Trajectory review** — read the week's `~/Projects/.remember/` dailies
+7. **Trajectory review** — read the week's `~/Projects/.remember/` dailies
    plus `recent.md`, and memory `MEMORY.md`: repeated failures, permission
    friction, guardrail near-misses, workflow inefficiencies. Durable lessons
    are written to memory; improvement candidates go to the owner as a short
    list.
+8. **Meta-snapshot** — run `snapshot.sh` in `windwardline/ops` (private):
+   versions the canonical standards file, global and workspace agent config,
+   hooks, and agent memory. Lands by PR; aborts on key-shaped content.
+   Deliberately last: the review's own memory writes belong in the same
+   week's snapshot (the first run had to snapshot twice to achieve this).
 
 ## First cadence of each month, additionally
 
