@@ -86,14 +86,20 @@ for r in $REPOS; do
     [ "${nb:-1}" -eq 0 ] || drift="$drift ruleset:bypass-actors($nb)"
   fi
 
-  # Required-checks completeness: every successful Actions job on the latest
-  # merged PR must be a required context. The advisory review ("review / *")
-  # is excluded by design; skipped/cancelled runs and non-Actions apps
-  # (deploy platforms) are filtered out.
+  # Required-checks completeness: every successful job from PR-triggered
+  # workflow runs on the latest merged PR must be a required context. Sampled
+  # from workflow runs filtered to event == pull_request — a dispatch or
+  # schedule run against the same SHA must not poison the sample (it did, on
+  # the 2026-08-04 cadence run's own verification dispatch). The advisory
+  # review ("review / *") is excluded by design; skipped/cancelled jobs are
+  # filtered by the success condition.
   sha=$(gh pr list -R "$OWNER/$r" --state merged -L1 --json headRefOid --jq '.[0].headRefOid' 2>/dev/null)
   if [ -n "$sha" ] && [ "$sha" != "null" ] && [ -n "$ctx" ]; then
-    run_names=$(gh api "repos/$OWNER/$r/commits/$sha/check-runs" --paginate \
-      --jq '.check_runs[] | select(.app.slug=="github-actions" and .conclusion=="success") | .name' 2>/dev/null | sort -u)
+    run_names=$(gh api "repos/$OWNER/$r/actions/runs?head_sha=$sha&per_page=50" \
+      --jq '.workflow_runs[] | select(.event=="pull_request") | .id' 2>/dev/null | while IFS= read -r wrid; do
+        gh api "repos/$OWNER/$r/actions/runs/$wrid/jobs?per_page=100" --paginate \
+          --jq '.jobs[] | select(.conclusion=="success") | .name' 2>/dev/null
+      done | sort -u)
     oldifs=$IFS
     IFS=$'\n'
     for n in $run_names; do
@@ -108,6 +114,13 @@ for r in $REPOS; do
   # Review-lane secret
   sec=$(gh secret list -R "$OWNER/$r" --json name --jq '[.[] | select(.name=="ANTHROPIC_API_KEY")] | length' 2>/dev/null)
   [ "${sec:-0}" -ge 1 ] || drift="$drift secret:ANTHROPIC_API_KEY"
+
+  # Dependabot security alerts: the setting, not just the config file
+  # (found off on 5 repos by the 2026-08-04 cadence run while dependabot.yml
+  # sat present everywhere — the file drives version PRs, the toggle drives
+  # security updates).
+  gh api "repos/$OWNER/$r/vulnerability-alerts" --silent >/dev/null 2>&1 \
+    || drift="$drift dependabot-alerts:off"
 
   # App-class extras: lockfile + required scripts + stack-deviation deps
   stackdrift=""

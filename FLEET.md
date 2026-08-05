@@ -28,7 +28,10 @@ enforces it now:
   `CLAUDE.md` containing exactly `@AGENTS.md`.
 - `LICENSE` and `SECURITY.md` (house forms; security scope names the repo's own
   domain).
-- `.github/dependabot.yml` (house form).
+- `.github/dependabot.yml` (house form), with the repository's Dependabot
+  security-alerts setting enabled — the file drives version PRs; the toggle
+  drives security updates, and it was silently off on five repos until the
+  first cadence run caught it.
 - `vercel.json` carrying the house seven-header set explicitly
   (Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options,
   Referrer-Policy, X-Frame-Options, Permissions-Policy,
@@ -100,8 +103,10 @@ exception means amending this table and the checker in the same change set.
    act — and it refuses a vacuous pass if enumeration returns nothing. Per repo
    it verifies each item above, including ruleset depth (linear history rule
    present, zero bypass actors) and required-checks completeness: every
-   successful Actions job on the latest merged PR must be a required context,
-   with only the advisory review excluded. Prints a per-repo table and exits
+   successful job from the latest merged PR's pull_request-triggered workflow
+   runs must be a required context, with only the advisory review excluded —
+   dispatch and schedule runs against the same commit are not part of the
+   sample. Prints a per-repo table and exits
    non-zero on any drift. Run it from any machine with `gh` authenticated.
    Scheduled execution rides pathway 6.
 2. **Rulesets** hold the merge gates; converting or creating a repo never drops
