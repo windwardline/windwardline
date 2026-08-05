@@ -51,6 +51,19 @@ for r in $REPOS; do
   am=$(gh api "repos/$OWNER/$r" --jq '.allow_auto_merge' 2>/dev/null)
   [ "$am" = "true" ] || drift="$drift auto-merge:off"
 
+  # Seven-header vercel.json, explicit (root, or apps/web in a monorepo)
+  vj=$(gh api "repos/$OWNER/$r/contents/vercel.json?ref=main" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null)
+  [ -z "$vj" ] && vj=$(gh api "repos/$OWNER/$r/contents/apps/web/vercel.json?ref=main" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null)
+  if [ -z "$vj" ]; then
+    drift="$drift missing:vercel.json"
+  else
+    hv=$(printf '%s' "$vj" | jq -r '[.headers[]?.headers[]?.key] | map(ascii_downcase) | unique
+      | map(select(. == "content-security-policy" or . == "strict-transport-security"
+        or . == "x-content-type-options" or . == "referrer-policy" or . == "x-frame-options"
+        or . == "permissions-policy" or . == "cross-origin-opener-policy")) | length' 2>/dev/null)
+    [ "${hv:-0}" -eq 7 ] || drift="$drift vercel-headers:${hv:-0}/7"
+  fi
+
   # Ruleset: exists, requires the scan jobs, enforces linear history, no bypass
   rid=$(gh api "repos/$OWNER/$r/rulesets" --jq '.[] | select(.name=="main-requires-green-ci") | .id' 2>/dev/null | head -1)
   haspkg=0

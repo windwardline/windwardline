@@ -13,7 +13,7 @@ enforces it now:
 | Dimension | Origin | Enforced by |
 |---|---|---|
 | Security scan mechanics (Semgrep, gitleaks, OSV) | pathfinder `security.yml` | `security.yml` in every repo; scan jobs are required checks |
-| Live posture verification (prod headers) | levelflow `deploy.yml` polling | `Headers live` job (push + weekly) in every prod-facing repo |
+| Live posture verification (prod headers) | levelflow `deploy.yml` polling | `Headers live` job (push + daily cron) in every prod-facing repo |
 | Test-enforced design contracts | craft (palette/contrast tests) | Each repo's own suite; pattern replicated in header contract tests |
 | TDD law and run-capture evidence | timeshift | Repo operating contracts |
 | Spec governance (§-law amendments) | levelflow | Repo operating contracts |
@@ -29,6 +29,11 @@ enforces it now:
 - `LICENSE` and `SECURITY.md` (house forms; security scope names the repo's own
   domain).
 - `.github/dependabot.yml` (house form).
+- `vercel.json` carrying the house seven-header set explicitly
+  (Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options,
+  Referrer-Policy, X-Frame-Options, Permissions-Policy,
+  Cross-Origin-Opener-Policy) — at the repo root, or the app directory in a
+  monorepo. Explicit always; never rely on platform-injected headers.
 - `.github/workflows/ci.yml` — the repo's real gates.
 - `.github/workflows/security.yml` — Semgrep CE + Secret scan on PRs, pushes,
   weekly cron; plus `Dependency scan / osv-scan` when the repo has a lockfile;
@@ -44,8 +49,12 @@ enforces it now:
 
 App-class repos (a `package.json` at root) additionally: `typecheck` (or
 `check`), `lint`, and single-shot test scripts; a committed lockfile
-(`package-lock.json`, `pnpm-lock.yaml`, or equivalent); security headers via
-`vercel.json` with a contract test enforcing the set.
+(`package-lock.json`, `pnpm-lock.yaml`, or equivalent); a contract test
+enforcing the header set. An app that collects any user data serves a
+`/privacy` page in the house form — what is kept, every processor named,
+retention, deletion contact — linked from the surface where collection
+happens (enforced by repo contracts and the review lane; precedents:
+pathfinder `/privacy`, levelflow's legal panel, timeshift `/privacy`).
 
 ## Preferred stack
 

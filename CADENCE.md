@@ -14,7 +14,11 @@ owner-decision items last.
    the checker): workflow runs since the previous Monday with
    `conclusion == failure` and `event != pull_request`. Push and cron failures
    (weekly Semgrep, Headers live) surface nowhere else; report each one.
-3. **Guardrail drift** —
+3. **Production error sweep** — for each live app, pull the week's Vercel
+   runtime errors (Vercel MCP or CLI); report new signatures and counts.
+   In-stack observability, deliberately: no third-party error service
+   (owner decision 2026-08-04).
+4. **Guardrail drift** —
    - The four AGENTS.md paths resolve to one inode (`ls -laiL`); restore the
      symlinks if not.
    - Hooks registered: global repo-location guard, workspace done-gate and
@@ -22,12 +26,12 @@ owner-decision items last.
    - Model defaults: `~/.claude/settings.json` still `"model": "opus"` with
      `"effortLevel": "high"`; `~/.codex/config.toml` still frontier at high.
    - `gh auth status` healthy.
-4. **Stray-repo sweep** — `.git` directories under `$HOME` outside
+5. **Stray-repo sweep** — `.git` directories under `$HOME` outside
    `~/Projects` and client-internal zones; propose a safe move for any found.
-5. **Meta-snapshot** — run `snapshot.sh` in `windwardline/ops` (private):
+6. **Meta-snapshot** — run `snapshot.sh` in `windwardline/ops` (private):
    versions the canonical standards file, global and workspace agent config,
    hooks, and agent memory. Lands by PR; aborts on key-shaped content.
-6. **Trajectory review** — read the week's `~/Projects/.remember/` dailies
+7. **Trajectory review** — read the week's `~/Projects/.remember/` dailies
    plus `recent.md`, and memory `MEMORY.md`: repeated failures, permission
    friction, guardrail near-misses, workflow inefficiencies. Durable lessons
    are written to memory; improvement candidates go to the owner as a short
