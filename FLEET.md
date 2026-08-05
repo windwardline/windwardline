@@ -76,6 +76,7 @@ and the review lane holds every PR diff against this table.
 | `windwardline` (this repo) | No CI on its own content; PRs merge manually. Hosts the fleet reusable, this standard, and the conformance checker — its workflows gate the fleet, never itself. | Meta/standards home |
 | `venture` | Outside the fleet standard entirely | Private venture outside the Windward Line family |
 | `fleet-template` | No CI, no ruleset, placeholders by design | The seeding template; the checker, not the template, is the authority |
+| `ops` | No CI, no ruleset; snapshots land by PR, merged manually | Private meta-layer archive (canonical standards file, agent config, hooks, memory) — holds no application code |
 
 This register is mechanized: the conformance checker's exemption list mirrors it
 exactly, and everything else under the account is checked by default. Adding an
@@ -93,7 +94,7 @@ exception means amending this table and the checker in the same change set.
    successful Actions job on the latest merged PR must be a required context,
    with only the advisory review excluded. Prints a per-repo table and exits
    non-zero on any drift. Run it from any machine with `gh` authenticated.
-   Scheduled execution rides the weekly fleet-health cadence.
+   Scheduled execution rides pathway 6.
 2. **Rulesets** hold the merge gates; converting or creating a repo never drops
    a check it already required.
 3. **The review lane** holds diffs against each repo's operating contract on
@@ -104,6 +105,11 @@ exception means amending this table and the checker in the same change set.
    conformance checker before first release. The checker, not the template,
    is the authority — a template can go stale; the checker is run against
    the standard as written here.
+6. **The weekly fleet-health cadence** — `CADENCE.md` (this repo), executed by
+   a Claude Code scheduled task every Monday 09:00 ET: conformance run,
+   Actions failure sweep, guardrail-drift audit, stray-repo sweep, meta-layer
+   snapshot to the private `ops` repo, and trajectory review. The checklist is
+   versioned; the task is only the trigger.
 
 Changing this document is changing the fleet standard: land it by PR here, then
 make the conformance checker agree with it in the same change set.

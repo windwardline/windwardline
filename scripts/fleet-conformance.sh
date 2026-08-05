@@ -11,7 +11,7 @@
 
 set -u
 OWNER="windwardline"
-EXEMPT="windwardline venture fleet-template"   # mirrors FLEET.md's exceptions register exactly
+EXEMPT="windwardline venture fleet-template ops"   # mirrors FLEET.md's exceptions register exactly
 FILES="AGENTS.md CLAUDE.md LICENSE SECURITY.md .github/dependabot.yml .github/workflows/ci.yml .github/workflows/security.yml .github/workflows/claude-review.yml"
 # Detectable parallel-stack markers (FLEET.md Preferred stack). A recorded
 # "Stack exception (owner-approved" line in the repo's AGENTS.md waives them.
