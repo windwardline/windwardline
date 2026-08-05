@@ -115,12 +115,15 @@ for r in $REPOS; do
   sec=$(gh secret list -R "$OWNER/$r" --json name --jq '[.[] | select(.name=="ANTHROPIC_API_KEY")] | length' 2>/dev/null)
   [ "${sec:-0}" -ge 1 ] || drift="$drift secret:ANTHROPIC_API_KEY"
 
-  # Dependabot security alerts: the setting, not just the config file
-  # (found off on 5 repos by the 2026-08-04 cadence run while dependabot.yml
-  # sat present everywhere — the file drives version PRs, the toggle drives
-  # security updates).
+  # Dependabot settings, not just the config file (found off on 5 repos by
+  # the 2026-08-04 cadence run while dependabot.yml sat present everywhere).
+  # Three independent switches: the FILE drives scheduled version PRs, the
+  # ALERTS toggle surfaces advisories, and AUTOMATED SECURITY FIXES opens
+  # the fix PRs.
   gh api "repos/$OWNER/$r/vulnerability-alerts" --silent >/dev/null 2>&1 \
     || drift="$drift dependabot-alerts:off"
+  asf=$(gh api "repos/$OWNER/$r/automated-security-fixes" --jq '.enabled' 2>/dev/null)
+  [ "$asf" = "true" ] || drift="$drift dependabot-security-fixes:off"
 
   # App-class extras: lockfile + required scripts + stack-deviation deps
   stackdrift=""

@@ -29,9 +29,12 @@ enforces it now:
 - `LICENSE` and `SECURITY.md` (house forms; security scope names the repo's own
   domain).
 - `.github/dependabot.yml` (house form), with the repository's Dependabot
-  security-alerts setting enabled — the file drives version PRs; the toggle
-  drives security updates, and it was silently off on five repos until the
-  first cadence run caught it.
+  security-alerts AND automated-security-fixes settings enabled. Three
+  independent switches, all required: the file drives scheduled version PRs,
+  alerts surface advisories, automated fixes open the fix PRs. Both toggles
+  were silently off on five repos until the first cadence run caught it —
+  the account is personal, so GitHub's auto-enable-for-new-repos default is
+  dashboard-only; the checker is the guarantee, not the default.
 - `vercel.json` carrying the house seven-header set explicitly
   (Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options,
   Referrer-Policy, X-Frame-Options, Permissions-Policy,
