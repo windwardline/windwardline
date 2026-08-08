@@ -11,7 +11,9 @@ name: Claude review (fleet reusable)
 #
 # PREFERENCE IS THE `if` ORDER BELOW — one line, deliberately.
 #
-# It currently prefers ANTHROPIC_API_KEY (Console credits). The subscription
+# It prefers CLAUDE_CODE_OAUTH_TOKEN (owner's Max subscription). API billing is
+# being retired: the Console key is revoked, so the apikey branch is a dead
+# path kept only until the secret is removed from every caller. The subscription
 # license was wired and verified reaching the action (2026-08-08: the token
 # arrived as claude_code_oauth_token, Claude Code initialised on claude-opus-5)
 # but every run then failed on turn one at zero cost — an account entitlement
@@ -50,10 +52,10 @@ jobs:
           OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           APIKEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          if [ -n "$APIKEY" ]; then
-            cred=apikey
-          elif [ -n "$OAUTH" ]; then
+          if [ -n "$OAUTH" ]; then
             cred=oauth
+          elif [ -n "$APIKEY" ]; then
+            cred=apikey
           else
             cred=none
           fi
