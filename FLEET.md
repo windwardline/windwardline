@@ -50,12 +50,13 @@ enforces it now:
 - Repository settings: auto-merge enabled; `main-requires-green-ci` ruleset
   requiring every PR-running CI and scan job by name; linear history; no bypass
   actors.
-- Both `ANTHROPIC_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN` actions secrets, with
-  the caller passing both. The reusable's gate picks one and names it in the
-  run log; preference is a single `if` in that workflow. It currently prefers
-  the API key — the subscription license reaches the action but is rejected on
-  entitlement (see the workflow header). Reviews skip cleanly with neither
-  secret; fork PRs never receive either by design.
+- `CLAUDE_CODE_OAUTH_TOKEN` actions secret. Reviews bill the owner's Max
+  subscription; API-key billing was retired 2026-08-08 and the Console key is
+  revoked. The reusable's gate still carries a vestigial `apikey` branch and
+  callers still pass the (now non-existent) `ANTHROPIC_API_KEY`, because
+  removing a secret from a `workflow_call` contract has to land in the
+  reusable and all fourteen callers together — a scheduled cleanup, not drift.
+  Reviews skip cleanly without the token; fork PRs never receive it by design.
 
 App-class repos (a `package.json` at root) additionally: `typecheck` (or
 `check`), `lint`, and single-shot test scripts; a committed lockfile
