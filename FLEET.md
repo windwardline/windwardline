@@ -45,16 +45,17 @@ enforces it now:
   weekly cron; plus `Dependency scan / osv-scan` when the repo has a lockfile;
   plus `Headers live` when it serves a production domain.
 - `.github/workflows/claude-review.yml` — the thin caller of this repo's
-  reusable (`@main`, deliberate: one merge updates every repo), passing exactly
-  the `CLAUDE_CODE_OAUTH_TOKEN` secret.
+  reusable (`@main`, deliberate: one merge updates every repo), passing both
+  review credentials and letting the reusable choose.
 - Repository settings: auto-merge enabled; `main-requires-green-ci` ruleset
   requiring every PR-running CI and scan job by name; linear history; no bypass
   actors.
-- `CLAUDE_CODE_OAUTH_TOKEN` actions secret — reviews bill the owner's Claude
-  subscription license, not Console credits. Reviews skip cleanly without it;
-  fork PRs never receive it by design. The reusable still accepts a legacy
-  `ANTHROPIC_API_KEY` during the migration and prefers the OAuth token when
-  both are present; that fallback is removed once every caller has migrated.
+- Both `ANTHROPIC_API_KEY` and `CLAUDE_CODE_OAUTH_TOKEN` actions secrets, with
+  the caller passing both. The reusable's gate picks one and names it in the
+  run log; preference is a single `if` in that workflow. It currently prefers
+  the API key — the subscription license reaches the action but is rejected on
+  entitlement (see the workflow header). Reviews skip cleanly with neither
+  secret; fork PRs never receive either by design.
 
 App-class repos (a `package.json` at root) additionally: `typecheck` (or
 `check`), `lint`, and single-shot test scripts; a committed lockfile

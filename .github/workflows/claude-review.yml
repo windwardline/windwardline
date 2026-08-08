@@ -6,22 +6,31 @@ name: Claude review (fleet reusable)
 # calling repo carries a review credential; without one the review is skipped,
 # never failed.
 #
-# Credentials, in preference order:
-#   1. CLAUDE_CODE_OAUTH_TOKEN — the owner's Claude subscription license.
-#   2. ANTHROPIC_API_KEY — Console credits. TRANSITIONAL: it exists only so
-#      callers keep reviewing while the fleet migrates to the license, and is
-#      removed from this workflow once every caller passes the OAuth token.
-# The gate picks exactly one and names it in the log, so which credential paid
-# for a given review is always visible in the run.
+# Credentials. Callers pass both; this gate picks exactly one and names it in
+# the log, so which credential paid for a given review is always visible.
+#
+# PREFERENCE IS THE `if` ORDER BELOW — one line, deliberately.
+#
+# It currently prefers ANTHROPIC_API_KEY (Console credits). The subscription
+# license was wired and verified reaching the action (2026-08-08: the token
+# arrived as claude_code_oauth_token, Claude Code initialised on claude-opus-5)
+# but every run then failed on turn one at zero cost — an account entitlement
+# rejection, not a plumbing fault. An isolation run on the same commit with the
+# same --effort high flag and the API key succeeded, which is what pins the
+# cause to the credential.
+#
+# To move billing to the license once that entitlement is resolved: swap the
+# two branches of the `if` below. Nothing else changes — callers already pass
+# both secrets.
 
 on:
   workflow_call:
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
-        description: "Claude Code OAuth token (subscription license). Preferred."
+        description: "Claude Code OAuth token (subscription license). Not preferred — see header."
         required: false
       ANTHROPIC_API_KEY:
-        description: "Console API key. Transitional fallback — see header."
+        description: "Console API key. Currently the preferred credential — see header."
         required: false
 
 permissions:
@@ -41,10 +50,10 @@ jobs:
           OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           APIKEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          if [ -n "$OAUTH" ]; then
-            cred=oauth
-          elif [ -n "$APIKEY" ]; then
+          if [ -n "$APIKEY" ]; then
             cred=apikey
+          elif [ -n "$OAUTH" ]; then
+            cred=oauth
           else
             cred=none
           fi
