@@ -33,18 +33,25 @@ owner-decision items last.
    showing the pipeline returns rows — group runtime logs by status code on
    at least one live app — or "no errors" and "no telemetry" read alike.
    Runtime-log retention is one day on Pro; the errors table holds seven.
-5. **Guardrail drift** —
-   - The four AGENTS.md paths resolve to one inode (`ls -laiL`); restore the
-     symlinks if not.
-   - Hooks registered: global repo-location guard, workspace done-gate and
-     edited-marker (jq assertions against both settings.json files).
-   - Model defaults: `~/.claude/settings.json` still `"model": "opus"` with
-     `"effortLevel": "high"`; `~/.codex/config.toml` still frontier at high.
-   - `gh auth status` healthy.
+5. **Guardrail drift** — two scripts, then two checks with no script.
    - Permission surface: `scripts/permission-audit.sh` (this repo) exits
      clean — no interpreter or task-runner wildcards on standing allow,
      credential reads ask-gated, no fence-defeating local wildcards, no
      connection-string material in any settings file, house skills present.
+     Absolute rules: it asks whether the surface is safe, not whether it moved.
+   - Change detection: `guardrail-drift.sh` in `windwardline/ops` (private)
+     exits 0. It asserts the model defaults for the two file-backed clients
+     (`~/.claude/settings.json` at `"opus"`/`"high"`, `~/.codex/config.toml`
+     frontier at high) and diffs the permission sets, registered hooks, and
+     Codex project trust against the last committed snapshot. Exit 1 is an
+     invariant violation or a missing baseline; 2 is drift to report. It
+     catches the widening the audit cannot — a rule nobody has named as
+     forbidden, a removed `deny`, a disarmed hook. **Run it here, at step 5.**
+     After step 8 the snapshot has overwritten the baseline with the current
+     state, and the check compares the live config against itself.
+   - The four AGENTS.md paths resolve to one inode (`ls -laiL`); restore the
+     symlinks if not.
+   - `gh auth status` healthy.
 6. **Stray-repo sweep** — `.git` directories under `$HOME` outside
    `~/Projects` and client-internal zones; propose a safe move for any found.
 7. **Trajectory review** — read the week's `~/Projects/.remember/` dailies
@@ -56,7 +63,8 @@ owner-decision items last.
    versions the canonical standards file, global and workspace agent config,
    hooks, and agent memory. Lands by PR; aborts on key-shaped content.
    Deliberately last: the review's own memory writes belong in the same
-   week's snapshot (the first run had to snapshot twice to achieve this).
+   week's snapshot (the first run had to snapshot twice to achieve this), and
+   step 5's drift check reads the baseline this step replaces.
 
 ## Known-benign reds
 
