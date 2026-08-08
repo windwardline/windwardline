@@ -111,9 +111,12 @@ for r in $REPOS; do
     note=" (no merged-PR sample for required-checks audit)"
   fi
 
-  # Review-lane secret
-  sec=$(gh secret list -R "$OWNER/$r" --json name --jq '[.[] | select(.name=="ANTHROPIC_API_KEY")] | length' 2>/dev/null)
-  [ "${sec:-0}" -ge 1 ] || drift="$drift secret:ANTHROPIC_API_KEY"
+  # Review-lane secret. The license (CLAUDE_CODE_OAUTH_TOKEN) is the standard;
+  # a legacy ANTHROPIC_API_KEY still counts as present while the fleet migrates,
+  # so this reports drift only when a repo can run no review at all. Tighten to
+  # OAuth-only once the API-key fallback leaves the reusable workflow.
+  sec=$(gh secret list -R "$OWNER/$r" --json name --jq '[.[] | select(.name=="CLAUDE_CODE_OAUTH_TOKEN" or .name=="ANTHROPIC_API_KEY")] | length' 2>/dev/null)
+  [ "${sec:-0}" -ge 1 ] || drift="$drift secret:CLAUDE_CODE_OAUTH_TOKEN"
 
   # Dependabot settings, not just the config file (found off on 5 repos by
   # the 2026-08-04 cadence run while dependabot.yml sat present everywhere).

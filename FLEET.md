@@ -46,12 +46,15 @@ enforces it now:
   plus `Headers live` when it serves a production domain.
 - `.github/workflows/claude-review.yml` — the thin caller of this repo's
   reusable (`@main`, deliberate: one merge updates every repo), passing exactly
-  the `ANTHROPIC_API_KEY` secret.
+  the `CLAUDE_CODE_OAUTH_TOKEN` secret.
 - Repository settings: auto-merge enabled; `main-requires-green-ci` ruleset
   requiring every PR-running CI and scan job by name; linear history; no bypass
   actors.
-- `ANTHROPIC_API_KEY` actions secret (reviews skip cleanly without it — fork
-  PRs never receive it by design).
+- `CLAUDE_CODE_OAUTH_TOKEN` actions secret — reviews bill the owner's Claude
+  subscription license, not Console credits. Reviews skip cleanly without it;
+  fork PRs never receive it by design. The reusable still accepts a legacy
+  `ANTHROPIC_API_KEY` during the migration and prefers the OAuth token when
+  both are present; that fallback is removed once every caller has migrated.
 
 App-class repos (a `package.json` at root) additionally: `typecheck` (or
 `check`), `lint`, and single-shot test scripts; a committed lockfile

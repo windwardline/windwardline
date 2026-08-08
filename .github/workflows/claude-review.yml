@@ -3,14 +3,25 @@ name: Claude review (fleet reusable)
 # Called by every fleet repo's claude-review.yml. workflow_call only — this
 # never runs in this repo, preserving its documented no-CI status. The gate
 # job makes the whole thing activation-ready: reviews run if and only if the
-# calling repo has the ANTHROPIC_API_KEY secret; without it the review is
-# skipped, never failed.
+# calling repo carries a review credential; without one the review is skipped,
+# never failed.
+#
+# Credentials, in preference order:
+#   1. CLAUDE_CODE_OAUTH_TOKEN — the owner's Claude subscription license.
+#   2. ANTHROPIC_API_KEY — Console credits. TRANSITIONAL: it exists only so
+#      callers keep reviewing while the fleet migrates to the license, and is
+#      removed from this workflow once every caller passes the OAuth token.
+# The gate picks exactly one and names it in the log, so which credential paid
+# for a given review is always visible in the run.
 
 on:
   workflow_call:
     secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: "Claude Code OAuth token (subscription license). Preferred."
+        required: false
       ANTHROPIC_API_KEY:
-        description: "Anthropic API key. Absent = the gate skips review cleanly."
+        description: "Console API key. Transitional fallback — see header."
         required: false
 
 permissions:
@@ -23,16 +34,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     outputs:
-      haskey: ${{ steps.k.outputs.haskey }}
+      cred: ${{ steps.k.outputs.cred }}
     steps:
       - id: k
         env:
-          K: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: echo "haskey=${K:+yes}" >> "$GITHUB_OUTPUT"
+          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          APIKEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$OAUTH" ]; then
+            cred=oauth
+          elif [ -n "$APIKEY" ]; then
+            cred=apikey
+          else
+            cred=none
+          fi
+          echo "cred=$cred" >> "$GITHUB_OUTPUT"
+          echo "Review credential: $cred"
 
   review:
     needs: gate
-    if: needs.gate.outputs.haskey == 'yes'
+    if: needs.gate.outputs.cred != 'none'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -45,7 +66,10 @@ jobs:
           persist-credentials: false
       - uses: anthropics/claude-code-action@86180fa9e4d311eed10c9cc49854c53dab5d517a # v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Exactly one of these is non-empty, decided by the gate — precedence
+          # is this workflow's, not the action's internals.
+          claude_code_oauth_token: ${{ needs.gate.outputs.cred == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          anthropic_api_key: ${{ needs.gate.outputs.cred == 'apikey' && secrets.ANTHROPIC_API_KEY || '' }}
           # The workflow's own token, not the OIDC/GitHub-App exchange — no
           # id-token permission and no app install needed; the declared
           # pull-requests/issues write grants are sufficient for comments.
@@ -54,9 +78,13 @@ jobs:
           # events — track_progress creates the PR comment the result lands in.
           track_progress: true
           # Frontier models standing rule (owner-confirmed 2026-08-04): reviews
-          # run the current frontier Opus. The tier alias resolves to the newest
-          # Opus release automatically — never pin a versioned model ID here.
-          claude_args: "--model opus"
+          # run the current frontier Opus at high effort, like every other
+          # client. The tier alias resolves to the newest Opus release
+          # automatically — never pin a versioned model ID here. Effort is
+          # stated rather than inherited: the runner has no settings.json, so
+          # an unset effort silently follows whatever the pinned action's CLI
+          # defaults to, and would shift under us on an action bump.
+          claude_args: "--model opus --effort high"
           prompt: |
             Review this pull request as the fleet reviewer. Read AGENTS.md (the
             repo operating contract) first and hold the diff against it. Report
