@@ -20,7 +20,11 @@ n=$(jq -r '.permissions.allow[]' "$G" 2>/dev/null | grep -cE "$FORBIDDEN")
   say "global allow: $n interpreter/runner/task-runner wildcards (forbidden by standing rule):"
   jq -r '.permissions.allow[]' "$G" | grep -E "$FORBIDDEN" | sed 's/^/  /'
 }
-jq -r '.permissions.allow[]' "$G" 2>/dev/null | grep -q 'find-generic-password' \
+# Any credential-adjacent security(1) subcommand on standing allow is drift —
+# dump-keychain is strictly broader than the single-item read below, and it
+# sat on a local allowlist unnoticed until run three (2026-08-09).
+CRED_CLI='security (dump-keychain|find-(generic|internet)-password|export|unlock-keychain)'
+jq -r '.permissions.allow[]' "$G" 2>/dev/null | grep -qE "$CRED_CLI" \
   && say "global allow: credential reads must sit in ask, not allow"
 jq -e '.permissions.ask | index("Bash(security find-generic-password:*)")' "$G" >/dev/null 2>&1 \
   || say "global ask: missing Bash(security find-generic-password:*)"
@@ -31,7 +35,7 @@ jq -e '.hooks.Stop' "$W" >/dev/null 2>&1 \
 
 # Local settings files: fence-defeating wildcards, mutation standing-allows,
 # and secret material. file:line only — content is never printed.
-LOCAL_BAD='gh (api|pr|repo|auth) \*|security find-generic-password|python[0-9]? -c|python[0-9]? -\)|node -e|npm run \*|Bash\(npx[^)]*\*|apply_migration|execute_sql|execute_zapier_write|Read\(//Users/peacock/\*\*|postgres(ql)?://[^"]*:[^@"]{6,}@|wrangler login|brew install \*|git reset \*|git rm \*'
+LOCAL_BAD='gh (api|pr|repo|auth) \*|security (dump-keychain|find-(generic|internet)-password|export|unlock-keychain)|python[0-9]? -c|python[0-9]? -\)|node -e|npm run \*|Bash\(npx[^)]*\*|apply_migration|execute_sql|execute_zapier_write|Read\(//Users/peacock/\*\*|postgres(ql)?://[^"]*:[^@"]{6,}@|wrangler login|brew install \*|git reset \*|git rm \*'
 while IFS= read -r f; do
   hits=$(grep -nE "$LOCAL_BAD" "$f" 2>/dev/null | cut -d: -f1 | paste -sd, -)
   [ -z "$hits" ] || say "$f: forbidden entries at line(s) $hits"
