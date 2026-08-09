@@ -30,6 +30,13 @@ jq -e '.permissions.ask | index("Bash(security find-generic-password:*)")' "$G" 
   || say "global ask: missing Bash(security find-generic-password:*)"
 jq -e '.hooks.PreToolUse[0].hooks[0].command | test("repo-location-guard")' "$G" >/dev/null 2>&1 \
   || say "global hooks: repo-location guard not registered"
+# The settings-hygiene SessionStart hook strips forbidden local grants the
+# moment a session starts (owner-approved 2026-08-09 after Bash(gh pr *)
+# reached standing allow six times in three days via write-action approval
+# prompts). Its pattern mirrors LOCAL_BAD below — the two change together.
+# This audit stays the weekly backstop; a disarmed guard is drift.
+jq -e '[.hooks.SessionStart[]?.hooks[]?.command] | any(test("settings-hygiene-guard"))' "$G" >/dev/null 2>&1 \
+  || say "global hooks: settings-hygiene guard not registered"
 jq -e '.hooks.Stop' "$W" >/dev/null 2>&1 \
   || say "workspace hooks: done-gate Stop hook not registered"
 
