@@ -3,39 +3,30 @@ name: Claude review (fleet reusable)
 # Called by every fleet repo's claude-review.yml. workflow_call only — this
 # never runs in this repo, preserving its documented no-CI status. The gate
 # job makes the whole thing activation-ready: reviews run if and only if the
-# calling repo carries a review credential; without one the review is skipped,
-# never failed.
+# calling repo carries CLAUDE_CODE_OAUTH_TOKEN (the owner's Max subscription
+# license); without it the review is skipped, never failed. Fork PRs never
+# receive secrets, so they skip by security design.
 #
-# Credentials. Callers pass both; this gate picks exactly one and names it in
-# the log, so which credential paid for a given review is always visible.
+# API-key billing is fully retired (2026-08-09): the Console key is revoked,
+# no repo carries the ANTHROPIC_API_KEY secret, every caller dropped its
+# pass-through, and this workflow no longer declares it. The subscription
+# license is the only credential.
 #
-# PREFERENCE IS THE `if` ORDER BELOW — one line, deliberately.
-#
-# It prefers CLAUDE_CODE_OAUTH_TOKEN (owner's Max subscription). API billing is
-# retired: the Console key is revoked and the ANTHROPIC_API_KEY secret is gone
-# from every caller repo, so the apikey branch can never activate — it is kept
-# only until the callers' pass-through lines are removed in their own change
-# sets.
-#
-# Failure diagnosis (2026-08-09, supersedes the earlier entitlement theory):
-# runs fail on turn one at zero cost because the deployed OAuth token itself is
-# dead. A local replay of the exact CI credential (Keychain
-# `anthropic-actions-oauth`, fingerprint 719c0522 — byte-identical to the repo
-# secrets) with the same --model opus --effort high flags returned
-# "API Error: 401 OAuth access token is invalid". The action hides SDK output
-# even in debug mode, which is why CI logs never showed this. Remedy: the owner
-# mints a fresh token (`claude setup-token`), saves it to the Keychain entry
-# above, and propagates it to all fourteen repos' CLAUDE_CODE_OAUTH_TOKEN
-# secrets. Nothing in this workflow needs to change.
+# Credential failures present as: init succeeds on the model, then
+# is_error:true on turn one at zero cost — and the action hides SDK output
+# even in debug mode, so the real error never reaches CI logs. Replay the
+# token locally first (Keychain `anthropic-actions-oauth`, exported as
+# CLAUDE_CODE_OAUTH_TOKEN with an isolated $HOME): a dead token returns
+# "401 OAuth access token is invalid" in seconds (2026-08-09 precedent).
+# Remedy: the owner mints a fresh `claude setup-token`, saves it to that
+# Keychain entry, and propagates it to every repo's CLAUDE_CODE_OAUTH_TOKEN
+# secret. Nothing in this workflow needs to change for a token rotation.
 
 on:
   workflow_call:
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
-        description: "Claude Code OAuth token (subscription license). The preferred credential — see header."
-        required: false
-      ANTHROPIC_API_KEY:
-        description: "Console API key. Revoked; dead path pending caller cleanup — see header."
+        description: "Claude Code OAuth token (subscription license) — the review lane's only credential. Optional: absent means reviews skip cleanly."
         required: false
 
 permissions:
@@ -53,12 +44,9 @@ jobs:
       - id: k
         env:
           OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          APIKEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           if [ -n "$OAUTH" ]; then
             cred=oauth
-          elif [ -n "$APIKEY" ]; then
-            cred=apikey
           else
             cred=none
           fi
@@ -84,10 +72,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: anthropics/claude-code-action@86180fa9e4d311eed10c9cc49854c53dab5d517a # v1
         with:
-          # Exactly one of these is non-empty, decided by the gate — precedence
-          # is this workflow's, not the action's internals.
-          claude_code_oauth_token: ${{ needs.gate.outputs.cred == 'oauth' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
-          anthropic_api_key: ${{ needs.gate.outputs.cred == 'apikey' && secrets.ANTHROPIC_API_KEY || '' }}
+          # The gate guarantees this is non-empty whenever this job runs.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # The workflow's own token, not the OIDC/GitHub-App exchange — no
           # id-token permission and no app install needed; the declared
           # pull-requests/issues write grants are sufficient for comments.

@@ -45,18 +45,17 @@ enforces it now:
   weekly cron; plus `Dependency scan / osv-scan` when the repo has a lockfile;
   plus `Headers live` when it serves a production domain.
 - `.github/workflows/claude-review.yml` — the thin caller of this repo's
-  reusable (`@main`, deliberate: one merge updates every repo), passing both
-  review credentials and letting the reusable choose.
+  reusable (`@main`, deliberate: one merge updates every repo), passing
+  `CLAUDE_CODE_OAUTH_TOKEN`.
 - Repository settings: auto-merge enabled; `main-requires-green-ci` ruleset
   requiring every PR-running CI and scan job by name; linear history; no bypass
   actors.
-- `CLAUDE_CODE_OAUTH_TOKEN` actions secret. Reviews bill the owner's Max
-  subscription; API-key billing was retired 2026-08-08 and the Console key is
-  revoked. The reusable's gate still carries a vestigial `apikey` branch and
-  callers still pass the (now non-existent) `ANTHROPIC_API_KEY`, because
-  removing a secret from a `workflow_call` contract has to land in the
-  reusable and all fourteen callers together — a scheduled cleanup, not drift.
-  Reviews skip cleanly without the token; fork PRs never receive it by design.
+- `CLAUDE_CODE_OAUTH_TOKEN` actions secret — the review lane's only
+  credential. Reviews bill the owner's Max subscription; API-key billing is
+  fully retired (Console key revoked 2026-08-08; the vestigial `apikey` gate
+  branch and every caller's `ANTHROPIC_API_KEY` pass-through were removed
+  2026-08-09). Reviews skip cleanly without the token; fork PRs never
+  receive it by design.
 
 App-class repos (a `package.json` at root) additionally: `typecheck` (or
 `check`), `lint`, and single-shot test scripts; a committed lockfile
