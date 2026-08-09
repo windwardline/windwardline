@@ -73,7 +73,10 @@ owner-decision items last.
    - Permission surface: `scripts/permission-audit.sh` (this repo) exits
      clean — no interpreter or task-runner wildcards on standing allow,
      credential reads ask-gated, no fence-defeating local wildcards, no
-     connection-string material in any settings file, house skills present.
+     connection-string material in any settings file, house skills present,
+     both machine guard hooks registered (repo-location PreToolUse,
+     settings-hygiene SessionStart — the latter strips forbidden local
+     grants same-day; this audit is its weekly backstop).
      Absolute rules: it asks whether the surface is safe, not whether it moved.
    - Change detection: `guardrail-drift.sh` in `windwardline/ops` (private)
      exits 0. It asserts the model defaults for the two file-backed clients
