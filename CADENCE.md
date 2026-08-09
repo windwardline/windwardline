@@ -21,11 +21,22 @@ owner-decision items last.
    workflows examined alongside failures found, so a clean sweep is visibly
    "looked at 44, found 1". Run two swept window-only and produced 10
    findings of which 9 were already fixed hours earlier the same day.
-3. **Open-issue sweep** — enumerate open issues across every fleet repo
-   (`gh issue list`). Automated alert issues (`production-alert.yml` and
-   kin) are acted on, not just counted: an alert nobody sweeps is a log
-   line — pathfinder#15 sat unread 16 days before the first cadence run
-   closed it.
+3. **Open-issue and open-PR sweep** — enumerate open issues across every
+   fleet repo (`gh issue list`). Automated alert issues
+   (`production-alert.yml` and kin) are acted on, not just counted: an
+   alert nobody sweeps is a log line — pathfinder#15 sat unread 16 days
+   before the first cadence run closed it.
+   Then open PRs, same reasoning: enumerate them across every fleet repo
+   **plus `windwardline` and `ops`**, and flag anything older than seven
+   days. The no-CI repos are the structural accumulators — everywhere else
+   `--squash --auto` lands work by itself, but these two need a human, and
+   nothing else watches that gap: run three found the guardrail-drift pair
+   stalled since 2026-08-08 while the daily log recorded it as shipped.
+   Authored is not landed — a `.remember/` daily saying work is done is not
+   evidence it merged; verify against the default branch. Distinguish
+   deliberately parked drafts (craft#5, the Lighthouse gate held until two
+   studies clear 95) from stalled work. Report PRs examined alongside
+   stalled found, so a clean sweep is visibly "looked at N, found 0".
 4. **Production error sweep** — for each live app, pull the week's Vercel
    runtime errors (Vercel MCP or CLI); report new signatures and counts.
    In-stack observability, deliberately: no third-party error service
