@@ -72,9 +72,13 @@ jobs:
       pull-requests: write
       issues: write
     steps:
+      # Credentials must persist (the checkout default): the review action runs
+      # its own `git fetch origin --depth=20 <pr-branch>` in this workspace, and
+      # without the persisted token that fetch dies on "could not read Username"
+      # (every caller repo, 2026-08-09). The token involved is the same ephemeral
+      # GITHUB_TOKEN already passed to the action below, so persisting it grants
+      # nothing new.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
       - uses: anthropics/claude-code-action@86180fa9e4d311eed10c9cc49854c53dab5d517a # v1
         with:
           # Exactly one of these is non-empty, decided by the gate — precedence
