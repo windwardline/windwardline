@@ -21,6 +21,17 @@ owner-decision items last.
    workflows examined alongside failures found, so a clean sweep is visibly
    "looked at 44, found 1". Run two swept window-only and produced 10
    findings of which 9 were already fixed hours earlier the same day.
+   For event-driven workflows and error-table entries, supersession by a
+   later green run is unavailable — a `dynamic` workflow fires only when
+   its trigger matches again, and an error-table row is not a run at all.
+   For those, establish resolution from state — the config, the alert
+   count, the merged commit — before reporting the item as broken. Run
+   four's two cases: mimic `Dependabot Updates` (Aug 8, `pdfjs-dist`) had
+   no later run to supersede it, but `dependabot.yml` on main carried no
+   ignore blocks and open alerts were 0 — resolved in state; pathfinder
+   health `CONNECT_TIMEOUT` was an error-table entry whose last occurrence
+   predated the merged `HEALTH_RETRY_DELAY_MS` retry, with the next 8
+   scheduled `Production health` runs green — resolved in state.
 3. **Open-issue and open-PR sweep** — enumerate open issues across every
    fleet repo (`gh issue list`). Automated alert issues
    (`production-alert.yml` and kin) are acted on, not just counted: an
@@ -37,12 +48,26 @@ owner-decision items last.
    deliberately parked drafts (craft#5, the Lighthouse gate held until two
    studies clear 95) from stalled work. Report PRs examined alongside
    stalled found, so a clean sweep is visibly "looked at N, found 0".
-4. **Production error sweep** — for each live app, pull the week's Vercel
-   runtime errors (Vercel MCP or CLI); report new signatures and counts.
+4. **Runtime error sweep, environment-aware** — for each live app, pull the
+   week's Vercel runtime errors (Vercel MCP or CLI); report new signatures
+   and counts. The errors table mixes production and preview in one view
+   and `get_runtime_errors` takes no environment parameter, so attribute
+   every signature to an environment before counting it — from the row's
+   branch/deployment metadata, or via `get_runtime_logs`, which does take
+   `environment` (`production` | `preview`). Report the two environments
+   separately: production errors are the primary finding; preview errors
+   are still findings — lower severity, own table row, never dropped and
+   never mixed in. Both are swept because a production-only reading is
+   exactly how the breakage run four found on timeshift stayed invisible —
+   every preview deployment 500ed on `/` (missing Preview-scope env vars)
+   while builds reported Ready and production read clean. A green build is not a
+   rendering page, and "N projects clean" claimed off a mixed or
+   production-only view is not a clean sweep.
    In-stack observability, deliberately: no third-party error service
    (owner decision 2026-08-04). A zero is only reportable with a probe
    showing the pipeline returns rows — group runtime logs by status code on
-   at least one live app — or "no errors" and "no telemetry" read alike.
+   at least one live app, in the environment being cleared — or "no errors"
+   and "no telemetry" read alike.
    Runtime-log retention is one day on Pro; the errors table holds seven.
 5. **Guardrail drift** — two scripts, then two checks with no script.
    - Permission surface: `scripts/permission-audit.sh` (this repo) exits
