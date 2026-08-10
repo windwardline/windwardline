@@ -12,11 +12,24 @@ owner-decision items last.
    goes to the owner with a proposed fix.
 2. **Actions failure sweep** — for every fleet repo (live enumeration, same as
    the checker), two views over runs with `event != pull_request`. The action
-   list is the **latest run per workflow**: group by `workflow_id`, take the
-   newest, report the ones not green — that is what is broken now. The window
+   list is the **latest run per workflow job**: group by
+   `(workflow_id, job identity)`, take the newest, report the ones not green —
+   that is what is broken now. The window
    view (runs since the previous Monday with `conclusion == failure`) is
-   context only, and any entry a later green run of the same workflow
-   supersedes is reported as resolved, not as a finding. Push and cron
+   context only, and any entry a later green run of the same workflow job
+   supersedes is reported as resolved, not as a finding.
+   **Group by job, never by `workflow_id` alone.** A later green run
+   supersedes a red one only if it re-did the same work, and fan-out
+   workflows break that assumption: Dependabot's `dynamic` workflow emits
+   one run *per ecosystem* under a single `workflow_id`, and matrix and
+   per-directory workflows fan out the same way. For Dependabot the job
+   identity is the leading token of `display_title` (`npm_and_yarn in /.`
+   vs `github_actions in /.`). Run five swept 49 workflows, reported
+   0 not-green, and both views hid the run's only real finding —
+   pathfinder's `npm_and_yarn` failure at 13:12 was masked by its
+   `github_actions` success at 13:36. It surfaced only because the window
+   list was read by eye. This failure mode turns a real red into a
+   confident clean report, so it costs more than a missed check. Push and cron
    failures (weekly Semgrep, Headers live) surface nowhere else. Report
    workflows examined alongside failures found, so a clean sweep is visibly
    "looked at 44, found 1". Run two swept window-only and produced 10
