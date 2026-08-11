@@ -61,6 +61,25 @@ jobs:
         with:
           github-token: ${{ github.token }}
 
+      # A set-but-mangled key fails deep inside the mint step below as
+      # "Invalid keyData" / ASN.1 "not enough data", which names neither the
+      # cause nor the fix. It happens for one boring reason: the PEM went
+      # through something that lost its line breaks — the macOS Keychain's
+      # `security` round trip does exactly this. Runs BEFORE the mint so the
+      # message arrives before the stack trace. Shape only; nothing about the
+      # key is printed.
+      - name: Sanity-check the credential shape
+        if: env.APP_ID != ''
+        env:
+          APP_KEY: ${{ secrets.FLEET_AUTOMERGE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$APP_KEY" | head -1 | grep -q 'BEGIN .*PRIVATE KEY'; then
+            echo "::error::FLEET_AUTOMERGE_PRIVATE_KEY is set but is not a PEM — its first line carries no PEM header. Re-set it straight from the file, with no intermediate storage: gh secret set FLEET_AUTOMERGE_PRIVATE_KEY --app dependabot -R ${GITHUB_REPOSITORY} < key.pem"
+            exit 1
+          fi
+          echo "credential shape OK ($(printf '%s' "$APP_KEY" | wc -l | tr -d ' ') line breaks)"
+
       # Skipped when the secrets are absent; the token expression below then
       # falls back to GITHUB_TOKEN, so the lane works either way.
       - name: Mint the fleet auto-merge token

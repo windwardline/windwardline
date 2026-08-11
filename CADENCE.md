@@ -134,17 +134,13 @@ owner-decision items last.
 Runs that are *supposed* not to exist. Their absence is not drift, and a sweep
 that reports it as a finding is misreading the fleet.
 
-- **No `on: push` run after an auto-merged Dependabot commit — while the lane
-  is on the `GITHUB_TOKEN` fallback.** A push attributed to `GITHUB_TOKEN`
-  creates no workflow run at all — silently, with nothing in the Actions tab.
-  Check which credential the run used before accepting this: each auto-merge
-  run's step summary names it. Once the App secrets exist the absence is no
-  longer expected, and a missing push run becomes a real finding. The visible cost is the post-merge `Headers live` probe,
-  which the daily 13:17 cron still runs; the deliberate cost is that
-  levelflow-cloud, the fleet's only Actions-based deploy on push, is excluded
-  from the lane entirely rather than deploying silently late. A GitHub App
-  installation token would remove this whole entry — an open owner decision,
-  recorded in FLEET.md's exceptions register.
+- ~~No `on: push` run after an auto-merged Dependabot commit.~~ **Retired
+  2026-08-11.** True only while the lane ran on `GITHUB_TOKEN`. It now mints a
+  GitHub App installation token, whose merges fire push workflows normally —
+  verified on pathfinder#61, whose merge produced `CI` and `Security analysis`
+  runs on `main` three seconds later. A missing push run after an auto-merge is
+  now a **real finding**: check the lane run's summary, which names the
+  credential it used, and treat `credential: GITHUB_TOKEN` as the drift.
 - **`dependabot-auto-merge` reporting `skipping` on human PRs.** That is the
   job guard working. It succeeds only on Dependabot PRs, which is also why
   the conformance checker excludes it from the required-checks audit.
