@@ -61,6 +61,17 @@ owner-decision items last.
    deliberately parked drafts (craft#5, the Lighthouse gate held until two
    studies clear 95) from stalled work. Report PRs examined alongside
    stalled found, so a clean sweep is visibly "looked at N, found 0".
+   **Dependabot PRs changed shape on 2026-08-11.** Green patch and minor
+   updates now land themselves, so an open Dependabot PR is no longer a
+   backlog item — it is a **hold**, and the hold is the finding. Read the
+   auto-merge run's step summary for the reason: a maintainer change on the
+   released package, a pre-1.0 version, a major (labelled `deferred-major`),
+   an unrecognised update type, or the `no-automerge` label. A maintainer
+   change in particular is the signature the lane exists to stop at, so it is
+   read the week it appears, not counted. levelflow-cloud is excluded from
+   the lane by FLEET.md's register; its Dependabot PRs still merge by hand
+   and remain ordinary backlog. Run six's nine-PR pile-up is what closed this
+   gap — none of them was stale enough to trip the seven-day flag.
 4. **Runtime error sweep, environment-aware** — for each live app, pull the
    week's Vercel runtime errors (Vercel MCP or CLI); report new signatures
    and counts. The errors table mixes production and preview in one view
@@ -117,6 +128,24 @@ owner-decision items last.
    Deliberately last: the review's own memory writes belong in the same
    week's snapshot (the first run had to snapshot twice to achieve this), and
    step 5's drift check reads the baseline this step replaces.
+
+## Expected absences
+
+Runs that are *supposed* not to exist. Their absence is not drift, and a sweep
+that reports it as a finding is misreading the fleet.
+
+- **No `on: push` run after an auto-merged Dependabot commit.** The lane arms
+  GitHub's native auto-merge with `GITHUB_TOKEN`, and a push attributed to
+  `GITHUB_TOKEN` creates no workflow run at all — silently, with nothing in
+  the Actions tab. The visible cost is the post-merge `Headers live` probe,
+  which the daily 13:17 cron still runs; the deliberate cost is that
+  levelflow-cloud, the fleet's only Actions-based deploy on push, is excluded
+  from the lane entirely rather than deploying silently late. A GitHub App
+  installation token would remove this whole entry — an open owner decision,
+  recorded in FLEET.md's exceptions register.
+- **`dependabot-auto-merge` reporting `skipping` on human PRs.** That is the
+  job guard working. It succeeds only on Dependabot PRs, which is also why
+  the conformance checker excludes it from the required-checks audit.
 
 ## Known-benign reds
 
