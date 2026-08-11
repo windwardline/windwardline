@@ -43,6 +43,14 @@ jq -e '.hooks.Stop' "$W" >/dev/null 2>&1 \
 # Local settings files: fence-defeating wildcards, mutation standing-allows,
 # and secret material. file:line only — content is never printed.
 #
+# ~/.claude/settings.local.json is scanned first and deliberately. It overrides
+# the global settings for every session in every directory, which makes it the
+# most powerful allowlist on the machine — and it was scanned by nothing until
+# 2026-08-11, because both this loop and the SessionStart guard only walked
+# ~/Projects. It was dated 15 July and held ten forbidden grants including a
+# keychain read, which defeats the ask fence asserted twenty lines above.
+# maxdepth is 5 so a settings.local.json inside a git worktree is not invisible.
+#
 # The interpreter clause reads `node[^)]* -e`, not `node -e`, because flags sit
 # between the two. `Bash(FMP_API_KEY=... node --input-type=module -e ' *)` held
 # standing allow in levelflow-cloud and passed both this audit and the
@@ -54,7 +62,8 @@ LOCAL_BAD='gh (api|pr|repo|auth|workflow) \*|security (dump-keychain|find-(gener
 while IFS= read -r f; do
   hits=$(grep -nE "$LOCAL_BAD" "$f" 2>/dev/null | cut -d: -f1 | paste -sd, -)
   [ -z "$hits" ] || say "$f: forbidden entries at line(s) $hits"
-done < <(find /Users/peacock/Projects -maxdepth 3 -name settings.local.json -not -path '*/node_modules/*' 2>/dev/null)
+done < <( { echo /Users/peacock/.claude/settings.local.json
+            find /Users/peacock/Projects -maxdepth 5 -name settings.local.json -not -path '*/node_modules/*' 2>/dev/null; } )
 
 # House skills present
 for s in magic-link launch-registry mobile-density; do
