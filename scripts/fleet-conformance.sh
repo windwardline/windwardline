@@ -37,14 +37,35 @@ fail=0
 printf '%-22s %s\n' "REPO" "DRIFT (empty = conformant)"
 printf '%-22s %s\n' "----" "----"
 
+# Absent and refused are different answers. `gh api` fails non-zero on both a
+# 404 and a rate limit, so a throttled run reported every file missing in all
+# 14 repos at once (2026-08-11, secondary rate limit mid-sweep). That is worse
+# than not running: this script is the fleet's authority, and a false
+# "everything is missing" invites exactly the wrong remediation. Refusals abort
+# the run instead of being counted as drift.
+#   0 = present   1 = absent   2 = refused
+probe() {
+  resp=$(gh api "$1" 2>&1) && return 0
+  case "$resp" in
+    *"Not Found"*) return 1 ;;
+    *) refusal="$resp"; return 2 ;;
+  esac
+}
+
 for r in $REPOS; do
   drift=""
   note=""
 
   # Required files on main
   for f in $FILES; do
-    gh api "repos/$OWNER/$r/contents/$f?ref=main" --silent >/dev/null 2>&1 \
-      || drift="$drift missing:$f"
+    probe "repos/$OWNER/$r/contents/$f?ref=main"
+    case $? in
+      1) drift="$drift missing:$f" ;;
+      2) echo; echo "ERROR: GitHub refused a request for $r ($f) — not drift, aborting." >&2
+         printf '%s\n' "$refusal" | head -3 >&2
+         echo "Re-run after the rate limit resets: gh api /rate_limit --jq .resources.core" >&2
+         exit 2 ;;
+    esac
   done
 
   # Dependabot auto-merge lane. levelflow-cloud is the one exception in

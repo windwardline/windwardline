@@ -134,10 +134,12 @@ owner-decision items last.
 Runs that are *supposed* not to exist. Their absence is not drift, and a sweep
 that reports it as a finding is misreading the fleet.
 
-- **No `on: push` run after an auto-merged Dependabot commit.** The lane arms
-  GitHub's native auto-merge with `GITHUB_TOKEN`, and a push attributed to
-  `GITHUB_TOKEN` creates no workflow run at all — silently, with nothing in
-  the Actions tab. The visible cost is the post-merge `Headers live` probe,
+- **No `on: push` run after an auto-merged Dependabot commit — while the lane
+  is on the `GITHUB_TOKEN` fallback.** A push attributed to `GITHUB_TOKEN`
+  creates no workflow run at all — silently, with nothing in the Actions tab.
+  Check which credential the run used before accepting this: each auto-merge
+  run's step summary names it. Once the App secrets exist the absence is no
+  longer expected, and a missing push run becomes a real finding. The visible cost is the post-merge `Headers live` probe,
   which the daily 13:17 cron still runs; the deliberate cost is that
   levelflow-cloud, the fleet's only Actions-based deploy on push, is excluded
   from the lane entirely rather than deploying silently late. A GitHub App
