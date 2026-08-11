@@ -47,6 +47,25 @@ for r in $REPOS; do
       || drift="$drift missing:$f"
   done
 
+  # Dependabot auto-merge lane. levelflow-cloud is the one exception in
+  # FLEET.md's register: it holds the fleet's only Actions-based deploy on
+  # push, and a merge whose auto-merge was enabled by GITHUB_TOKEN does not
+  # trigger on: push workflows — silently, with nothing in the Actions tab.
+  if [ "$r" != "levelflow-cloud" ]; then
+    gh api "repos/$OWNER/$r/contents/.github/workflows/dependabot-auto-merge.yml?ref=main" --silent >/dev/null 2>&1 \
+      || drift="$drift missing:dependabot-auto-merge.yml"
+  fi
+
+  # The soak is read, not assumed. Auto-merge without a cooldown is a same-day
+  # supply-chain window, so every update lane must carry at least seven days —
+  # the file's presence says nothing about the number inside it.
+  db=$(gh api "repos/$OWNER/$r/contents/.github/dependabot.yml?ref=main" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null)
+  if [ -n "$db" ]; then
+    lanes=$(printf '%s\n' "$db" | grep -c "package-ecosystem:")
+    soaked=$(printf '%s\n' "$db" | grep -cE "default-days: *([7-9]|[1-9][0-9]+)")
+    [ "${soaked:-0}" -ge "${lanes:-1}" ] || drift="$drift cooldown:${soaked:-0}of${lanes:-0}lanes"
+  fi
+
   # Repo settings
   am=$(gh api "repos/$OWNER/$r" --jq '.allow_auto_merge' 2>/dev/null)
   [ "$am" = "true" ] || drift="$drift auto-merge:off"
@@ -91,8 +110,12 @@ for r in $REPOS; do
   # from workflow runs filtered to event == pull_request — a dispatch or
   # schedule run against the same SHA must not poison the sample (it did, on
   # the 2026-08-04 cadence run's own verification dispatch). The advisory
-  # review ("review / *") is excluded by design; skipped/cancelled jobs are
-  # filtered by the success condition.
+  # review ("review / *") is excluded by design, and so is
+  # "dependabot-auto-merge": it skips on human PRs but succeeds on Dependabot
+  # ones, so the sample sees it precisely when the latest merged PR came from
+  # Dependabot. Requiring it would be backwards — it is the thing doing the
+  # merging, not a gate on it. Skipped/cancelled jobs are filtered by the
+  # success condition.
   sha=$(gh pr list -R "$OWNER/$r" --state merged -L1 --json headRefOid --jq '.[0].headRefOid' 2>/dev/null)
   if [ -n "$sha" ] && [ "$sha" != "null" ] && [ -n "$ctx" ]; then
     run_names=$(gh api "repos/$OWNER/$r/actions/runs?head_sha=$sha&per_page=50" \
@@ -103,7 +126,7 @@ for r in $REPOS; do
     oldifs=$IFS
     IFS=$'\n'
     for n in $run_names; do
-      case "$n" in ""|"review / "*) continue;; esac
+      case "$n" in ""|"review / "*|"dependabot-auto-merge") continue;; esac
       case "|$ctx|" in *"|$n|"*) ;; *) drift="$drift unrequired-job:${n// /_}";; esac
     done
     IFS=$oldifs

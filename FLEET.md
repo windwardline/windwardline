@@ -47,6 +47,18 @@ enforces it now:
 - `.github/workflows/claude-review.yml` — the thin caller of this repo's
   reusable (`@main`, deliberate: one merge updates every repo), passing
   `CLAUDE_CODE_OAUTH_TOKEN`.
+- `.github/workflows/dependabot-auto-merge.yml` — byte-identical fleet-wide;
+  green `semver-patch` and `semver-minor` Dependabot updates merge without a
+  human, majors never (they stay deferred and tracked per repo). The soak that
+  makes it safe is `cooldown: default-days: 7` on every update lane of
+  `dependabot.yml` above: a release sits on the registry a week before a PR
+  exists. `--auto` merges only on green required checks and bypasses no gate;
+  security updates are exempt from cooldown by design and gate identically.
+  `on: pull_request`, never `pull_request_target` — the permissions key has
+  been honored on Dependabot-triggered runs since 2021-10-11, so the latter
+  buys nothing while handing a write token to a mutated manifest. Without this
+  lane the weekly batch simply accumulates: run six found nine mergeable PRs
+  that nothing would ever land, none old enough to trip a staleness flag.
 - Repository settings: auto-merge enabled; `main-requires-green-ci` ruleset
   requiring every PR-running CI and scan job by name; linear history; no bypass
   actors.
@@ -96,6 +108,7 @@ and the review lane holds every PR diff against this table.
 | `venture` | Outside the fleet standard entirely | Private venture outside the Windward Line family |
 | `fleet-template` | No CI, no ruleset, placeholders by design | The seeding template; the checker, not the template, is the authority |
 | `ops` | No CI, no ruleset; snapshots land by PR, merged manually | Private meta-layer archive (canonical standards file, agent config, hooks, memory) — holds no application code |
+| `levelflow-cloud` | No `dependabot-auto-merge.yml`; its Dependabot PRs merge by hand | The fleet's only Actions-based deploy on push (`deploy.yml`, Supabase Edge Functions). A merge whose auto-merge was enabled by `GITHUB_TOKEN` does not trigger `on: push` workflows — silently, with no failed or skipped run anywhere — so auto-merge here would drift the deployed functions from main. Every other repo deploys through Vercel's Git integration, which is webhook-driven and unaffected. Lifting this needs a GitHub App installation token, which is an owner decision. |
 
 This register is mechanized: the conformance checker's exemption list mirrors it
 exactly, and everything else under the account is checked by default. Adding an
@@ -109,9 +122,10 @@ exception means amending this table and the checker in the same change set.
    the moment it exists — inclusion is the default, exemption is the explicit
    act — and it refuses a vacuous pass if enumeration returns nothing. Per repo
    it verifies each item above, including ruleset depth (linear history rule
-   present, zero bypass actors) and required-checks completeness: every
-   successful job from the latest merged PR's pull_request-triggered workflow
-   runs must be a required context, with only the advisory review excluded —
+   present, zero bypass actors), the Dependabot cooldown value rather than the
+   file's mere presence, and required-checks completeness: every successful job
+   from the latest merged PR's pull_request-triggered workflow runs must be a
+   required context, with the advisory review and the auto-merge job excluded —
    dispatch and schedule runs against the same commit are not part of the
    sample. Prints a per-repo table and exits
    non-zero on any drift. Run it from any machine with `gh` authenticated.
