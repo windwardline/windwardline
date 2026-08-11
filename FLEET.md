@@ -100,11 +100,19 @@ enforces it now:
   `# v6` beside a SHA tagged v7.0.1, and two more named major aliases that were
   accurate when written and had since moved off the pinned commit. Naming the
   patch tag closes the second path — an immutable tag cannot drift. Same-owner
-  `@main` refs are deliberate (above) and outside this rule. Gated twice: at PR
-  time by `windwardline/windwardline/actions/verify-action-pins@main`, a step in
-  each repo's already-required `Secret scan` job, and fleet-wide afterwards by
-  the conformance checker. Both run the same script, so the rule that blocks a
-  merge is the rule the fleet is later measured against.
+  `@main` refs are deliberate (above) and outside this rule. Enforced fleet-wide
+  by the conformance checker after merge. A PR-time gate is built and works —
+  `actions/verify-action-pins`, sharing the checker's own script so the two rules
+  cannot diverge — but it is **wired into no repo**, and deliberately so: naming
+  it step-level at `@main` trips this fleet's `github-actions-mutable-action-tag`
+  Semgrep rule, verified on windwardline-media#24 where `Secret scan` passed and
+  `Semgrep CE` blocked. The review lane escapes that rule only because its
+  `@main` reference is a job-level reusable workflow, not a step. Wiring the gate
+  means choosing among pinning it by SHA (losing one-merge propagation, and this
+  repo publishes no tags to name), promoting it to a reusable workflow with its
+  own required check added to fourteen rulesets, or inlining the audit as a
+  `run:` step (no mutable ref, but a second copy of the logic). That is an owner
+  decision, not a default.
 
 App-class repos (a `package.json` at root) additionally: `typecheck` (or
 `check`), `lint`, and single-shot test scripts; a committed lockfile
