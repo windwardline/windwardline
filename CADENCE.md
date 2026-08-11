@@ -98,6 +98,12 @@ owner-decision items last.
      clean — no interpreter or task-runner wildcards on standing allow,
      credential reads ask-gated, no fence-defeating local wildcards, no
      connection-string material in any settings file, house skills present,
+     and — since 2026-08-11 — `~/.claude/settings.local.json` in scope. That
+     file overrides the global settings for every session in every directory
+     and was scanned by nothing until then; it was dated 15 July and held ten
+     forbidden grants, a keychain read among them, defeating the very ask
+     fence this audit asserts two checks earlier. Depth is 5 so a
+     settings.local.json inside a git worktree is not invisible either,
      both machine guard hooks registered (repo-location PreToolUse,
      settings-hygiene SessionStart — the latter strips forbidden local
      grants same-day; this audit is its weekly backstop).
