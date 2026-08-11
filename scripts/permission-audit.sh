@@ -50,7 +50,7 @@ jq -e '.hooks.Stop' "$W" >/dev/null 2>&1 \
 # what the clause exists to forbid. Measured before widening: across all 249
 # allow/ask/deny entries on the machine it newly flags that one entry and
 # nothing else.
-LOCAL_BAD='gh (api|pr|repo|auth) \*|security (dump-keychain|find-(generic|internet)-password|export|unlock-keychain)|python[0-9]? -c|python[0-9]? -\)|node[^)]* -e|npm run \*|Bash\(npx[^)]*\*|apply_migration|execute_sql|execute_zapier_write|Read\(//Users/peacock/\*\*|postgres(ql)?://[^"]*:[^@"]{6,}@|wrangler login|brew install \*|git reset \*|git rm \*'
+LOCAL_BAD='gh (api|pr|repo|auth|workflow) \*|security (dump-keychain|find-(generic|internet)-password|export|unlock-keychain)|python[0-9]? -c|python[0-9]? -\)|node[^)]* -e|npm run \*|Bash\(npx[^)]*\*|apply_migration|execute_sql|execute_zapier_write|Read\(//Users/peacock/\*\*|postgres(ql)?://[^"]*:[^@"]{6,}@|wrangler login|brew install \*|git reset \*|git rm \*'
 while IFS= read -r f; do
   hits=$(grep -nE "$LOCAL_BAD" "$f" 2>/dev/null | cut -d: -f1 | paste -sd, -)
   [ -z "$hits" ] || say "$f: forbidden entries at line(s) $hits"
