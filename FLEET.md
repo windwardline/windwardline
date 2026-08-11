@@ -97,7 +97,11 @@ enforces it now:
   `# v6` beside a SHA tagged v7.0.1, and two more named major aliases that were
   accurate when written and had since moved off the pinned commit. Naming the
   patch tag closes the second path — an immutable tag cannot drift. Same-owner
-  `@main` refs are deliberate (above) and outside this rule.
+  `@main` refs are deliberate (above) and outside this rule. Gated twice: at PR
+  time by `windwardline/windwardline/actions/verify-action-pins@main`, a step in
+  each repo's already-required `Secret scan` job, and fleet-wide afterwards by
+  the conformance checker. Both run the same script, so the rule that blocks a
+  merge is the rule the fleet is later measured against.
 
 App-class repos (a `package.json` at root) additionally: `typecheck` (or
 `check`), `lint`, and single-shot test scripts; a committed lockfile

@@ -136,6 +136,93 @@ uses_lines() {
 
 # audit_repo NAME -> drift tokens on stdout, space-prefixed.
 # Returns 0 when the audit completed (clean or drifted), 2 when it could not run.
+# audit_content LABEL — reads one file's text on stdin, prints drift tokens,
+# returns 0 or 2. The remote sweep and the in-CI gate both call this, so the
+# rule enforced on a pull request cannot drift from the rule the fleet checker
+# applies afterwards. One implementation, two input sources.
+audit_content() {
+  local label="$1" drift="" rc=0 line ref_v comment action sha claimed tags at precise found
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    ref_v=$(printf '%s' "$line" \
+      | sed -E 's/^.*[ {,]?uses:[[:space:]]*//; s/[[:space:]]*#.*$//; s/[},].*$//; s/[[:space:]]*$//' \
+      | tr -d "\"'")
+    # First `#` on the line, not the last. A greedy `.*#` reads
+    # `... # v4 # pinned 2026-08` as the comment "pinned", then reports a
+    # correct pin as wrong.
+    #
+    # Guard the no-comment case explicitly. Without it the substitution finds
+    # nothing, passes the whole line through, and awk's $1 hands back the YAML
+    # list dash — so an UNCOMMENTED pin arrives carrying the comment "-",
+    # sails past the pin-uncommented check, and is reported as merely wrong.
+    case "$line" in
+      *"#"*) comment=$(printf '%s' "$line" | sed -E 's/^[^#]*#[[:space:]]*//' | awk '{print $1}' | tr -d '},') ;;
+      *)     comment="" ;;
+    esac
+    case "$ref_v" in
+      ""|./*|docker://*) continue ;;
+    esac
+    case "$(printf '%s' "$ref_v" | cut -d/ -f1 | tr 'A-Z' 'a-z')" in
+      "$(printf '%s' "$OWNER" | tr 'A-Z' 'a-z')") continue ;;   # same-owner reusables ride @main by design
+    esac
+    # A third-party ref we are about to classify. Counted so the sweep can
+    # prove it actually looked at something before printing "all clean".
+    [ -n "$REFS_SEEN_FILE" ] && printf 'x\n' >> "$REFS_SEEN_FILE"
+    case "$ref_v" in
+      *@*) ;;
+      *) drift="$drift pin-unversioned:$ref_v"; continue ;;
+    esac
+    action=$(printf '%s' "${ref_v%@*}" | cut -d/ -f1,2)
+    sha=$(printf '%s' "${ref_v##*@}" | tr 'A-F' 'a-f')
+    if ! printf '%s' "$sha" | grep -qE '^[0-9a-f]{40}$'; then
+      drift="$drift pin-unpinned:$action@${ref_v##*@}"; continue
+    fi
+    [ -n "$comment" ] || { drift="$drift pin-uncommented:$action"; continue; }
+    claimed="$comment"
+
+    if ! tags=$(tagmap "$action"); then
+      echo "$label: tag lookup failed for $action" >&2; rc=2; continue
+    fi
+    at=$(printf '%s\n' "$tags" | awk -F'\t' -v s="$sha" '$2==s {print $1}')
+    found=0
+    [ -n "$at" ] && printf '%s\n' "$at" | grep -qxF -- "$claimed" && found=1
+    # A cached map older than the pin is the one false positive left: Dependabot
+    # bumps to a tag published minutes ago, the cache predates it, and a correct
+    # pin reads as wrong. Miss once, refetch once, then believe the answer.
+    if [ "$found" -eq 0 ]; then
+      case " $REFRESHED " in
+        *" $action "*) ;;
+        *)
+          REFRESHED="$REFRESHED $action"
+          if tags=$(tagmap "$action" refresh); then
+            at=$(printf '%s\n' "$tags" | awk -F'\t' -v s="$sha" '$2==s {print $1}')
+            [ -n "$at" ] && printf '%s\n' "$at" | grep -qxF -- "$claimed" && found=1
+          fi
+          ;;
+      esac
+    fi
+    [ -n "$at" ] || { drift="$drift pin-untagged:$action@$(printf '%s' "$sha" | cut -c1-7)"; continue; }
+    [ "$found" -eq 1 ] || { drift="$drift pin-comment-wrong:$action#$claimed"; continue; }
+
+    # Correct today, rot-prone tomorrow: the SHA offers an immutable tag and the
+    # comment picked a moving one anyway. `vN` and `vN.M` both move upstream
+    # (gitleaks ships a v1.0); only a full patch tag is treated as immutable.
+    # Flagged only when a better tag exists, so the rule stays satisfiable for
+    # actions that publish majors alone.
+    #
+    # The candidate must be strict semver. Upstream tag namespaces are full of
+    # things that are not versions — codeql-action carries 174 of them
+    # (codeql-bundle-20230203, testpoctag), checkout has v6-beta, gitleaks
+    # v0.0.0-test. A looser pattern happily advises "use # latest".
+    precise=$(printf '%s\n' "$at" | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+    if printf '%s' "$claimed" | grep -qE '^v?[0-9]+(\.[0-9]+)?$' && [ -n "$precise" ]; then
+      drift="$drift pin-comment-floating:$action#$claimed(->$precise)"
+    fi
+  done <<< "$(cat | uses_lines)"
+  printf '%s' "$drift"
+  return $rc
+}
+
 audit_repo() {
   local r="$1" ref="${2:-}" drift="" repo_json tree paths truncated rc=0
 
@@ -169,7 +256,7 @@ audit_repo() {
     | grep -E '^\.github/workflows/[^/]+\.ya?ml$|^templates/[^/]+\.ya?ml$|(^|/)action\.ya?ml$')
   [ -n "$paths" ] || return 0
 
-  local p body line ref_v comment action sha claimed tags at precise found
+  local p body d
   while IFS= read -r p; do
     [ -n "$p" ] || continue
     if ! body=$(gh_json "repos/$OWNER/$r/contents/$p?ref=$ref"); then
@@ -177,87 +264,50 @@ audit_repo() {
     fi
     body=$(printf '%s' "$body" | jq -r '.content // empty' 2>/dev/null | base64 -d 2>/dev/null)
     [ -n "$body" ] || { echo "$r: empty body for $p" >&2; rc=2; continue; }
-    while IFS= read -r line; do
-      [ -n "$line" ] || continue
-      ref_v=$(printf '%s' "$line" \
-        | sed -E 's/^.*[ {,]?uses:[[:space:]]*//; s/[[:space:]]*#.*$//; s/[},].*$//; s/[[:space:]]*$//' \
-        | tr -d "\"'")
-      # First `#` on the line, not the last. A greedy `.*#` reads
-      # `... # v4 # pinned 2026-08` as the comment "pinned", then reports a
-      # correct pin as wrong.
-      #
-      # Guard the no-comment case explicitly. Without it the substitution finds
-      # nothing, passes the whole line through, and awk's $1 hands back the YAML
-      # list dash — so an UNCOMMENTED pin arrives carrying the comment "-",
-      # sails past the pin-uncommented check, and is reported as merely wrong.
-      case "$line" in
-        *"#"*) comment=$(printf '%s' "$line" | sed -E 's/^[^#]*#[[:space:]]*//' | awk '{print $1}' | tr -d '},') ;;
-        *)     comment="" ;;
-      esac
-      case "$ref_v" in
-        ""|./*|docker://*) continue ;;
-      esac
-      case "$(printf '%s' "$ref_v" | cut -d/ -f1 | tr 'A-Z' 'a-z')" in
-        "$(printf '%s' "$OWNER" | tr 'A-Z' 'a-z')") continue ;;   # same-owner reusables ride @main by design
-      esac
-      # A third-party ref we are about to classify. Counted so the sweep can
-      # prove it actually looked at something before printing "all clean".
-      [ -n "$REFS_SEEN_FILE" ] && printf 'x\n' >> "$REFS_SEEN_FILE"
-      case "$ref_v" in
-        *@*) ;;
-        *) drift="$drift pin-unversioned:$ref_v"; continue ;;
-      esac
-      action=$(printf '%s' "${ref_v%@*}" | cut -d/ -f1,2)
-      sha=$(printf '%s' "${ref_v##*@}" | tr 'A-F' 'a-f')
-      if ! printf '%s' "$sha" | grep -qE '^[0-9a-f]{40}$'; then
-        drift="$drift pin-unpinned:$action@${ref_v##*@}"; continue
-      fi
-      [ -n "$comment" ] || { drift="$drift pin-uncommented:$action"; continue; }
-      claimed="$comment"
-
-      if ! tags=$(tagmap "$action"); then
-        echo "$r: tag lookup failed for $action" >&2; rc=2; continue
-      fi
-      at=$(printf '%s\n' "$tags" | awk -F'\t' -v s="$sha" '$2==s {print $1}')
-      found=0
-      [ -n "$at" ] && printf '%s\n' "$at" | grep -qxF -- "$claimed" && found=1
-      # A cached map older than the pin is the one false positive left: Dependabot
-      # bumps to a tag published minutes ago, the cache predates it, and a correct
-      # pin reads as wrong. Miss once, refetch once, then believe the answer.
-      if [ "$found" -eq 0 ]; then
-        case " $REFRESHED " in
-          *" $action "*) ;;
-          *)
-            REFRESHED="$REFRESHED $action"
-            if tags=$(tagmap "$action" refresh); then
-              at=$(printf '%s\n' "$tags" | awk -F'\t' -v s="$sha" '$2==s {print $1}')
-              [ -n "$at" ] && printf '%s\n' "$at" | grep -qxF -- "$claimed" && found=1
-            fi
-            ;;
-        esac
-      fi
-      [ -n "$at" ] || { drift="$drift pin-untagged:$action@$(printf '%s' "$sha" | cut -c1-7)"; continue; }
-      [ "$found" -eq 1 ] || { drift="$drift pin-comment-wrong:$action#$claimed"; continue; }
-
-      # Correct today, rot-prone tomorrow: the SHA offers an immutable tag and the
-      # comment picked a moving one anyway. `vN` and `vN.M` both move upstream
-      # (gitleaks ships a v1.0); only a full patch tag is treated as immutable.
-      # Flagged only when a better tag exists, so the rule stays satisfiable for
-      # actions that publish majors alone.
-      #
-      # The candidate must be strict semver. Upstream tag namespaces are full of
-      # things that are not versions — codeql-action carries 174 of them
-      # (codeql-bundle-20230203, testpoctag), checkout has v6-beta, gitleaks
-      # v0.0.0-test. A looser pattern happily advises "use # latest".
-      precise=$(printf '%s\n' "$at" | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
-      if printf '%s' "$claimed" | grep -qE '^v?[0-9]+(\.[0-9]+)?$' && [ -n "$precise" ]; then
-        drift="$drift pin-comment-floating:$action#$claimed(->$precise)"
-      fi
-    done <<< "$(printf '%s\n' "$body" | uses_lines)"
+    d=$(printf '%s\n' "$body" | audit_content "$r:$p") || rc=2
+    drift="$drift$d"
   done <<< "$paths"
   printf '%s' "$drift"
   return $rc
 }
+
+# Local mode — the PR-time gate. Audits a checked-out working tree instead of the
+# API, so it needs no token and cannot be throttled: tags still resolve through
+# `git ls-remote`, which is not the REST rate limit that stopped a fleet sweep
+# dead on 2026-08-11. Invoked from each repo's security.yml via the composite
+# action in actions/verify-action-pins.
+if [ "${1:-}" = "--local" ]; then
+  root="${2:-.}"
+  [ -d "$root" ] || die "--local needs a directory (got '$root')"
+  files=$(ls -1 "$root"/.github/workflows/*.yml "$root"/.github/workflows/*.yaml \
+                "$root"/templates/*.yml "$root"/templates/*.yaml \
+                "$root"/action.yml "$root"/action.yaml \
+                "$root"/.github/actions/*/action.yml "$root"/.github/actions/*/action.yaml \
+          2>/dev/null | sort -u)
+  # A gate that found no files to read has not passed; it has not run.
+  [ -n "$files" ] || die "no workflow files under $root — refusing a vacuous pass"
+  REFS_SEEN_FILE=$(mktemp "${TMPDIR:-/tmp}/fleet-pin-refs.XXXXXX") || die "cannot create counter file"
+  trap 'rm -f "$REFS_SEEN_FILE"' EXIT INT TERM
+  drift=""
+  lrc=0
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    d=$(audit_content "${f#"$root"/}" < "$f") || lrc=2
+    drift="$drift$d"
+  done <<< "$files"
+  nfiles=$(printf '%s\n' "$files" | wc -l | tr -d ' ')
+  refs=$(wc -l < "$REFS_SEEN_FILE" 2>/dev/null | tr -d ' ')
+  echo "Scanned $nfiles workflow file(s); classified ${refs:-0} third-party ref(s)."
+  [ "$lrc" -eq 0 ] || { echo "AUDIT INCOMPLETE — treat as drift until it runs clean." >&2; exit 2; }
+  if [ -n "$drift" ]; then
+    echo "Action pin comments disagree with the tags their SHAs carry:" >&2
+    for t in $drift; do echo "  $t" >&2; done
+    echo "Fix: name the immutable tag the SHA actually carries (e.g. # v7.0.1, never # v7)." >&2
+    exit 1
+  fi
+  echo "All action pin comments name the tag their SHA carries."
+  exit 0
+fi
 
 if [ "${1:-}" = "--repo" ]; then
   [ -n "${2:-}" ] || die "--repo needs a repository name"
