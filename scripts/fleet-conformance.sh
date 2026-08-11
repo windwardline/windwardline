@@ -194,6 +194,16 @@ for r in $REPOS; do
   fi
 done
 
+# Action pin comments, in one pass across the whole account. Deliberately not
+# inside the loop above: this audit covers every non-archived repo, including
+# the four the checker exempts. Both original rot cases sat in exempt repos —
+# this repo's own review lane, and fleet-template, which is how a bad comment
+# would reach every repo created after it.
+echo
+pins_rc=0
+"$(cd "$(dirname "$0")" && pwd)/verify-action-pins.sh" || pins_rc=$?
+[ "$pins_rc" -eq 0 ] || fail=1
+
 if [ "$fail" -eq 0 ]; then
   echo; echo "Fleet conformant."
 else
