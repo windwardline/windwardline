@@ -210,9 +210,17 @@ done
 # this repo's own review lane, and fleet-template, which is how a bad comment
 # would reach every repo created after it.
 echo
+# $0 resolved through any symlink, and the auditor invoked via bash rather than
+# executed — so neither a linked checkout nor a lost executable bit turns into a
+# phantom drift report.
+here=$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)
 pins_rc=0
-"$(cd "$(dirname "$0")" && pwd)/verify-action-pins.sh" || pins_rc=$?
-[ "$pins_rc" -eq 0 ] || fail=1
+bash "$here/verify-action-pins.sh" || pins_rc=$?
+case "$pins_rc" in
+  0) ;;
+  1) fail=1 ;;
+  *) fail=1; echo "ACTION PIN AUDIT INCOMPLETE (rc=$pins_rc) — not a clean pass." >&2 ;;
+esac
 
 if [ "$fail" -eq 0 ]; then
   echo; echo "Fleet conformant."
