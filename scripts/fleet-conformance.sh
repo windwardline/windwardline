@@ -68,10 +68,11 @@ for r in $REPOS; do
     esac
   done
 
-  # Dependabot auto-merge lane. levelflow-cloud is the one exception in
-  # FLEET.md's register: it holds the fleet's only Actions-based deploy on
-  # push, and a merge whose auto-merge was enabled by GITHUB_TOKEN does not
-  # trigger on: push workflows — silently, with nothing in the Actions tab.
+  # Dependabot auto-merge lane — now every repo, no exceptions. levelflow-cloud
+  # was excluded while the lane ran on GITHUB_TOKEN, whose merges fire no
+  # on: push workflows and would have left its Supabase deploy silently behind
+  # main. The App installation token removed that, so the exception went with
+  # it (2026-08-11).
   # Byte-identity, not presence. The same reasoning as the cooldown check
   # below: that a file exists says nothing about what is inside it, and this
   # one decides what merges unattended. Compared by git blob SHA against the
@@ -80,7 +81,7 @@ for r in $REPOS; do
   # `gh api --jq` writes the error body to stdout on a 404, so two missing
   # files would otherwise compare equal — hence the 40-hex guard before any
   # comparison is trusted.
-  if [ "$r" != "levelflow-cloud" ]; then
+  if true; then
     want=$(git -C "$(dirname "$0")/.." hash-object templates/dependabot-auto-merge.yml 2>/dev/null)
     got=$(gh api "repos/$OWNER/$r/contents/.github/workflows/dependabot-auto-merge.yml?ref=main" --jq '.sha' 2>/dev/null)
     case "$got" in
