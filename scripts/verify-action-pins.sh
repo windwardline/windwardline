@@ -91,7 +91,10 @@ audit_repo() {
       ref=$(printf '%s' "$line" \
         | sed -E 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*//; s/[[:space:]]*#.*$//; s/[[:space:]]*$//' \
         | tr -d "\"'")
-      comment=$(printf '%s' "$line" | sed -nE 's/.*#[[:space:]]*([^[:space:]]+).*/\1/p')
+      # First `#` on the line, not the last. A greedy `.*#` reads
+      # `... # v4 # pinned 2026-08` as the comment "pinned" and then reports a
+      # correct pin as wrong.
+      comment=$(printf '%s' "$line" | sed -E 's/^[^#]*#[[:space:]]*//' | awk '{print $1}')
       case "$ref" in
         ""|./*|docker://*) continue ;;
         "$OWNER"/*) continue ;;     # same-owner reusables ride @main by design
@@ -118,7 +121,13 @@ audit_repo() {
       # Correct today, rot-prone tomorrow: the SHA offers an immutable tag and the
       # comment picked the moving alias anyway. Only flagged when a better tag
       # exists, so the rule stays satisfiable for actions that ship majors only.
-      precise=$(printf '%s\n' "$at" | grep -vE '^v?[0-9]+$' | sort -V | tail -1)
+      #
+      # The candidate must be strict semver. Upstream tag namespaces are full of
+      # things that are not versions — codeql-action alone carries 174 of them
+      # (codeql-bundle-20230203, testpoctag), and checkout has v6-beta, gitleaks
+      # v0.0.0-test, claude-code-action beta. A looser pattern happily advises
+      # "use # latest".
+      precise=$(printf '%s\n' "$at" | grep -E '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$' | sort -V | tail -1)
       if printf '%s' "$claimed" | grep -qE '^v?[0-9]+$' && [ -n "$precise" ]; then
         drift="$drift pin-comment-floating:$action#$claimed(->$precise)"
       fi
