@@ -103,18 +103,24 @@ enforces it now:
   refs are exempt by ref shape, not by owner: `@main` is deliberate (above) and
   outside this rule, while a same-owner ref pinned to a SHA carries a version
   comment like any other pin and is checked like any other pin. Enforced fleet-wide
-  by the conformance checker after merge. A PR-time gate is built and works —
-  `actions/verify-action-pins`, sharing the checker's own script so the two rules
-  cannot diverge — but it is **wired into no repo**, and deliberately so: naming
-  it step-level at `@main` trips this fleet's `github-actions-mutable-action-tag`
-  Semgrep rule, verified on windwardline-media#24 where `Secret scan` passed and
-  `Semgrep CE` blocked. The review lane escapes that rule only because its
-  `@main` reference is a job-level reusable workflow, not a step. Wiring the gate
-  means choosing among pinning it by SHA (losing one-merge propagation, and this
-  repo publishes no tags to name), promoting it to a reusable workflow with its
-  own required check added to fourteen rulesets, or inlining the audit as a
-  `run:` step (no mutable ref, but a second copy of the logic). That is an owner
-  decision, not a default.
+  Gated twice. At PR time by `actions/verify-action-pins` (this repo), carried as
+  a **step** in each repo's already-required `Secret scan` job — a step adds no
+  check name, so the gate landed in fourteen repos without touching a single
+  ruleset. Fleet-wide after merge by the conformance checker, which also asserts
+  the step is still there; nothing in a ruleset would notice it being dropped.
+  Both run the same script, so the rule that blocks a merge is the rule the fleet
+  is later measured against.
+
+  The gate is pinned by SHA, not `@main`, and that is not incidental. A
+  step-level `@main` reference trips this fleet's own
+  `github-actions-mutable-action-tag` Semgrep rule — verified on
+  windwardline-media#24, where `Secret scan` passed and `Semgrep CE` blocked the
+  step carrying it. The review lane escapes that rule only because its `@main` is
+  a job-level reusable workflow rather than a step. So the gate that enforces
+  pinning is itself pinned, against a tag this repo now publishes; the weekly
+  `github-actions` Dependabot lane plus the auto-merge lane carry patch and minor
+  bumps fleet-wide without a human, which is what makes pinning cost nothing here.
+  Releasing a new gate version means tagging this repo.
 
 App-class repos (a `package.json` at root) additionally: `typecheck` (or
 `check`), `lint`, and single-shot test scripts; a committed lockfile
