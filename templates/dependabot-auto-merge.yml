@@ -90,29 +90,11 @@ jobs:
           app-id: ${{ secrets.FLEET_AUTOMERGE_APP_ID }}
           private-key: ${{ secrets.FLEET_AUTOMERGE_PRIVATE_KEY }}
 
-      # `gh pr merge --auto` degrades to an IMMEDIATE merge when the repository
-      # setting is off or nothing is pending, so the preconditions are asserted
-      # rather than assumed. Without a pending requirement, "arm" means "merge".
-      - name: Assert the merge gate exists
-        env:
-          GH_TOKEN: ${{ steps.apptoken.outputs.token || github.token }}
-          BASE: ${{ github.event.pull_request.base.ref }}
-        run: |
-          set -euo pipefail
-          am=$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.allow_auto_merge')
-          gates=$(gh api "repos/${GITHUB_REPOSITORY}/rules/branches/${BASE}" \
-            --jq '[.[] | select(.type=="required_status_checks")
-                       | .parameters.required_status_checks[].context] | length')
-          echo "allow_auto_merge=${am} required_status_checks=${gates}"
-          if [ "$am" != "true" ] || [ "${gates:-0}" -lt 1 ]; then
-            echo "::error::Refusing to arm: allow_auto_merge=${am}, required checks=${gates:-0}."
-            exit 1
-          fi
-
       - name: Decide and arm
         env:
           GH_TOKEN: ${{ steps.apptoken.outputs.token || github.token }}
           PR: ${{ github.event.pull_request.html_url }}
+          BASE: ${{ github.event.pull_request.base.ref }}
           UPDATE_TYPE: ${{ steps.meta.outputs.update-type }}
           MAINTAINER_CHANGES: ${{ steps.meta.outputs.maintainer-changes }}
           DEPS_JSON: ${{ steps.meta.outputs.updated-dependencies-json }}
@@ -139,6 +121,21 @@ jobs:
             fi
             exit 0
           }
+
+          # `gh pr merge --auto` degrades to an IMMEDIATE merge when the repo
+          # setting is off or nothing is pending, so the gate is asserted rather
+          # than assumed. A repo with no gate is a HOLD, not an error: fleet-template
+          # deliberately carries no ruleset and no auto-merge, and erroring there
+          # would make its every Dependabot PR show a hard-failed check for a
+          # condition that is correct by design.
+          am=$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.allow_auto_merge')
+          gates=$(gh api "repos/${GITHUB_REPOSITORY}/rules/branches/${BASE}" \
+            --jq '[.[] | select(.type=="required_status_checks")
+                       | .parameters.required_status_checks[].context] | length' 2>/dev/null || echo 0)
+          echo "allow_auto_merge=${am} required_status_checks=${gates:-0}"
+          if [ "$am" != "true" ] || [ "${gates:-0}" -lt 1 ]; then
+            hold "no merge gate here (allow_auto_merge=${am}, required checks=${gates:-0}) — arming would merge immediately"
+          fi
 
           # Label majors before any hold can fire. A PR is often both a major
           # and a maintainer change (pathfinder#62: typescript 7, published by
