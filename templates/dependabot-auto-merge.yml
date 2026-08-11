@@ -7,13 +7,20 @@ name: Dependabot auto-merge
 # thing that decides whether a merge happens. A bug here cannot merge red CI;
 # it can only fail to arm, or arm something already green.
 #
-# Known limit, deliberate for now: the credential is GITHUB_TOKEN, and a push
-# attributed to GITHUB_TOKEN creates no workflow run. Native auto-merge
-# completes on behalf of whoever armed it, so an auto-merged commit does not
-# fire the post-merge `Headers live` probe. The daily 13:17 cron still does.
-# levelflow-cloud, which holds the fleet's only Actions-based deploy on push,
-# is excluded from this lane entirely rather than deploying silently late.
-# A GitHub App installation token closes both; that is an owner decision.
+# The credential upgrades itself. If FLEET_AUTOMERGE_APP_ID and
+# FLEET_AUTOMERGE_PRIVATE_KEY are present as DEPENDABOT secrets, the lane mints
+# a GitHub App installation token and uses it; otherwise it falls back to
+# GITHUB_TOKEN. This matters because a push attributed to GITHUB_TOKEN creates
+# no workflow run at all — silently, nothing in the Actions tab — so on the
+# fallback path an auto-merged commit does not fire the post-merge
+# `Headers live` probe, and levelflow-cloud (the fleet's only Actions-based
+# deploy on push) stays out of the lane entirely. Adding the two secrets
+# removes both limits with no change to this file.
+#
+# They must be DEPENDABOT secrets, not Actions secrets: a Dependabot-triggered
+# run cannot read Actions secrets, and they resolve to an empty string rather
+# than erroring — which here degrades to the GITHUB_TOKEN path rather than
+# failing, so check the run summary to confirm which credential was used.
 
 on:
   pull_request:
@@ -42,6 +49,8 @@ jobs:
       && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      APP_ID: ${{ secrets.FLEET_AUTOMERGE_APP_ID }}
     steps:
       # Outputs populate only when the PR carries solely Dependabot commits
       # with a verified signature. A human fixup fails this step, so touching
@@ -52,12 +61,22 @@ jobs:
         with:
           github-token: ${{ github.token }}
 
+      # Skipped when the secrets are absent; the token expression below then
+      # falls back to GITHUB_TOKEN, so the lane works either way.
+      - name: Mint the fleet auto-merge token
+        id: apptoken
+        if: env.APP_ID != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.FLEET_AUTOMERGE_APP_ID }}
+          private-key: ${{ secrets.FLEET_AUTOMERGE_PRIVATE_KEY }}
+
       # `gh pr merge --auto` degrades to an IMMEDIATE merge when the repository
       # setting is off or nothing is pending, so the preconditions are asserted
       # rather than assumed. Without a pending requirement, "arm" means "merge".
       - name: Assert the merge gate exists
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.apptoken.outputs.token || github.token }}
           BASE: ${{ github.event.pull_request.base.ref }}
         run: |
           set -euo pipefail
@@ -73,7 +92,7 @@ jobs:
 
       - name: Decide and arm
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.apptoken.outputs.token || github.token }}
           PR: ${{ github.event.pull_request.html_url }}
           UPDATE_TYPE: ${{ steps.meta.outputs.update-type }}
           MAINTAINER_CHANGES: ${{ steps.meta.outputs.maintainer-changes }}
@@ -148,4 +167,9 @@ jobs:
             echo "- dependencies: ${DEP_NAMES:-unknown}"
             echo "- update type: \`${UPDATE_TYPE}\`"
             echo "- merges when the required checks are green; the ruleset remains the gate."
+            if [ -n "${APP_ID:-}" ]; then
+              echo "- credential: fleet auto-merge App — the merge will fire push workflows."
+            else
+              echo "- credential: GITHUB_TOKEN — the merge will NOT fire push workflows."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"

@@ -70,6 +70,15 @@ enforces it now:
   buys nothing while handing a write token to a mutated manifest. Without this
   lane the weekly batch simply accumulates: run six found nine mergeable PRs
   that nothing would ever land, none old enough to trip a staleness flag.
+  **The credential upgrades itself.** With `FLEET_AUTOMERGE_APP_ID` and
+  `FLEET_AUTOMERGE_PRIVATE_KEY` present as *Dependabot* secrets (Actions
+  secrets are invisible to Dependabot-triggered runs), the lane mints a GitHub
+  App installation token; without them it falls back to `GITHUB_TOKEN`. The
+  difference is not cosmetic: a push attributed to `GITHUB_TOKEN` creates no
+  workflow run at all, so on the fallback path an auto-merged commit does not
+  fire the post-merge `Headers live` probe and levelflow-cloud stays out of the
+  lane. Each run's summary states which credential it used, because a silent
+  fallback is indistinguishable from success.
 - Repository settings: auto-merge enabled; `main-requires-green-ci` ruleset
   requiring every PR-running CI and scan job by name; linear history; no bypass
   actors.
@@ -119,7 +128,7 @@ and the review lane holds every PR diff against this table.
 | `venture` | Outside the fleet standard entirely | Private venture outside the Windward Line family |
 | `fleet-template` | No CI, no ruleset, placeholders by design | The seeding template; the checker, not the template, is the authority |
 | `ops` | No CI, no ruleset; snapshots land by PR, merged manually | Private meta-layer archive (canonical standards file, agent config, hooks, memory) — holds no application code |
-| `levelflow-cloud` | No `dependabot-auto-merge.yml`; its Dependabot PRs merge by hand | The fleet's only Actions-based deploy on push (`deploy.yml`, Supabase Edge Functions). A merge whose auto-merge was enabled by `GITHUB_TOKEN` does not trigger `on: push` workflows — silently, with no failed or skipped run anywhere — so auto-merge here would drift the deployed functions from main. Every other repo deploys through Vercel's Git integration, which is webhook-driven and unaffected. Lifting this needs a GitHub App installation token, which is an owner decision. |
+| `levelflow-cloud` | No `dependabot-auto-merge.yml`; its Dependabot PRs merge by hand | The fleet's only Actions-based deploy on push (`deploy.yml`, Supabase Edge Functions). A merge whose auto-merge was enabled by `GITHUB_TOKEN` does not trigger `on: push` workflows — silently, with no failed or skipped run anywhere — so auto-merge here would drift the deployed functions from main. Every other repo deploys through Vercel's Git integration, which is webhook-driven and unaffected. Lifting this needs a GitHub App installation token, which is an owner decision. Once `FLEET_AUTOMERGE_APP_ID` and `FLEET_AUTOMERGE_PRIVATE_KEY` exist as Dependabot secrets here, this row is deleted and the lane's workflow file is added to this repo like any other — the file itself needs no change, since it already prefers the App token when one is available. |
 
 This register is mechanized: the conformance checker's exemption list mirrors it
 exactly, and everything else under the account is checked by default. Adding an
