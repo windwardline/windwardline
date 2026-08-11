@@ -66,6 +66,16 @@ for r in $REPOS; do
     [ "${soaked:-0}" -ge "${lanes:-1}" ] || drift="$drift cooldown:${soaked:-0}of${lanes:-0}lanes"
   fi
 
+  # A required check that excuses itself from Dependabot PRs reports green
+  # without running, because GitHub counts a skipped required check as
+  # satisfied. Semgrep CE did exactly that until 2026-08-11 (verified on
+  # mimic#35, merged with "Semgrep CE SKIPPED"). Nothing in security.yml may
+  # carry that guard again.
+  sy=$(gh api "repos/$OWNER/$r/contents/.github/workflows/security.yml?ref=main" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null)
+  case "$sy" in
+    *"github.actor != 'dependabot[bot]'"*) drift="$drift security-yml:skips-dependabot";;
+  esac
+
   # Repo settings
   am=$(gh api "repos/$OWNER/$r" --jq '.allow_auto_merge' 2>/dev/null)
   [ "$am" = "true" ] || drift="$drift auto-merge:off"
