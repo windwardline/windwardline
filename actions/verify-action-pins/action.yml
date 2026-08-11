@@ -1,0 +1,25 @@
+name: Verify action pin comments
+description: >
+  Fails the job when a third-party `uses:` pin carries a trailing version comment
+  that does not name a tag the pinned SHA actually holds, or names a moving major
+  alias where an immutable patch tag exists. Audits the checked-out working tree.
+
+# Deliberately a composite action, not a reusable workflow. A called workflow
+# contributes its own check name, which every repo's ruleset would then have to
+# require — fourteen ruleset edits, and a conformance failure in the window
+# between adding the job and requiring it. A composite runs as a STEP inside a
+# job that is already required, so the gate lands with no ruleset change at all.
+#
+# Referenced at @main by every caller, like the review lane: one merge here
+# updates the gate fleet-wide.
+runs:
+  using: composite
+  steps:
+    - name: Action pin comments
+      shell: bash
+      # Resolves tags via `git ls-remote`, not the REST API — no token, and
+      # immune to the secondary rate limit that halted a fleet sweep on
+      # 2026-08-11. The script is the same one the fleet conformance checker
+      # runs, so the rule enforced here cannot drift from the rule enforced
+      # after merge.
+      run: bash "$GITHUB_ACTION_PATH/../../scripts/verify-action-pins.sh" --local "$GITHUB_WORKSPACE"
