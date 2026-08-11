@@ -117,6 +117,15 @@ for r in $REPOS; do
     *"github.actor != 'dependabot[bot]'"*) drift="$drift security-yml:skips-dependabot";;
   esac
 
+  # The action-pin gate rides the already-required Secret scan job as a step, so
+  # it contributes no check name and nothing in the ruleset would notice it being
+  # dropped. Reuses $sy above — no extra API call. A repo that loses this step
+  # keeps merging wrong pin comments until the next weekly sweep catches them.
+  case "$sy" in
+    *"verify-action-pins@"*) ;;
+    *) drift="$drift security-yml:no-pin-gate";;
+  esac
+
   # Repo settings
   am=$(gh api "repos/$OWNER/$r" --jq '.allow_auto_merge' 2>/dev/null)
   [ "$am" = "true" ] || drift="$drift auto-merge:off"
