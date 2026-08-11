@@ -140,6 +140,14 @@ jobs:
             exit 0
           }
 
+          # Label majors before any hold can fire. A PR is often both a major
+          # and a maintainer change (pathfinder#62: typescript 7, published by
+          # microsoft1es). Holding for the maintainer reason must not cost it
+          # the label, or it never reaches this repo's deferred-majors issue.
+          if [ "$UPDATE_TYPE" = "version-update:semver-major" ]; then
+            gh pr edit "$PR" --add-label deferred-major || true
+          fi
+
           case ",${LABELS}," in
             *,no-automerge,*) hold "the no-automerge label is set" ;;
           esac
@@ -171,7 +179,6 @@ jobs:
             version-update:semver-patch|version-update:semver-minor)
               ;;
             version-update:semver-major)
-              gh pr edit "$PR" --add-label deferred-major || true
               hold "major bumps are migrations — see this repo's deferred-majors issue"
               ;;
             *)
