@@ -100,7 +100,9 @@ enforces it now:
   `# v6` beside a SHA tagged v7.0.1, and two more named major aliases that were
   accurate when written and had since moved off the pinned commit. Naming the
   patch tag closes the second path — an immutable tag cannot drift. Same-owner
-  `@main` refs are deliberate (above) and outside this rule. Enforced fleet-wide
+  refs are exempt by ref shape, not by owner: `@main` is deliberate (above) and
+  outside this rule, while a same-owner ref pinned to a SHA carries a version
+  comment like any other pin and is checked like any other pin. Enforced fleet-wide
   by the conformance checker after merge. A PR-time gate is built and works —
   `actions/verify-action-pins`, sharing the checker's own script so the two rules
   cannot diverge — but it is **wired into no repo**, and deliberately so: naming

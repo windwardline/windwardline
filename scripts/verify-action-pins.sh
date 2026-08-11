@@ -91,14 +91,18 @@ tagmap() {
     # Status first: a truncated transfer can exit non-zero with partial output,
     # and caching that half-map poisons every run inside the TTL.
     [ $rc -eq 0 ] || { echo "git ls-remote failed for $action (exit $rc)" >&2; return 1; }
-    [ -n "$raw" ] || { echo "no tags returned for $action" >&2; return 1; }
+    # A successful call that returned nothing is an ANSWER, not a failure: this
+    # repo publishes no tags. Emitting an empty map lets the caller report
+    # pin-untagged — a finding — instead of aborting the whole audit. Conflating
+    # the two made a legitimately untagged action look like a broken lookup.
+    [ -n "$raw" ] || return 0
     local parsed
     parsed=$(printf '%s\n' "$raw" | awk '
       { sha=$1; ref=$2; sub("refs/tags/","",ref)
         if (ref ~ /\^\{\}$/) { sub(/\^\{\}$/,"",ref); deref[ref]=sha } else { plain[ref]=sha } }
       END { for (t in plain) print t"\t"((t in deref) ? deref[t] : plain[t]) }
     ')
-    [ -n "$parsed" ] || { echo "empty tag map for $action" >&2; return 1; }
+    [ -n "$parsed" ] || return 0
     # Answer from what was fetched; the cache is best-effort. Failing the lookup
     # because a WRITE failed would discard a perfectly good map and fabricate
     # pin-untagged drift on a conformant repo with a healthy network.
@@ -162,8 +166,15 @@ audit_content() {
     case "$ref_v" in
       ""|./*|docker://*) continue ;;
     esac
+    # Same-owner refs. `@main` is deliberate — the review lane rides it so one
+    # merge lands fleet-wide — and stays exempt. A same-owner ref pinned to a SHA
+    # is NOT exempt: it carries a version comment like any other pin, and an
+    # unchecked comment on our own action is the same defect on a shorter supply
+    # chain. Exempting by owner rather than by ref shape would have left the pin
+    # gate's own reference unaudited.
     case "$(printf '%s' "$ref_v" | cut -d/ -f1 | tr 'A-Z' 'a-z')" in
-      "$(printf '%s' "$OWNER" | tr 'A-Z' 'a-z')") continue ;;   # same-owner reusables ride @main by design
+      "$(printf '%s' "$OWNER" | tr 'A-Z' 'a-z')")
+        printf '%s' "${ref_v##*@}" | grep -qE '^[0-9a-fA-F]{40}$' || continue ;;
     esac
     # A third-party ref we are about to classify. Counted so the sweep can
     # prove it actually looked at something before printing "all clean".
