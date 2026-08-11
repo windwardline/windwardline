@@ -160,8 +160,13 @@ audit_repo() {
   fi
   truncated=$(printf '%s' "$tree" | jq -r '.truncated // false' 2>/dev/null)
   [ "$truncated" = "true" ] && { echo "$r: tree truncated, audit would be partial" >&2; return 2; }
+  # `templates/` is audited alongside real workflows. This repo seeds every fleet
+  # repo's auto-merge lane from templates/dependabot-auto-merge.yml, and a wrong
+  # comment written there reaches the whole fleet before any repo-level scan sees
+  # it — which is exactly how `# v6` spread to twelve repos from fleet-template's
+  # ci.yml. Audit the seed, not only the crop.
   paths=$(printf '%s' "$tree" | jq -r '.tree[]? | select(.type=="blob") | .path' 2>/dev/null \
-    | grep -E '^\.github/workflows/[^/]+\.ya?ml$|(^|/)action\.ya?ml$')
+    | grep -E '^\.github/workflows/[^/]+\.ya?ml$|^templates/[^/]+\.ya?ml$|(^|/)action\.ya?ml$')
   [ -n "$paths" ] || return 0
 
   local p body line ref_v comment action sha claimed tags at precise found
