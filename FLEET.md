@@ -79,6 +79,16 @@ enforces it now:
   branch and every caller's `ANTHROPIC_API_KEY` pass-through were removed
   2026-08-09). Reviews skip cleanly without the token; fork PRs never
   receive it by design.
+- Action pins that say what they are. Every third-party `uses:` in a workflow is
+  pinned to a full commit SHA and carries a trailing comment naming an immutable
+  tag that SHA actually carries — `# v7.0.1`, never a floating major (`# v7`).
+  The comment is the only human-readable version signal when a Dependabot bump
+  rewrites forty hex characters, so a wrong one reads as a downgrade and hides a
+  real one. It fails two ways, both live on 2026-08-11: twelve repos carried
+  `# v6` beside a SHA tagged v7.0.1, and two more named major aliases that were
+  accurate when written and had since moved off the pinned commit. Naming the
+  patch tag closes the second path — an immutable tag cannot drift. Same-owner
+  `@main` refs are deliberate (above) and outside this rule.
 
 App-class repos (a `package.json` at root) additionally: `typecheck` (or
 `check`), `lint`, and single-shot test scripts; a committed lockfile
@@ -138,7 +148,12 @@ exception means amending this table and the checker in the same change set.
    from the latest merged PR's pull_request-triggered workflow runs must be a
    required context, with the advisory review and the auto-merge job excluded —
    dispatch and schedule runs against the same commit are not part of the
-   sample. Prints a per-repo table and exits
+   sample. It then runs `scripts/verify-action-pins.sh`, which resolves every
+   third-party action pin against the tags its SHA really carries, dereferencing
+   annotated tags. That sweep is deliberately wider than the fleet above — it
+   covers the exempted repos too, because this repo's own review lane held one
+   of the two original rot cases and `fleet-template` is how a bad comment would
+   reach every repo created after it. Prints a per-repo table and exits
    non-zero on any drift. Run it from any machine with `gh` authenticated.
    Scheduled execution rides pathway 6.
 2. **Rulesets** hold the merge gates; converting or creating a repo never drops
