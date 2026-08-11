@@ -54,7 +54,11 @@ enforces it now:
 - `.github/workflows/claude-review.yml` — the thin caller of this repo's
   reusable (`@main`, deliberate: one merge updates every repo), passing
   `CLAUDE_CODE_OAUTH_TOKEN`.
-- `.github/workflows/dependabot-auto-merge.yml` — byte-identical fleet-wide;
+- `.github/workflows/dependabot-auto-merge.yml` — byte-identical fleet-wide,
+  and verified so: the canonical copy is `templates/dependabot-auto-merge.yml`
+  in this repo, and the checker compares git blob SHAs rather than asking
+  whether a file is present. It decides what merges unattended, so presence
+  is not evidence — the same reasoning as reading the cooldown value below.
   green `semver-patch` and `semver-minor` Dependabot updates merge without a
   human, majors never (they stay deferred and tracked per repo). The soak that
   makes it safe is `cooldown: default-days: 7` on every update lane of

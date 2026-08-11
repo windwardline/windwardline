@@ -1,0 +1,151 @@
+name: Dependabot auto-merge
+
+# Byte-identical in every fleet repo that takes it. See FLEET.md.
+#
+# This workflow merges nothing. It arms GitHub's native auto-merge, so the
+# repo's `main-requires-green-ci` ruleset — zero bypass actors — stays the only
+# thing that decides whether a merge happens. A bug here cannot merge red CI;
+# it can only fail to arm, or arm something already green.
+#
+# Known limit, deliberate for now: the credential is GITHUB_TOKEN, and a push
+# attributed to GITHUB_TOKEN creates no workflow run. Native auto-merge
+# completes on behalf of whoever armed it, so an auto-merged commit does not
+# fire the post-merge `Headers live` probe. The daily 13:17 cron still does.
+# levelflow-cloud, which holds the fleet's only Actions-based deploy on push,
+# is excluded from this lane entirely rather than deploying silently late.
+# A GitHub App installation token closes both; that is an owner decision.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dependabot-auto-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # Job id with no `name:`, so the check renders exactly "dependabot-auto-merge"
+  # — the string fleet-conformance.sh excludes from its required-checks audit.
+  # This job arms the merge; it must never become a required check.
+  dependabot-auto-merge:
+    # The PR author, not github.actor: a manual re-run flips the actor to a
+    # human, disabling the guard exactly when someone is poking at a failing
+    # PR. The head-repo comparison keeps forks out without naming a repo,
+    # which is what lets this file stay byte-identical fleet-wide.
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]'
+      && github.repository_owner == 'windwardline'
+      && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Outputs populate only when the PR carries solely Dependabot commits
+      # with a verified signature. A human fixup fails this step, so touching
+      # the branch means owning the merge.
+      - name: Read Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ github.token }}
+
+      # `gh pr merge --auto` degrades to an IMMEDIATE merge when the repository
+      # setting is off or nothing is pending, so the preconditions are asserted
+      # rather than assumed. Without a pending requirement, "arm" means "merge".
+      - name: Assert the merge gate exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          am=$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.allow_auto_merge')
+          gates=$(gh api "repos/${GITHUB_REPOSITORY}/rules/branches/${BASE}" \
+            --jq '[.[] | select(.type=="required_status_checks")
+                       | .parameters.required_status_checks[].context] | length')
+          echo "allow_auto_merge=${am} required_status_checks=${gates}"
+          if [ "$am" != "true" ] || [ "${gates:-0}" -lt 1 ]; then
+            echo "::error::Refusing to arm: allow_auto_merge=${am}, required checks=${gates:-0}."
+            exit 1
+          fi
+
+      - name: Decide and arm
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.html_url }}
+          UPDATE_TYPE: ${{ steps.meta.outputs.update-type }}
+          MAINTAINER_CHANGES: ${{ steps.meta.outputs.maintainer-changes }}
+          DEPS_JSON: ${{ steps.meta.outputs.updated-dependencies-json }}
+          DEP_NAMES: ${{ steps.meta.outputs.dependency-names }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          AUTOMERGE_ON: ${{ github.event.pull_request.auto_merge != null }}
+        run: |
+          set -euo pipefail
+
+          hold() {
+            echo "::notice::Held for a human — $1"
+            {
+              echo "### Dependabot auto-merge: held"
+              echo
+              echo "- dependencies: ${DEP_NAMES:-unknown}"
+              echo "- update type: \`${UPDATE_TYPE:-unknown}\`"
+              echo "- reason: $1"
+            } >> "$GITHUB_STEP_SUMMARY"
+            # A rebase can turn a compliant PR into a non-compliant one, so a
+            # previously armed auto-merge is withdrawn, not merely not renewed.
+            if [ "${AUTOMERGE_ON}" = "true" ]; then
+              gh pr merge --disable-auto "$PR" || true
+              echo "Withdrew the previously armed auto-merge." >> "$GITHUB_STEP_SUMMARY"
+            fi
+            exit 0
+          }
+
+          case ",${LABELS}," in
+            *,no-automerge,*) hold "the no-automerge label is set" ;;
+          esac
+
+          # A new maintainer on an established package is the signature of the
+          # 2025 npm compromises. One boolean, highest signal per line here.
+          if [ "${MAINTAINER_CHANGES}" = "true" ]; then
+            hold "the release changed maintainers"
+          fi
+
+          # Dependabot labels bumps by literal position, so 0.9.1 -> 0.10.0
+          # arrives as "minor". Pre-1.0 packages carry no compatibility
+          # contract, so they are held even when the label says minor.
+          if printf '%s' "${DEPS_JSON:-[]}" | jq -e 'type == "array" and length > 0' >/dev/null 2>&1; then
+            zerover=$(printf '%s' "$DEPS_JSON" | jq -r '
+              [ .[]
+                | select((.prevVersion // "") | test("^v?0\\."))
+                | select( (((.updateType // "") | endswith("minor")))
+                       or (((.prevVersion // "") | test("^v?0\\.0\\.")) and ((.updateType // "") | endswith("patch"))) )
+                | .dependencyName ] | join(", ")')
+            [ -z "$zerover" ] || hold "pre-1.0 packages without a compatibility contract: ${zerover}"
+          else
+            hold "Dependabot metadata was empty or unverifiable"
+          fi
+
+          # fetch-metadata reports the HIGHEST semver change in the PR, so one
+          # major freezes its whole group. Deliberate.
+          case "$UPDATE_TYPE" in
+            version-update:semver-patch|version-update:semver-minor)
+              ;;
+            version-update:semver-major)
+              gh pr edit "$PR" --add-label deferred-major || true
+              hold "major bumps are migrations — see this repo's deferred-majors issue"
+              ;;
+            *)
+              hold "unrecognised update type: ${UPDATE_TYPE:-empty}"
+              ;;
+          esac
+
+          gh pr merge --squash --auto --delete-branch "$PR"
+          {
+            echo "### Dependabot auto-merge: armed"
+            echo
+            echo "- dependencies: ${DEP_NAMES:-unknown}"
+            echo "- update type: \`${UPDATE_TYPE}\`"
+            echo "- merges when the required checks are green; the ruleset remains the gate."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -51,9 +51,28 @@ for r in $REPOS; do
   # FLEET.md's register: it holds the fleet's only Actions-based deploy on
   # push, and a merge whose auto-merge was enabled by GITHUB_TOKEN does not
   # trigger on: push workflows — silently, with nothing in the Actions tab.
+  # Byte-identity, not presence. The same reasoning as the cooldown check
+  # below: that a file exists says nothing about what is inside it, and this
+  # one decides what merges unattended. Compared by git blob SHA against the
+  # canonical templates/ copy in this repo, so one sweep re-verifies the fleet.
+  #
+  # `gh api --jq` writes the error body to stdout on a 404, so two missing
+  # files would otherwise compare equal — hence the 40-hex guard before any
+  # comparison is trusted.
   if [ "$r" != "levelflow-cloud" ]; then
-    gh api "repos/$OWNER/$r/contents/.github/workflows/dependabot-auto-merge.yml?ref=main" --silent >/dev/null 2>&1 \
-      || drift="$drift missing:dependabot-auto-merge.yml"
+    want=$(git -C "$(dirname "$0")/.." hash-object templates/dependabot-auto-merge.yml 2>/dev/null)
+    got=$(gh api "repos/$OWNER/$r/contents/.github/workflows/dependabot-auto-merge.yml?ref=main" --jq '.sha' 2>/dev/null)
+    case "$got" in
+      [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;;
+      *) got="" ;;
+    esac
+    if [ -z "$got" ]; then
+      drift="$drift missing:dependabot-auto-merge.yml"
+    elif [ -z "$want" ]; then
+      drift="$drift no-template:dependabot-auto-merge.yml"
+    elif [ "$got" != "$want" ]; then
+      drift="$drift auto-merge-lane:differs-from-template"
+    fi
   fi
 
   # The soak is read, not assumed. Auto-merge without a cooldown is a same-day
