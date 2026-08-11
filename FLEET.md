@@ -43,7 +43,14 @@ enforces it now:
 - `.github/workflows/ci.yml` — the repo's real gates.
 - `.github/workflows/security.yml` — Semgrep CE + Secret scan on PRs, pushes,
   weekly cron; plus `Dependency scan / osv-scan` when the repo has a lockfile;
-  plus `Headers live` when it serves a production domain.
+  plus `Headers live` when it serves a production domain. **No job in it may
+  carry a `github.actor != 'dependabot[bot]'` guard.** Semgrep CE held one
+  until 2026-08-11: it is a required check, GitHub counts a skipped required
+  check as satisfied, so it reported green without running on precisely the
+  PRs that merge unattended — verified on mimic#35, whose rollup reads
+  `Semgrep CE SKIPPED` beside three green siblings, merged. The guard bought
+  nothing; the job runs in a pinned container with `persist-credentials:
+  false` and reads no secret. The checker asserts the guard stays gone.
 - `.github/workflows/claude-review.yml` — the thin caller of this repo's
   reusable (`@main`, deliberate: one merge updates every repo), passing
   `CLAUDE_CODE_OAUTH_TOKEN`.
