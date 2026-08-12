@@ -59,7 +59,7 @@ enforces it now:
   in this repo, and the checker compares git blob SHAs rather than asking
   whether a file is present. It decides what merges unattended, so presence
   is not evidence — the same reasoning as reading the cooldown value below.
-  green `semver-patch` and `semver-minor` Dependabot updates merge without a
+  Green `semver-patch` and `semver-minor` Dependabot updates merge without a
   human, majors never (they stay deferred and tracked per repo). The soak that
   makes it safe is `cooldown: default-days: 7` on every update lane of
   `dependabot.yml` above: a release sits on the registry a week before a PR
@@ -102,7 +102,7 @@ enforces it now:
   patch tag closes the second path — an immutable tag cannot drift. Same-owner
   refs are exempt by ref shape, not by owner: `@main` is deliberate (above) and
   outside this rule, while a same-owner ref pinned to a SHA carries a version
-  comment like any other pin and is checked like any other pin. Enforced fleet-wide
+  comment like any other pin and is checked like any other pin.
   Gated twice. At PR time by `actions/verify-action-pins` (this repo), carried as
   a **step** in each repo's already-required `Secret scan` job — a step adds no
   check name, so the gate landed in fourteen repos without touching a single

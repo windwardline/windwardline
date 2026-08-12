@@ -68,10 +68,11 @@ owner-decision items last.
    released package, a pre-1.0 version, a major (labelled `deferred-major`),
    an unrecognised update type, or the `no-automerge` label. A maintainer
    change in particular is the signature the lane exists to stop at, so it is
-   read the week it appears, not counted. levelflow-cloud is excluded from
-   the lane by FLEET.md's register; its Dependabot PRs still merge by hand
-   and remain ordinary backlog. Run six's nine-PR pile-up is what closed this
-   gap — none of them was stale enough to trip the seven-day flag.
+   read the week it appears, not counted. Every fleet repo is in the lane —
+   levelflow-cloud joined when the GitHub App landed the same evening, and the
+   exceptions register no longer holds a row for it. Run six's nine-PR pile-up
+   is what closed this gap — none of them was stale enough to trip the
+   seven-day flag.
 4. **Runtime error sweep, environment-aware** — for each live app, pull the
    week's Vercel runtime errors (Vercel MCP or CLI); report new signatures
    and counts. The errors table mixes production and preview in one view

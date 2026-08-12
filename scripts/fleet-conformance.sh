@@ -33,6 +33,12 @@ fi
 echo "Fleet (live from github.com/$OWNER, minus exceptions register):$REPOS"
 echo
 
+# Resolve this script's repo once, through any symlink. The pin auditor below
+# already did this; the template comparison used a bare dirname "$0", which
+# breaks under a symlinked checkout and silently yields an empty $want — read
+# as "no template" rather than as a failure to look.
+REPO_ROOT=$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")/.." && pwd)
+
 fail=0
 printf '%-22s %s\n' "REPO" "DRIFT (empty = conformant)"
 printf '%-22s %s\n' "----" "----"
@@ -81,20 +87,18 @@ for r in $REPOS; do
   # `gh api --jq` writes the error body to stdout on a 404, so two missing
   # files would otherwise compare equal — hence the 40-hex guard before any
   # comparison is trusted.
-  if true; then
-    want=$(git -C "$(dirname "$0")/.." hash-object templates/dependabot-auto-merge.yml 2>/dev/null)
-    got=$(gh api "repos/$OWNER/$r/contents/.github/workflows/dependabot-auto-merge.yml?ref=main" --jq '.sha' 2>/dev/null)
-    case "$got" in
-      [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;;
-      *) got="" ;;
-    esac
-    if [ -z "$got" ]; then
-      drift="$drift missing:dependabot-auto-merge.yml"
-    elif [ -z "$want" ]; then
-      drift="$drift no-template:dependabot-auto-merge.yml"
-    elif [ "$got" != "$want" ]; then
-      drift="$drift auto-merge-lane:differs-from-template"
-    fi
+  want=$(git -C "$REPO_ROOT" hash-object templates/dependabot-auto-merge.yml 2>/dev/null)
+  got=$(gh api "repos/$OWNER/$r/contents/.github/workflows/dependabot-auto-merge.yml?ref=main" --jq '.sha' 2>/dev/null)
+  case "$got" in
+    [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;;
+    *) got="" ;;
+  esac
+  if [ -z "$got" ]; then
+    drift="$drift missing:dependabot-auto-merge.yml"
+  elif [ -z "$want" ]; then
+    drift="$drift no-template:dependabot-auto-merge.yml"
+  elif [ "$got" != "$want" ]; then
+    drift="$drift auto-merge-lane:differs-from-template"
   fi
 
   # The soak is read, not assumed. Auto-merge without a cooldown is a same-day
