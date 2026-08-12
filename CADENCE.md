@@ -157,6 +157,13 @@ that reports it as a finding is misreading the fleet.
 Failures that recur by design. Confirm the stated condition still holds, then
 move on — do not re-investigate from scratch each week.
 
+- **fleet-template's `Claude review` lane fails on every run.** It has never
+  passed — failures run back past 2026-08-09, before any spend limit — while
+  the identical caller succeeds in all fourteen fleet repos (pathfinder and
+  craft both green on 2026-08-12). The template holds no application code, so
+  the review runs against placeholder `AGENTS.md` content and returns
+  `is_error:true`. Advisory lane, exempt repo, nothing gated. The check that
+  it is still benign: the same workflow is green in a real repo the same day.
 - **pathfinder Dependabot security updates for `postcss` and `brace-expansion`**
   fail `security_update_not_possible`. Dependabot resolves declared ranges and
   cannot see pnpm `overrides`; `pnpm-workspace.yaml` already forces the whole
