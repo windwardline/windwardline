@@ -183,12 +183,25 @@ Adding or removing a row here means amending this table and the checker's
 |---|---|---|
 | `windwardline` (this repo) | No CI on its own content; PRs merge manually. Hosts the fleet reusable, this standard, and the conformance checker — its workflows gate the fleet, never itself. | Meta/standards home |
 | `venture` | Outside the fleet standard entirely | Private venture outside the Windward Line family |
-| `fleet-template` | No CI, no ruleset, placeholders by design | The seeding template; the checker, not the template, is the authority |
 | `ops` | No CI, no ruleset; snapshots land by PR, merged manually | Private meta-layer archive (canonical standards file, agent config, hooks, memory) — holds no application code |
 
 This register is mechanized: the conformance checker's exemption list mirrors it
 exactly, and everything else under the account is checked by default. Adding an
 exception means amending this table and the checker in the same change set.
+
+**Exemption premises are re-verified every run.** Every row above rests on a
+claim — "no CI" — and a blanket skip list cannot notice when that claim stops
+being true, because the skip is what stops anyone looking. `fleet-template` was
+exempted as "no CI, no ruleset, placeholders by design", then grew `ci.yml`,
+`security.yml` and a review lane. It ran 61 pull_request builds and merged eight
+PRs through no gate at all while the checker stayed silent, and its review lane
+had been failing on a stale token since 2026-08-11 with nothing to catch it. It
+was unexempted on 2026-08-16 and now carries the full standard.
+
+The standing auto-merge rule admits no exceptions for repos with CI, so an
+exempt repo that has CI is not an exception — it is an unapplied rule. The
+checker re-derives each premise from remote state (ci/security workflow present,
+or any pull_request run) rather than trusting this table.
 
 ## Enforcement pathways
 
@@ -207,8 +220,9 @@ exception means amending this table and the checker in the same change set.
    third-party action pin against the tags its SHA really carries, dereferencing
    annotated tags. That sweep is deliberately wider than the fleet above — it
    covers the exempted repos too, because this repo's own review lane held one
-   of the two original rot cases and `fleet-template` is how a bad comment would
-   reach every repo created after it. Prints a per-repo table and exits
+   of the two original rot cases, and because `fleet-template` (in the fleet
+   proper since 2026-08-16) is how a bad comment would reach every repo created
+   after it. Prints a per-repo table and exits
    non-zero on any drift. Run it from any machine with `gh` authenticated.
    Scheduled execution rides pathway 6.
 2. **Rulesets** hold the merge gates; converting or creating a repo never drops
