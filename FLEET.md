@@ -160,9 +160,14 @@ Visibility is a cost control before it is a disclosure choice: GitHub Actions is
 free on public repos and billed on private ones. On 2026-08-16 eight private
 repos consumed 90% of the 3,000-minute monthly allowance by day 16; publishing
 five of them removed the entire projected overage without changing a single
-workflow. A repo created private is a recurring bill, and `gh repo create
---private` is the house default — so the check runs weekly rather than trusting
-the moment of creation.
+workflow. A repo created private is a recurring bill.
+
+**New repos are created public (owner-ruled 2026-08-16):** `gh repo create
+--public --template windwardline/fleet-template`. The old `--private` default
+regrew this bill with every new project. A repo that must start private needs a
+row in the register below, added in the same change set that creates it — and
+the checker fails any private repo that is not on it, so the rule holds even if
+someone forgets the flag.
 
 | Repo | Why it stays private |
 |---|---|
