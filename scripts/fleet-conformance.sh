@@ -258,6 +258,48 @@ for r in $REPOS; do
   fi
 done
 
+# Repository visibility, in one pass across the whole account. Actions minutes
+# are free on public repos and billed on private ones, so visibility is a cost
+# control before it is anything else — on 2026-08-16 eight private repos burned
+# 90% of the 3,000-minute monthly allowance by day 16, and publishing five of
+# them removed the entire overage without touching a workflow. Deliberately
+# outside the loop above: it covers the exempted repos too, because three of the
+# four exemptions are private and this register is what makes that deliberate
+# rather than drift.
+#
+# Checked both directions. A repo that goes private starts costing money; a
+# registered-private repo that goes public is an irreversible disclosure. Either
+# is drift, and the second is the more expensive mistake.
+echo
+PRIVATE_BY_DESIGN="grown-men-grow ops venture"
+vis_rows=$(gh repo list "$OWNER" --limit 200 --json name,visibility,isArchived \
+  --jq '[.[] | select(.isArchived | not) | .name + " " + .visibility] | sort | join("\n")' 2>/dev/null) || vis_rows=""
+if [ -z "${vis_rows// /}" ]; then
+  echo "VISIBILITY AUDIT INCOMPLETE — enumeration returned nothing, refusing a vacuous pass." >&2
+  fail=1
+else
+  vis_fail=0
+  while read -r name vis; do
+    [ -n "$name" ] || continue
+    registered=0
+    for p in $PRIVATE_BY_DESIGN; do [ "$name" = "$p" ] && registered=1; done
+    if [ "$vis" = "PRIVATE" ] && [ "$registered" -eq 0 ]; then
+      printf '%-22s %s\n' "$name" "visibility:private-unregistered (billing Actions minutes)"
+      vis_fail=1
+    elif [ "$vis" != "PRIVATE" ] && [ "$registered" -eq 1 ]; then
+      printf '%-22s %s\n' "$name" "visibility:registered-private-but-$vis (disclosure regression)"
+      vis_fail=1
+    fi
+  done <<EOF
+$vis_rows
+EOF
+  if [ "$vis_fail" -eq 0 ]; then
+    echo "Visibility conformant — every repo public except the private-by-design register."
+  else
+    fail=1
+  fi
+fi
+
 # Action pin comments, in one pass across the whole account. Deliberately not
 # inside the loop above: this audit covers every non-archived repo, including
 # the four the checker exempts. Both original rot cases sat in exempt repos —

@@ -153,6 +153,30 @@ approved deviation is recorded in that repo's `AGENTS.md` as a line beginning
 conformance checker fails any detectable deviation without a recorded approval,
 and the review lane holds every PR diff against this table.
 
+## Repository visibility
+
+**Every fleet repo is public unless it is on the private-by-design register below.**
+Visibility is a cost control before it is a disclosure choice: GitHub Actions is
+free on public repos and billed on private ones. On 2026-08-16 eight private
+repos consumed 90% of the 3,000-minute monthly allowance by day 16; publishing
+five of them removed the entire projected overage without changing a single
+workflow. A repo created private is a recurring bill, and `gh repo create
+--private` is the house default — so the check runs weekly rather than trusting
+the moment of creation.
+
+| Repo | Why it stays private |
+|---|---|
+| `grown-men-grow` | Pseudonymous publication. The repo names the founder, his employer, and the litigation rationale for concealing both, across 13 files and every commit. Publishing de-anonymizes it irreversibly, and it already fits inside the included allowance. |
+| `ops` | Third-party personal data (another organization's federal Tax ID, named individuals' contact details), credential-incident history, and the machine's full Keychain inventory. No workflows, so it costs nothing. |
+| `venture` | Unlaunched venture: full product roster, supplier positions, and go-to-market not yet public. No workflows, so it costs nothing. |
+
+Checked both directions. A repo that drops to private starts billing minutes; a
+registered-private repo that turns public is an irreversible disclosure. The
+second is the more expensive mistake, so both fail the checker.
+
+Adding or removing a row here means amending this table and the checker's
+`PRIVATE_BY_DESIGN` list in the same change set.
+
 ## Exceptions register
 
 | Repo | Exception | Why |
