@@ -119,6 +119,20 @@ owner-decision items last.
      forbidden, a removed `deny`, a disarmed hook. **Run it here, at step 5.**
      After step 8 the snapshot has overwritten the baseline with the current
      state, and the check compares the live config against itself.
+   - MCP health: `mcp-health.sh` in `windwardline/ops` (private) exits 0. It
+     asserts that MCP **works**, where drift detection only asserts it is
+     unchanged — a config that is broken and stable passes a sameness check
+     every week, which is exactly how every prior MCP repair decayed unseen
+     (diagnosed 2026-08-16: an Antigravity bundle patch erased by an app
+     update, five servers unpinned to `http-only` and hanging 60s+, a shadow
+     registry no client reads, and a daily updater wedged on a stale lock while
+     reporting exit 0). It checks transport pinning, that every stdio command
+     resolves under the **GUI PATH** rather than the shell's, that no registry
+     carries a literal auth header, and that no vendor app bundle has been
+     patched. It never launches a server: doing so would write to the OAuth
+     stores it exists to protect. Exit 1 invariant, 2 drift. It also runs daily
+     from `windwardline-toolchain-update`, so detection does not depend on this
+     cadence being executed.
    - The four AGENTS.md paths resolve to one inode (`ls -laiL`); restore the
      symlinks if not.
    - `gh auth status` healthy.
