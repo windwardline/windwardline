@@ -29,7 +29,21 @@ owner-decision items last.
    pathfinder's `npm_and_yarn` failure at 13:12 was masked by its
    `github_actions` success at 13:36. It surfaced only because the window
    list was read by eye. This failure mode turns a real red into a
-   confident clean report, so it costs more than a missed check. Push and cron
+   confident clean report, so it costs more than a missed check.
+   **A workflow with more than one cron fans out the same way, and job
+   identity is then the set of jobs that did not skip.** `security.yml`
+   carries two schedules: `17 9 * * 1` runs the full suite, `17 13 * * *`
+   runs `Headers live` only, and the scan jobs skip themselves on the daily
+   one — so that run reports **success while scanning nothing**. Run seven
+   found craft's weekly scan failing at 09:56Z on a real advisory with a
+   Headers-only `success` at 13:51Z the same day; the next day's daily run
+   would have superseded the failure in the latest-run view and retired a
+   live finding without anyone deciding to. Two runs that executed different
+   job sets are not comparable, and the later cannot supersede the earlier.
+   Read the jobs, not the run conclusion: a run whose scan jobs skipped is
+   not a scan, and a green one is not evidence the tree is clean. The same
+   reading error made the five `success` rows before it look like five clean
+   dependency scans when not one of them had run the scanner. Push and cron
    failures (weekly Semgrep, Headers live) surface nowhere else. Report
    workflows examined alongside failures found, so a clean sweep is visibly
    "looked at 44, found 1". Run two swept window-only and produced 10
