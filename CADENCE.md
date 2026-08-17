@@ -133,6 +133,18 @@ owner-decision items last.
      forbidden, a removed `deny`, a disarmed hook. **Run it here, at step 5.**
      After step 8 the snapshot has overwritten the baseline with the current
      state, and the check compares the live config against itself.
+   - Agent exit status: `agent-exit-status.sh` in `windwardline/ops` (private)
+     exits 0. launchd records a job's exit code and tells nobody, so a failing
+     background job stays invisible until someone asks. On 2026-08-17 six
+     non-Apple agents carried a non-zero last exit and none had produced a
+     signal — `homebrew-autoupdate` among them, whose `&&` chain broke at a
+     cask needing sudo, so `brew cleanup` never ran and its cache reached
+     3.3 GB. It separates FAILING (ran, exited non-zero) from ORPHAN (a plist
+     whose program does not exist, which cannot run and therefore never looks
+     broken), and checks scheduled-job freshness and the updater lock. Exit 1 a
+     job is failing, 2 orphans or staleness only. It runs daily from
+     `windwardline-toolchain-update` and writes the status line the SessionStart
+     hook surfaces; this is the weekly backstop.
    - MCP health: `mcp-health.sh` in `windwardline/ops` (private) exits 0. It
      asserts that MCP **works**, where drift detection only asserts it is
      unchanged — a config that is broken and stable passes a sameness check
