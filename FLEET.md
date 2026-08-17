@@ -51,6 +51,26 @@ enforces it now:
   `Semgrep CE SKIPPED` beside three green siblings, merged. The guard bought
   nothing; the job runs in a pinned container with `persist-credentials:
   false` and reads no secret. The checker asserts the guard stays gone.
+  **`Dependency scan` carries no schedule guard either, and for a different
+  reason.** Semgrep and Secret scan read repository content, which cannot
+  change without a push, and both already run on every push and pull request —
+  a weekly cron is enough for them. This job reads the advisory database, which
+  changes with no commit at all, so it is the one job whose input moves while
+  the repository sits still. It ran weekly until 2026-08-17: nanoid
+  GHSA-2v37-7h3g-55p8 widened on the 13th, nothing looked again until the
+  17th, and the daily run in between reported `success` having skipped every
+  scan job. The checker asserts no `github.event.schedule` guard sits on it.
+- **A gate states what it examined, and a gate that examined nothing fails.**
+  The standing property behind several of the rules above. Six separate
+  controls in this fleet have reported success without evaluating anything:
+  Semgrep skipping itself on Dependabot PRs, the conformance checker reading a
+  rate limit as "file missing", the auto-merge lane falling back to
+  `GITHUB_TOKEN` in silence, an App ID that was present but not an integer, the
+  daily scan skipping its scans, and a suppression whose expiry nothing read.
+  Presence is not validity, and a green signal is not a signal that ran. So:
+  report a count of what was inspected next to the count of what failed, treat
+  a zero or absent count as failure rather than as a pass, and — when reading a
+  workflow — ask which jobs *executed*, never what the run concluded.
 - `osv-scanner.toml` — optional, and the only sanctioned way to hold the
   dependency-scan gate green over a finding that cannot be fixed. Every
   `[[IgnoredVulns]]` entry carries a `reason` for accepting the risk and an
