@@ -11,7 +11,7 @@
 
 set -u
 OWNER="windwardline"
-EXEMPT="windwardline venture fleet-template ops"   # mirrors FLEET.md's exceptions register exactly
+EXEMPT="windwardline venture ops"   # mirrors FLEET.md's exceptions register exactly
 FILES="AGENTS.md CLAUDE.md LICENSE SECURITY.md .github/dependabot.yml .github/workflows/ci.yml .github/workflows/security.yml .github/workflows/claude-review.yml"
 # Detectable parallel-stack markers (FLEET.md Preferred stack). A recorded
 # "Stack exception (owner-approved" line in the repo's AGENTS.md waives them.
@@ -298,6 +298,41 @@ EOF
   else
     fail=1
   fi
+fi
+
+# Exemption premises, re-verified every run. An exemption is a claim about a
+# repo ("no CI"), and a blanket skip list can never notice when that claim stops
+# being true — the skip is exactly what stops anyone looking. fleet-template was
+# exempted as "no CI, no ruleset", then grew ci.yml, security.yml and a review
+# lane; it ran 61 pull_request builds and merged eight PRs through no gate at
+# all, and the checker stayed silent because it had been told not to look.
+#
+# The standing rule is that every repo WITH CI carries the ruleset and
+# auto-merge, no exceptions — so an exempt repo that has CI is not an exception,
+# it is an unapplied rule. This pass re-derives the premise from remote state
+# instead of trusting the register.
+echo
+exempt_fail=0
+for e in $EXEMPT; do
+  prruns=$(gh api "repos/$OWNER/$e/actions/runs?event=pull_request&per_page=1" --jq '.total_count' 2>/dev/null)
+  case "$prruns" in ''|*[!0-9]*) prruns=0 ;; esac
+  hasci=0
+  for f in ci.yml security.yml; do
+    sha=$(gh api "repos/$OWNER/$e/contents/.github/workflows/$f?ref=main" --jq '.sha' 2>/dev/null)
+    # gh writes the 404 body to stdout, so require a real blob sha before trusting it
+    case "$sha" in
+      [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) hasci=1 ;;
+    esac
+  done
+  if [ "$hasci" -eq 1 ] || [ "$prruns" -gt 0 ]; then
+    printf '%-22s %s\n' "$e" "exemption-stale: has CI (ci/security workflow, ${prruns} pull_request runs) — the no-CI premise no longer holds, so the ruleset and auto-merge are now required"
+    exempt_fail=1
+  fi
+done
+if [ "$exempt_fail" -eq 0 ]; then
+  echo "Exemption premises hold — every exempted repo still has no CI."
+else
+  fail=1
 fi
 
 # Action pin comments, in one pass across the whole account. Deliberately not
