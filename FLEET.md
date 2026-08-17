@@ -41,9 +41,13 @@ enforces it now:
   Cross-Origin-Opener-Policy) — at the repo root, or the app directory in a
   monorepo. Explicit always; never rely on platform-injected headers.
 - `.github/workflows/ci.yml` — the repo's real gates.
-- `.github/workflows/security.yml` — Semgrep CE + Secret scan on PRs, pushes,
-  weekly cron; plus `Dependency scan / osv-scan` when the repo has a lockfile;
-  plus `Headers live` when it serves a production domain. **No job in it may
+- `.github/workflows/security.yml` — Semgrep CE + Secret scan on PRs, pushes
+  and a weekly cron; `Dependency scan / osv-scan` on PRs, pushes and a **daily**
+  cron when the repo has a lockfile; plus `Headers live` when it serves a
+  production domain. Each cron comment names the jobs that cron actually runs:
+  the daily one read "Headers live probe only" for a day after the dependency
+  scan joined it, and a cadence comment is a claim about what executes that
+  nothing checks. **No job in it may
   carry a `github.actor != 'dependabot[bot]'` guard.** Semgrep CE held one
   until 2026-08-11: it is a required check, GitHub counts a skipped required
   check as satisfied, so it reported green without running on precisely the
