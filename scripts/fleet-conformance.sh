@@ -335,6 +335,43 @@ else
   fail=1
 fi
 
+# The dependency scan must not carry a schedule guard. Its input is the
+# advisory database, which moves with no commit — so a weekly cron means a
+# repo can sit on a High advisory for six days, which is exactly what happened
+# to craft and pathfinder with nanoid GHSA-2v37-7h3g-55p8 (widened 2026-08-13,
+# seen 2026-08-17). Semgrep and Secret scan keep their guards: they read repo
+# content, which cannot change without a push they already gate.
+#
+# Only repos that actually scan a lockfile are in scope; the six sites without
+# one have no such job and are not drift.
+#
+# craft is held by the owner (2026-08-17) while unrelated work finishes there,
+# so it is named rather than silently skipped — a skip list that cannot say why
+# is how fleet-template sat exempt while running 61 builds through no gate.
+DEPSCAN_HELD="craft"
+echo
+scan_fail=0; scan_seen=0; scan_held=0
+for r in $ALL; do
+  body=$(gh api "repos/$OWNER/$r/contents/.github/workflows/security.yml?ref=main" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null)
+  [ -z "$body" ] && continue
+  # only the live job counts; fleet-template ships it commented out as a TODO
+  printf '%s' "$body" | grep -qE '^[[:space:]]*uses:.*osv-scanner-reusable' || continue
+  scan_seen=$((scan_seen + 1))
+  guard=$(printf '%s' "$body" | awk '/name: Dependency scan/{f=1;next} f&&/^[[:space:]]*if:/{print;exit} f&&!/^[[:space:]]*#/{exit}')
+  case "$guard" in
+    *github.event.schedule*)
+      case " $DEPSCAN_HELD " in
+        *" $r "*) printf '%-22s %s\n' "$r" "dependency-scan still weekly — held by owner 2026-08-17, not drift"; scan_held=$((scan_held + 1)) ;;
+        *) printf '%-22s %s\n' "$r" "dependency-scan carries a schedule guard — the advisory database moves without a commit"; scan_fail=1 ;;
+      esac ;;
+  esac
+done
+if [ "$scan_fail" -eq 0 ]; then
+  echo "Dependency scans run on every trigger — $scan_seen repo(s) with a lockfile scan, $scan_held held."
+else
+  fail=1
+fi
+
 # Vulnerability suppressions, in one pass across the whole account. An
 # osv-scanner.toml entry holds the dependency-scan gate green over a finding
 # nobody can fix, which makes it the one file in the fleet that can turn a red
