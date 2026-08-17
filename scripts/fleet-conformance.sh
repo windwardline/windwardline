@@ -335,6 +335,74 @@ else
   fail=1
 fi
 
+# Vulnerability suppressions, in one pass across the whole account. An
+# osv-scanner.toml entry holds the dependency-scan gate green over a finding
+# nobody can fix, which makes it the one file in the fleet that can turn a red
+# gate green by assertion alone. FLEET.md therefore requires two fields on every
+# entry — a `reason`, and an `ignoreUntil` that makes the acceptance expire.
+#
+# The expiry is the part that needs a checker. A `reason` is visible in review
+# the day it is written; a date silently lapses months later, in a file nobody
+# has opened since, and the only thing that would notice is a scan that happens
+# to run afterwards. That is the same shape as every other defect this script
+# exists for: a control that reports success without having evaluated anything.
+#
+# Swept across every non-archived repo rather than inside the loop above,
+# because an exempt repo can carry a suppression too — and the exempt repos are
+# precisely the ones with no CI to fail when a date lapses.
+echo
+today=$(date -u +%F)
+supp_fail=0
+supp_entries=0
+supp_repos=0
+for r in $ALL; do
+  probe "repos/$OWNER/$r/contents/osv-scanner.toml?ref=main"
+  case $? in
+    1) continue ;;
+    2) echo; echo "ERROR: GitHub refused a request for $r (osv-scanner.toml) — not drift, aborting." >&2
+       printf '%s\n' "$refusal" | head -3 >&2
+       exit 2 ;;
+  esac
+  body=$(gh api "repos/$OWNER/$r/contents/osv-scanner.toml?ref=main" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null)
+  if [ -z "$body" ]; then
+    printf '%-22s %s\n' "$r" "osv-scanner.toml unreadable — refusing to call it conformant"
+    supp_fail=1; continue
+  fi
+  supp_repos=$((supp_repos + 1))
+  # One line per [[IgnoredVulns]] block: id|reason-present|ignoreUntil
+  parsed=$(printf '%s\n' "$body" | awk '
+    function emit() { printf "%s|%d|%s\n", (id==""?"NOID":id), rs, (iu==""?"NONE":iu) }
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*\[\[IgnoredVulns\]\]/ { if (n>0) emit(); n++; id=""; rs=0; iu=""; next }
+    n>0 && /^[[:space:]]*id[[:space:]]*=/          { v=$0; sub(/^[^=]*=[[:space:]]*/,"",v); gsub(/["'"'"'[:space:]]/,"",v); id=v }
+    n>0 && /^[[:space:]]*reason[[:space:]]*=/      { rs=1 }
+    n>0 && /^[[:space:]]*ignoreUntil[[:space:]]*=/ { v=$0; sub(/^[^=]*=[[:space:]]*/,"",v); gsub(/["'"'"'[:space:]]/,"",v); iu=v }
+    END { if (n>0) emit() }')
+  [ -z "$parsed" ] && continue
+  while IFS='|' read -r id rs iu; do
+    [ -z "$id" ] && continue
+    supp_entries=$((supp_entries + 1))
+    [ "$rs" = "1" ] || { printf '%-22s %s\n' "$r" "suppression $id: no reason — FLEET.md requires one"; supp_fail=1; }
+    if [ "$iu" = "NONE" ]; then
+      printf '%-22s %s\n' "$r" "suppression $id: no ignoreUntil — an acceptance that cannot expire is unreviewed"
+      supp_fail=1
+    elif ! printf '%s' "$iu" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+      printf '%-22s %s\n' "$r" "suppression $id: ignoreUntil '$iu' is not a YYYY-MM-DD date"
+      supp_fail=1
+    elif [ "$iu" \< "$today" ]; then
+      printf '%-22s %s\n' "$r" "suppression $id: ignoreUntil $iu has passed — re-decide it or remove the entry"
+      supp_fail=1
+    fi
+  done <<EOF
+$parsed
+EOF
+done
+if [ "$supp_fail" -eq 0 ]; then
+  echo "Suppressions conformant — $supp_entries entr$([ "$supp_entries" = 1 ] && echo y || echo ies) across $supp_repos repo(s), all with a reason and an unexpired date."
+else
+  fail=1
+fi
+
 # Action pin comments, in one pass across the whole account. Deliberately not
 # inside the loop above: this audit covers every non-archived repo, including
 # the four the checker exempts. Both original rot cases sat in exempt repos —
