@@ -58,7 +58,24 @@ jq -e '.hooks.Stop' "$W" >/dev/null 2>&1 \
 # what the clause exists to forbid. Measured before widening: across all 249
 # allow/ask/deny entries on the machine it newly flags that one entry and
 # nothing else.
-LOCAL_BAD='gh (api|pr|repo|auth|workflow) \*|security (dump-keychain|find-(generic|internet)-password|export|unlock-keychain)|python[0-9]? -c|python[0-9]? -\)|node[^)]* -e|npm run \*|Bash\(npx[^)]*\*|apply_migration|execute_sql|execute_zapier_write|Read\(//Users/peacock/\*\*|postgres(ql)?://[^"]*:[^@"]{6,}@|wrangler login|brew install \*|git reset \*|git rm \*'
+# Two clauses added 2026-08-17, both for grants this audit passed clean while
+# they sat on standing allow in ~/Projects/.claude/settings.local.json.
+#
+# keychain-write: every verb in the credential clause above is a READ —
+# dump, find, export, unlock. The rule was written to protect secrecy and never
+# asked about destruction, so `Bash(security delete-generic-password *)` was
+# conformant: a wildcard letting any unattended session delete arbitrary
+# Keychain entries. Widening it on 2026-08-09 to "all credential-adjacent
+# security(1) subcommands" widened it along the read axis only, which is how
+# the gap survived a deliberate review of this exact clause. For any tool a
+# rule names, enumerate read, write and destroy before calling it complete.
+#
+# worldwritable-exec: `Bash(chmod +x /tmp/eptest.zsh)` beside
+# `Bash(/tmp/eptest.zsh)` is standing execution of a fixed path in a
+# world-writable directory — anything that can win the race to write that path
+# gets an unprompted run. Scoped to /tmp deliberately: the session scratchpad
+# under /private/tmp/claude-501/<uuid>/ is not shared and not predictable.
+LOCAL_BAD='gh (api|pr|repo|auth|workflow) \*|security (dump-keychain|find-(generic|internet)-password|export|unlock-keychain)|security (delete|add|set)-(generic|internet)-password|Bash\((chmod \+x )?/tmp/|python[0-9]? -c|python[0-9]? -\)|node[^)]* -e|npm run \*|Bash\(npx[^)]*\*|apply_migration|execute_sql|execute_zapier_write|Read\(//Users/peacock/\*\*|postgres(ql)?://[^"]*:[^@"]{6,}@|wrangler login|brew install \*|git reset \*|git rm \*'
 while IFS= read -r f; do
   hits=$(grep -nE "$LOCAL_BAD" "$f" 2>/dev/null | cut -d: -f1 | paste -sd, -)
   [ -z "$hits" ] || say "$f: forbidden entries at line(s) $hits"
