@@ -51,6 +51,19 @@ enforces it now:
   `Semgrep CE SKIPPED` beside three green siblings, merged. The guard bought
   nothing; the job runs in a pinned container with `persist-credentials:
   false` and reads no secret. The checker asserts the guard stays gone.
+- `osv-scanner.toml` — optional, and the only sanctioned way to hold the
+  dependency-scan gate green over a finding that cannot be fixed. Every
+  `[[IgnoredVulns]]` entry carries a `reason` for accepting the risk and an
+  `ignoreUntil` date, because **an accepted risk that cannot expire is an
+  unreviewed one**: at the expiry the gate fails again and the decision is
+  made a second time, on that day's facts. The checker asserts both fields on
+  every entry and fails an `ignoreUntil` already past — a lapsed date sitting
+  in a file nobody reads is the exact failure this exists to prevent, and it
+  is invisible until the scan happens to run. An entry suppresses a finding;
+  it does not fix one, so it is written only where there is nothing to
+  upgrade to. Precedent: grown-men-grow and craft, both for `extract-zip`,
+  which has published no release since 2023. Never a blanket ignore, never an
+  entry without a date.
 - `.github/workflows/claude-review.yml` — the thin caller of this repo's
   reusable (`@main`, deliberate: one merge updates every repo), passing
   `CLAUDE_CODE_OAUTH_TOKEN`.
