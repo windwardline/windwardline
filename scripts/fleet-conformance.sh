@@ -12,6 +12,11 @@
 set -u
 OWNER="windwardline"
 EXEMPT="windwardline venture ops"   # mirrors FLEET.md's exceptions register exactly
+# Repos the owner has reserved, which therefore lag a fleet-wide change. Named
+# and reported every run rather than skipped: a skip list that cannot say why
+# is how fleet-template sat exempt while merging eight PRs through no gate.
+# Empty this the moment the hold lifts — see FLEET.md's held-repos note.
+LANE_HELD="craft"
 FILES="AGENTS.md CLAUDE.md LICENSE SECURITY.md .github/dependabot.yml .github/workflows/ci.yml .github/workflows/security.yml .github/workflows/claude-review.yml"
 # Detectable parallel-stack markers (FLEET.md Preferred stack). A recorded
 # "Stack exception (owner-approved" line in the repo's AGENTS.md waives them.
@@ -98,7 +103,16 @@ for r in $REPOS; do
   elif [ -z "$want" ]; then
     drift="$drift no-template:dependabot-auto-merge.yml"
   elif [ "$got" != "$want" ]; then
-    drift="$drift auto-merge-lane:differs-from-template"
+    # craft is held by the owner (2026-08-17) while unrelated work finishes
+    # there, so it lags the template reorder that let the lane mint its token
+    # before reading Dependabot metadata. Named, not skipped — and reported on
+    # every run, because this file decides what merges unattended and a quiet
+    # exception here is the most expensive kind. Closing it is one command:
+    #   gh workflow ... see LANE_HELD note in FLEET.md
+    case " $LANE_HELD " in
+      *" $r "*) note="$note lane-behind-template:held-by-owner-2026-08-17" ;;
+      *) drift="$drift auto-merge-lane:differs-from-template" ;;
+    esac
   fi
 
   # The soak is read, not assumed. Auto-merge without a cooldown is a same-day

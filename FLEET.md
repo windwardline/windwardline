@@ -215,6 +215,19 @@ second is the more expensive mistake, so both fail the checker.
 Adding or removing a row here means amending this table and the checker's
 `PRIVATE_BY_DESIGN` list in the same change set.
 
+## Held repos
+
+A repo the owner has reserved, which therefore lags a fleet-wide change. Named
+in the checker (`LANE_HELD`, `DEPSCAN_HELD`) and reported on every run rather
+than skipped — a skip list that cannot say why is how fleet-template sat exempt
+while merging eight PRs through no gate. A hold is a dated promise, not an
+exception: it carries the date it was granted and is emptied the moment the
+work it was protecting lands.
+
+| Repo | Held since | Behind | Closing it |
+|---|---|---|---|
+| craft | 2026-08-17 | dependency-scan schedule guard; auto-merge lane reorder | copy `templates/dependabot-auto-merge.yml` in, drop the `if:` on `Dependency scan`, then remove `craft` from both lists |
+
 ## Exceptions register
 
 | Repo | Exception | Why |

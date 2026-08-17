@@ -52,15 +52,6 @@ jobs:
     env:
       APP_ID: ${{ secrets.FLEET_AUTOMERGE_APP_ID }}
     steps:
-      # Outputs populate only when the PR carries solely Dependabot commits
-      # with a verified signature. A human fixup fails this step, so touching
-      # the branch means owning the merge.
-      - name: Read Dependabot metadata
-        id: meta
-        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
-        with:
-          github-token: ${{ github.token }}
-
       # A set-but-mangled key fails deep inside the mint step below as
       # "Invalid keyData" / ASN.1 "not enough data", which names neither the
       # cause nor the fix. It happens for one boring reason: the PEM went
@@ -89,6 +80,18 @@ jobs:
         with:
           app-id: ${{ secrets.FLEET_AUTOMERGE_APP_ID }}
           private-key: ${{ secrets.FLEET_AUTOMERGE_PRIVATE_KEY }}
+
+      # Runs AFTER the mint so it can use the App token. On a private repo the
+      # Dependabot-scoped GITHUB_TOKEN cannot list a PR's commits — this step
+      # 403ed on grown-men-grow (2026-08-17) and killed the job before the token
+      # was ever minted, which read as an App failure and was not one. Outputs
+      # populate only when the PR carries solely Dependabot commits with a
+      # verified signature, so a human fixup means owning the merge.
+      - name: Read Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ steps.apptoken.outputs.token || github.token }}
 
       - name: Decide and arm
         env:
