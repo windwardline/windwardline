@@ -208,7 +208,6 @@ someone forgets the flag.
 
 | Repo | Why it stays private |
 |---|---|
-| `grown-men-grow` | Pseudonymous publication. The repo names the founder, his employer, and the litigation rationale for concealing both, across 13 files and every commit. Publishing de-anonymizes it irreversibly, and it already fits inside the included allowance. |
 | `ops` | Third-party personal data (another organization's federal Tax ID, named individuals' contact details), credential-incident history, and the machine's full Keychain inventory. No workflows, so it costs nothing. |
 | `venture` | Unlaunched venture: full product roster, supplier positions, and go-to-market not yet public. No workflows, so it costs nothing. |
 
@@ -217,7 +216,10 @@ registered-private repo that turns public is an irreversible disclosure. The
 second is the more expensive mistake, so both fail the checker.
 
 Adding or removing a row here means amending this table and the checker's
-`PRIVATE_BY_DESIGN` list in the same change set.
+`PRIVATE_BY_DESIGN` list in the same change set. `grown-men-grow` left the
+register on 2026-08-18: it was the one private repo still running CI, and its
+652 runs in 18 days took the account to 100% of the allowance. The owner chose
+disclosure over the bill; the repo's decision log records it.
 
 ## Held repos
 

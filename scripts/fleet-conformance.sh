@@ -277,15 +277,15 @@ done
 # control before it is anything else — on 2026-08-16 eight private repos burned
 # 90% of the 3,000-minute monthly allowance by day 16, and publishing five of
 # them removed the entire overage without touching a workflow. Deliberately
-# outside the loop above: it covers the exempted repos too, because three of the
-# four exemptions are private and this register is what makes that deliberate
+# outside the loop above: it covers the exempted repos too, because two of the
+# exemptions are private and this register is what makes that deliberate
 # rather than drift.
 #
 # Checked both directions. A repo that goes private starts costing money; a
 # registered-private repo that goes public is an irreversible disclosure. Either
 # is drift, and the second is the more expensive mistake.
 echo
-PRIVATE_BY_DESIGN="grown-men-grow ops venture"
+PRIVATE_BY_DESIGN="ops venture"
 vis_rows=$(gh repo list "$OWNER" --limit 200 --json name,visibility,isArchived \
   --jq '[.[] | select(.isArchived | not) | .name + " " + .visibility] | sort | join("\n")' 2>/dev/null) || vis_rows=""
 if [ -z "${vis_rows// /}" ]; then
