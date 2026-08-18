@@ -217,7 +217,7 @@ move on — do not re-investigate from scratch each week.
   `upload: never` — so don't query it.
 - Owner dashboard reminders (checks only the owner can see): Anthropic Console
   spend and limits; Supabase backup posture; domain and certificate expiries;
-  the two UI-managed clients hold the frontier model — ChatGPT's default set
-  to the frontier (not Auto) and Antigravity's model confirmed in-app,
+  the UI-managed clients hold the frontier model — ChatGPT's default set to
+  the frontier (not Auto) and Gemini Code Assist's model confirmed in-app,
   especially after client updates. (Claude and Codex are file-checked in
-  step 5 weekly; these two cannot be.)
+  step 5 weekly; these cannot be.)
