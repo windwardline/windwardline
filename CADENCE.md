@@ -87,6 +87,13 @@ owner-decision items last.
    exceptions register no longer holds a row for it. Run six's nine-PR pile-up
    is what closed this gap — none of them was stale enough to trip the
    seven-day flag.
+   **A repaired credential does not retroactively unblock the PRs held behind
+   it.** The lane fires on pull_request events; a secret corrected afterwards
+   changes nothing until something re-runs. Run eight found three levelflow-cloud
+   PRs still red on lane runs that predated the owner's fix by two hours — a
+   `gh run rerun` merged the first on the spot. When a lane failure traces to a
+   credential, check the secret's `updated_at` against the run, and re-run
+   rather than report the hold.
 4. **Runtime error sweep, environment-aware** — for each live app, pull the
    week's Vercel runtime errors (Vercel MCP or CLI); report new signatures
    and counts. The errors table mixes production and preview in one view
@@ -197,13 +204,15 @@ that reports it as a finding is misreading the fleet.
 Failures that recur by design. Confirm the stated condition still holds, then
 move on — do not re-investigate from scratch each week.
 
-- **fleet-template's `Claude review` lane fails on every run.** It has never
-  passed — failures run back past 2026-08-09, before any spend limit — while
-  the identical caller succeeds in all fourteen fleet repos (pathfinder and
-  craft both green on 2026-08-12). The template holds no application code, so
-  the review runs against placeholder `AGENTS.md` content and returns
-  `is_error:true`. Advisory lane, exempt repo, nothing gated. The check that
-  it is still benign: the same workflow is green in a real repo the same day.
+- **fleet-template's `Claude review` lane fails intermittently.** It returns
+  `is_error:true` against the template's placeholder content and no application
+  code. It failed on every run from before 2026-08-09 through 2026-08-17 02:23Z,
+  then passed three times the same day (19:27Z, 20:06Z, 22:16Z) with the lane
+  and the reusable caller both unchanged since 2026-08-11 — so the red is flaky,
+  not structural, and "it has never passed" is no longer true. Advisory lane,
+  exempt repo, nothing gated. The check that it is still benign: the same
+  workflow is green in a real repo the same day. A **run of reds with no green
+  anywhere in the fleet** is a real finding, not this entry.
 - **pathfinder Dependabot security updates for `postcss` and `brace-expansion`**
   fail `security_update_not_possible`. Dependabot resolves declared ranges and
   cannot see pnpm `overrides`; `pnpm-workspace.yaml` already forces the whole
