@@ -10,7 +10,7 @@ enforced in CI.
 | Product | What it is | Live |
 |---|---|---|
 | [Pathfinder](https://github.com/windwardline/pathfinder) | Reentry routing — only confirmed facts affect the route | [pathfinder.windwardline.com](https://pathfinder.windwardline.com) |
-| [Levelflow Cloud](https://github.com/windwardline/levelflow-cloud) | Disciplined market review — RLS on all 14 tables, fail-closed analyzer, 2,175 tests | [levelflow.windwardline.com](https://levelflow.windwardline.com) |
+| [Levelflow Cloud](https://github.com/windwardline/levelflow-cloud) | Disciplined market review — RLS on all 10 tables, fail-closed analyzer, 2,215 tests | [levelflow.windwardline.com](https://levelflow.windwardline.com) |
 | [TimeShift](https://github.com/windwardline/timeshift) | Jetlag visualizer, built test-first — 202 tests | [timeshift.windwardline.com](https://timeshift.windwardline.com) |
 | [Mimic](https://github.com/windwardline/mimic) | D&D Beyond PDF → Roll20 JSON, no OCR | [mimic.windwardline.com](https://mimic.windwardline.com) |
 | [That's Extra](https://github.com/windwardline/thats-extra) | Change-order automation for subcontractors | [thats-extra.windwardline.com](https://thats-extra.windwardline.com) |
