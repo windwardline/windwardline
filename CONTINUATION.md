@@ -455,14 +455,21 @@ fresh clone of windwardline/windwardline at main, with the per-repo rows
 recorded. Cleaned up is defined in section 1: branches reset onto the default
 branch, no orphaned state.
 
-Two things are out of scope and must not be touched. levelflow-cloud's rebuild
-program is not yours — its state of record is docs/HANDOFF.md in that repo and
-its own owner resumes it separately; the only levelflow-cloud work in scope is
-its AGENTS.md, and only where a fleet-wide correction genuinely applies to it.
-And templates/dependabot-auto-merge.yml is compared across repos by git blob
-hash, so any byte you change there desynchronizes fourteen repos on the lane
-that arms unattended merges — section 5 explains the real defect sitting in it
-and why it was left for a decision rather than fixed.
+Section 10i splits ownership item by item and is the authority on what is
+yours. In short: levelflow-cloud's rebuild program is not — its state of record
+is docs/HANDOFF.md in that repo and its own owner resumes it separately, and
+the eleven-item register in that file is theirs, not yours. Two things inside
+that repo ARE yours, because they are fleet-wide items that happen to live
+there: the four AGENTS.md contract defects, each one instance of a population
+spanning many repos, and HANDOFF.md section 6b's long-form CONVERGE prompt,
+which is the sixth home of the cycle and the only copy nothing pins — the copy
+an agent actually pastes and runs.
+
+One thing is out of scope outright. templates/dependabot-auto-merge.yml is
+compared across repos by git blob hash, so any byte you change there
+desynchronizes thirteen repos on the lane that arms unattended merges — section
+5 explains the real defect sitting in it and why it was left for a decision
+rather than fixed.
 
 Report what you could not verify as plainly as what you did. A check that
 reports success without having evaluated anything is the single defect class
@@ -604,6 +611,35 @@ contract sentence true. But `FLEET.md:458` schedules that guard for **deletion**
 checker reddening it meanwhile. So §5's trap protects a sentence the standard
 requires to become false. When the hold lifts, `craft` joins the five — and the
 daily-cron correction must be re-derived, not replayed from the list in §5.
+
+### 10i. Ownership — every open item has exactly one owner
+
+The rebuild and the standard are worked by different agents from here. Split
+stated once, so nothing sits waiting on whichever one reads it first.
+
+**Yours (the standards work).** Everything in §4, §5, §6 and §8 of this file,
+plus two items that live inside `levelflow-cloud` and are nonetheless
+fleet-wide:
+
+- **The four `AGENTS.md` contract defects recorded in `levelflow-cloud`'s
+  HANDOFF** — the false daily-cron claim, the false "every same-repo PR" review
+  claim, the omitted `unrecognised update type` hold, and the unnamed
+  `verify-action-pins` gate. Each is one instance of a population spanning many
+  repos (§4b), and fixing the levelflow instance alone is the blanket-edit
+  mistake §5's cron trap describes, run in miniature.
+- **`levelflow-cloud/docs/HANDOFF.md` §6b's long-form CONVERGE prompt.** It is
+  the sixth home in §2's table and the only unpinned copy of the cycle — §6b
+  says so about itself: *"It does not check the long form below."* It is the
+  copy an agent pastes and executes, so it is the copy most likely to drift,
+  and pinning it is enforcement work, not rebuild work. `HANDOFF.md` now routes
+  it here explicitly rather than leaving it to whoever notices.
+
+**Not yours (the rebuild).** The R-ranked sequence and the eleven-item
+"Unresolved, recorded here so it is not lost" register in `HANDOFF.md`. That
+register names dead commits, an unreproducible fingerprint and an undefined
+"deployed" for the next three rebuild items; all of it lands in that repo and
+none of it is a fleet concern. Read `HANDOFF.md` if you want the split's other
+half; do not work it.
 
 ### 10h. What the pass could not check, stated plainly
 
