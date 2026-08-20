@@ -5,6 +5,26 @@ lagged in others; a repo-as-standard drifts, gets retired, or excuses its own
 gaps. The standard is therefore this document plus the machinery that enforces
 it. Repos conform to the standard; the standard does not live in any of them.
 
+**Precedence, so three documents cannot each claim the last word.** Every repo's
+`AGENTS.md` opens by noting that the machine's global `~/AGENTS.md` still
+applies, and now also cites this document — three texts an agent may hold at
+once. They rank, and they do not compete:
+
+- The global `~/AGENTS.md` is the cross-tool contract every client on the
+  machine reads (Claude, Claude Code, Codex, Gemini — one file, four symlinked
+  paths). Its machine-level laws — credential handling, where repos may live,
+  what may never be published — bind everywhere and are not overridable by a
+  repo or by this document.
+- For the WORKING METHOD the global contract **delegates here**: it states that
+  this document's CONVERGE section "binds every agent on every project,
+  including repos outside the fleet." So on CONVERGE there is no conflict to
+  resolve — the global contract carries the pointer, this file carries the
+  method, and a new project is covered by the pointer before it has a repo to
+  conform.
+- A repo's own `AGENTS.md` adds specifics — its stack, gates, and laws — and
+  may narrow but never weaken either. Where its summary of this document and
+  this document differ, this document governs.
+
 ## Provenance — where each piece came from
 
 The standard is a composite. Credit where each dimension originated, and what
@@ -224,7 +244,16 @@ rather than manufacturing another.
   any document a resumer copies. A count is not a checklist — it hides the gate
   nobody ran. This is not hypothetical: a session reported "six gates green" for
   fifty-odd rounds while the contract listed seven, and the omitted one was
-  never run.
+  never run. **A repo's `AGENTS.md` names every workflow it runs, by filename**,
+  and `scripts/fleet-conformance.sh` derives that set from `.github/workflows/`
+  rather than trusting the contract's own list — a contract cannot be the
+  witness to its own completeness. The first sweep carrying that check found
+  `dependabot-auto-merge.yml` named in **no contract in the fleet**: the lane
+  that arms unattended merges, and that degrades silently to `GITHUB_TOKEN`
+  (whose pushes fire no workflows) when its App credentials are absent. It
+  surfaced only because one repo printed a count — "seven workflows" against
+  eight on disk — while every other repo hid the identical omission by not
+  counting.
 - **Stage explicit paths. Never `git add -A`.** Audit the staged diff against
   what you actually authored. Never run a write-capable background agent against
   the working tree a commit is staged from.
@@ -273,31 +302,63 @@ the next session must not rediscover. Anchor durable checks to content hashes,
 never to commit SHAs a squash merge will orphan. Do not start work you cannot
 finish — stopping mid-implementation is a worse parking state than not starting.
 
-**Enforcement — and its current gap, stated plainly.** This standard is **not
-yet deterministically enforced**, and that is a gap being closed, not a design
-choice. The first version of this section named pathway 3, the review lane, as
-its enforcement. That was circular: two subsections above, this same document
-declares the review lane advisory and explicitly not a required gate. A standard
-cannot be held by a mechanism it defines as non-binding.
+**Enforcement.** This standard is deterministically enforced.
+`scripts/fleet-conformance.sh` requires every repo's `AGENTS.md` to cite this
+section and to carry the cycle's steps **in order** — checked against a chain
+**derived from this document at run time**, never a literal copied into the
+script. That distinction is the whole mechanism. A hardcoded chain would be a
+third place the cycle is written down, free to drift from both the standard and
+the repos it governs — the curated-population defect named in the delivery
+rules below, reintroduced inside the enforcement itself. Deriving it means
+revising the cycle above re-points every check automatically, and any repo
+still carrying the old chain goes red on the next sweep.
 
-Worse, an agent governed by this standard reads its repo's `AGENTS.md`. It does
-not read this file unless something points it here. A working method that lives
-only in the fleet standard may never reach the agent it governs.
+Verified 2026-08-20 rather than assumed: a ninth step was inserted into the
+cycle above and the checker re-run, every repo went red with no repo edited,
+and green again when the step was removed. Reordering is caught too — a
+contract listing the right steps in the wrong order fails, because an
+out-of-order cycle is a different method, not a cosmetic difference. The
+derivation fails closed: a run that reads fewer than six steps aborts rather
+than reporting a fleet it had nothing to check against.
 
-The closure path, in the order that avoids a non-conformance window:
+That closes a gap this section previously recorded rather than hid. The first
+version of it named pathway 3, the review lane, as its enforcement. That was
+circular: two subsections above, this same document declares the review lane
+advisory and explicitly not a required gate. A standard cannot be held by a
+mechanism it defines as non-binding. And an agent governed by this standard
+reads its repo's `AGENTS.md`; it does not read this file unless something points
+it here. A working method that lives only in the fleet standard may never reach
+the agent it governs.
 
-1. Every fleet repo's `AGENTS.md` cites this section, so the standard reaches
-   the agent at the file it actually reads. (Closure condition 3.)
-2. `scripts/fleet-conformance.sh` then requires that citation, in the same
-   change set that finishes step 1 — deterministic enforcement, per the
-   change-together law, with no interval during which the fleet is
-   non-conformant against a rule its repos do not yet satisfy.
+The closure path, and where each step stands:
+
+1. Every repo's `AGENTS.md` cites this section, so the standard reaches the
+   agent at the file it actually reads. (Closure condition 3.) Rolled out and
+   measured against every repo before the check became binding — the rule lands
+   on a fleet that already satisfies it, which is the ordering constraint step 2
+   was written to respect.
+
+   **The exceptions register does not apply to this check** (owner ruling
+   2026-08-20: "the same standard everywhere. No variations, no accommodations,
+   no weaknesses"). The register exists because some repos have no CI, and a
+   repo with no CI cannot carry a ruleset or an auto-merge lane. The working
+   method is not a CI feature: it binds an agent editing a snapshot in `ops`
+   exactly as it binds one editing an engine in `levelflow-cloud`, and the
+   standards home is the last place the standard should fail to reach. So the
+   citation and gate-enumeration pass runs over every non-archived repo, in the
+   same shape as the visibility and suppression audits. It earned that on its
+   first run: it caught this repo — the exempt standards home — failing to
+   enumerate its own `fleet-credential-canary.yml`.
+2. `scripts/fleet-conformance.sh` requires that citation and verifies the cycle
+   against the derivation above — deterministic enforcement, landed in the same
+   change set as this paragraph, per the change-together law.
 3. `fleet-template` seeds the citation so every future repo starts conformant.
    (Closure condition 4.)
 
-Until steps 1–3 land, **closure conditions 3 and 4 are OPEN** and this standard
-is held by convention alone. Recorded here rather than left silent, because the
-alternative is a standard that reads as enforced and is not.
+While the rollout pull requests are still merging, a repo whose citation has not
+yet reached `main` reports `converge-citation:absent`. That is the check
+working, not drift: the checker reads `main`, because `main` is the only state
+that governs anything.
 
 ## Preferred stack
 
@@ -445,3 +506,8 @@ or another named pathway above; applied to every existing fleet repo; and seeded
 into `fleet-template` for future repos. This applies retroactively to gaps 1–3
 (contracts, done-gate, security + review lanes — all four conditions verified
 2026-08-04) and prospectively to every remaining and future gap.
+
+The CONVERGE cycle closed under the same four conditions on 2026-08-20:
+codified in this document; enforced by `scripts/fleet-conformance.sh` against a
+chain derived from it rather than copied from it; applied to every existing
+fleet repo; and seeded into `fleet-template` for future ones.

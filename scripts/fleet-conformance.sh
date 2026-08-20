@@ -44,6 +44,41 @@ echo
 # as "no template" rather than as a failure to look.
 REPO_ROOT=$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")/.." && pwd)
 
+# The CONVERGE cycle, DERIVED FROM FLEET.md rather than copied into this script.
+#
+# FLEET.md's working method only reaches an agent through the file the agent
+# actually reads: its own repo's AGENTS.md. Every repo therefore carries a
+# summary of the cycle — and a summary is a copy, free to drift from the thing
+# it summarises. Eight reviewers in one round (2026-08-20) each said the same
+# thing: nothing asserted the two agreed.
+#
+# A literal chain hardcoded here would not fix that. It would be a THIRD copy,
+# free to drift from both — the curated-population defect this script's own
+# fleet enumeration exists to avoid, reintroduced in the enforcement itself. So
+# the expected chain is read out of FLEET.md at run time. Revise the cycle
+# there and this check re-points automatically; every repo still carrying the
+# old chain goes red on the next sweep, which is the drift detection the
+# citation could not otherwise have.
+#
+# Fail closed. A derivation that returns nothing must not read as "no steps to
+# check" — that is the vacuous pass this script refuses everywhere else.
+CYCLE=$(awk '
+  /^### The cycle/ { inlist=1; next }
+  inlist && /^## /  { exit }
+  inlist && /^[0-9]+\. \*\*/ {
+    line=$0
+    sub(/^[0-9]+\. \*\*/, "", line)
+    if (match(line, /^[A-Z][A-Z-]*( [A-Z][A-Z-]*)*/)) print substr(line, RSTART, RLENGTH)
+  }
+' "$REPO_ROOT/FLEET.md")
+CYCLE_STEPS=$(printf '%s\n' "$CYCLE" | grep -c '[A-Z]')
+if [ "${CYCLE_STEPS:-0}" -lt 6 ]; then
+  echo "ERROR: derived only ${CYCLE_STEPS} CONVERGE steps from FLEET.md — refusing to" >&2
+  echo "check the fleet against a chain this script failed to read. Repair the" >&2
+  echo "derivation, or FLEET.md's '### The cycle' list, before trusting any pass." >&2
+  exit 2
+fi
+
 fail=0
 printf '%-22s %s\n' "REPO" "DRIFT (empty = conformant)"
 printf '%-22s %s\n' "----" "----"
@@ -78,6 +113,11 @@ for r in $REPOS; do
          exit 2 ;;
     esac
   done
+
+  # Read once for the stack-exception waiver near the end of this loop. The
+  # CONVERGE citation and gate-enumeration checks moved OUT of this loop — see
+  # the all-repos pass below — because this loop skips the exceptions register.
+  agents=$(gh api "repos/$OWNER/$r/contents/AGENTS.md?ref=main" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null)
 
   # Dependabot auto-merge lane — now every repo, no exceptions. levelflow-cloud
   # was excluded while the lane ran on GITHUB_TOKEN, whose merges fire no
@@ -257,7 +297,7 @@ for r in $REPOS; do
 
   # Unrecorded stack deviations fail; a recorded owner approval waives them.
   if [ -n "$stackdrift" ]; then
-    agents=$(gh api "repos/$OWNER/$r/contents/AGENTS.md?ref=main" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null)
+    # $agents was read once at the top of this loop.
     case "$agents" in
       *"Stack exception (owner-approved"*) ;;
       *) drift="$drift stack-deviation:${stackdrift# }(unrecorded)";;
@@ -271,6 +311,108 @@ for r in $REPOS; do
     printf '%-22s %s\n' "$r" "✓$note"
   fi
 done
+
+# The CONVERGE citation and the gate enumeration, across EVERY non-archived
+# repo — the exceptions register does NOT apply here.
+#
+# Owner ruling 2026-08-20: "the same standard everywhere. No variations, no
+# accommodations, no weaknesses." The register exists because some repos have no
+# CI, and a repo with no CI cannot carry a ruleset or an auto-merge lane. But the
+# WORKING METHOD is not a CI feature. It binds an agent editing a snapshot in
+# `ops` exactly as it binds one editing an engine in `levelflow-cloud`, and the
+# standards home is the last place the standard should fail to reach. The global
+# `~/AGENTS.md` says so directly: the cycle "binds every agent on every project,
+# including repos outside the fleet."
+#
+# Deliberately outside the main loop, in the same shape as the visibility and
+# suppression audits below: those cover the exempted repos too, and for the same
+# reason — an exemption from one rule is not an exemption from every rule. The
+# gate enumeration is derived from each repo's own .github/workflows/, so a repo
+# with no workflows passes it trivially rather than needing to be excused.
+echo
+cite_fail=0
+cite_seen=0
+for r in $ALL; do
+  rowdrift=""
+  # Fetched again here rather than shared with the main loop: that loop runs
+  # over $REPOS (exceptions removed) and this pass runs over $ALL, so there is
+  # no shared iteration to hang a cached read on. The extra calls buy coverage
+  # of exactly the repos an exemption would otherwise hide.
+  agents=$(gh api "repos/$OWNER/$r/contents/AGENTS.md?ref=main" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null)
+  if [ -z "$agents" ]; then
+    rowdrift="$rowdrift agents-md:unreadable"
+  else
+    # Closure condition 3: the standard reaches the agent at the file it reads.
+    case "$agents" in
+      *"FLEET.md"*) ;;
+      *) rowdrift="$rowdrift converge-citation:absent" ;;
+    esac
+
+    # The cycle itself, IN ORDER, against the derivation above. The haystack is
+    # consumed as each step matches, so a contract that lists the right steps
+    # in the wrong order fails — an out-of-order cycle is a different method,
+    # not a cosmetic difference. Case- and whitespace-insensitive: repos state
+    # the chain in prose, and this check is about the method surviving the
+    # copy, not about punctuation.
+    #
+    # Known and deliberate: the step NAMED in the drift row is the first one
+    # that broke the ordered match, which is not always the step someone
+    # edited — a step word occurring earlier in the file for unrelated reasons
+    # consumes the haystack ahead of its turn and shifts the label. The ROW is
+    # the signal ("this contract's cycle is not the standard's"); the step name
+    # is a hint for where to look. Verified 2026-08-20 by adding a ninth step
+    # to FLEET.md and re-running: every repo went red with no repo edited, one
+    # of them naming a different step than the one inserted.
+    hay=$(printf '%s' "$agents" | tr '[:lower:]' '[:upper:]' | tr -s '[:space:]' ' ')
+    cyc_missing=""
+    while IFS= read -r step; do
+      [ -z "$step" ] && continue
+      rest=${hay#*"$step"}
+      if [ "$rest" = "$hay" ]; then
+        cyc_missing="$cyc_missing,${step// /_}"
+      else
+        hay="$rest"
+      fi
+    done <<CYCLE_EOF
+$CYCLE
+CYCLE_EOF
+    [ -n "$cyc_missing" ] && rowdrift="$rowdrift converge-cycle:${cyc_missing#,}"
+
+    # "Enumerate the gates; never count them" (FLEET.md, Delivery discipline),
+    # made mechanical. The population is DERIVED from .github/workflows/ rather
+    # than from the contract's own list, because a contract cannot be the
+    # witness to its own completeness — that is exactly how the omission below
+    # survived.
+    #
+    # The first sweep carrying this check found dependabot-auto-merge.yml named
+    # in NO contract in the fleet: the lane that arms unattended merges, with a
+    # documented silent degradation to GITHUB_TOKEN (whose pushes fire no
+    # workflows), invisible to every agent that reads only its repo's contract.
+    # It was found because pathfinder printed a count — "Gates — seven
+    # workflows" against eight on disk — and the other repos hid the same
+    # omission by not counting. A count is not a checklist.
+    wfs=$(gh api "repos/$OWNER/$r/contents/.github/workflows?ref=main" --jq '.[].name' 2>/dev/null)
+    unnamed=""
+    for w in $wfs; do
+      case "$w" in *.yml|*.yaml) ;; *) continue ;; esac
+      case "$agents" in
+        *"$w"*) ;;
+        *) unnamed="$unnamed,$w" ;;
+      esac
+    done
+    [ -n "$unnamed" ] && rowdrift="$rowdrift gates-unenumerated:${unnamed#,}"
+  fi
+  cite_seen=$((cite_seen + 1))
+  if [ -n "$rowdrift" ]; then
+    printf '%-22s %s\n' "$r" "$rowdrift"
+    cite_fail=1
+  fi
+done
+if [ "$cite_fail" -eq 0 ]; then
+  echo "CONVERGE citation and gate enumeration conformant across $cite_seen repo(s), exceptions register included."
+else
+  fail=1
+fi
 
 # Repository visibility, in one pass across the whole account. Actions minutes
 # are free on public repos and billed on private ones, so visibility is a cost

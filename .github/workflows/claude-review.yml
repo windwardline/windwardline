@@ -95,9 +95,24 @@ jobs:
             only real findings: contract violations, bugs, security issues,
             silent failures, missing or weakened tests, and docs that should
             have ridden along in this change set. No style nits, no restating
-            the diff. Also fetch the fleet standard
-            (curl -s https://raw.githubusercontent.com/windwardline/windwardline/main/FLEET.md)
-            and hold the diff against its Preferred stack section: flag any new
-            dependency, service, or hosting artifact that deviates without a
-            recorded "Stack exception (owner-approved ...)" line in this repo's
-            AGENTS.md. If nothing is wrong, say so in one line.
+            the diff. If nothing is wrong, say so in one line.
+
+            Do not try to fetch the fleet standard. An earlier version of this
+            prompt told you to curl FLEET.md; this sandbox has no network
+            egress, so that instruction could never be carried out, and on
+            2026-08-20 eight reviewers in one round each spent a turn
+            discovering it and correctly refusing to call the check done. An
+            order the harness cannot obey is worse than no order — it reads as
+            the subject withholding something. It is withdrawn.
+
+            Nor do you need it. Conformance against the fleet standard —
+            Preferred-stack deviations and their "Stack exception
+            (owner-approved ...)" waiver, the CONVERGE citation, and the cycle
+            each repo's AGENTS.md carries — is enforced deterministically by
+            scripts/fleet-conformance.sh in windwardline/windwardline, which
+            derives what it expects from FLEET.md at run time. That gate binds;
+            this review is advisory and explicitly not a required check, so a
+            verdict from here could only duplicate a binding answer or
+            contradict it. Leave those to the checker.
+
+            Review the diff. That is the part no sweep can do for you.
