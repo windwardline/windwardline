@@ -472,6 +472,18 @@ CYCLE_EOF
     # workflows" against eight on disk — and the other repos hid the same
     # omission by not counting. A count is not a checklist.
     #
+    # WHAT THIS DOES NOT COVER, stated so the check is not read as more than it
+    # is: the population is workflow FILES. A gate implemented as a STEP inside
+    # a job is invisible to it. There is a live example —
+    # `actions/verify-action-pins` runs as a step inside security.yml's
+    # secret-scan job in every fleet repo and fails the required Secret scan
+    # check when an action is not SHA-pinned, yet it is named in almost no
+    # contract and nothing here will say so. Deriving that population would mean
+    # guessing which steps are gates, and a heuristic that quietly missed one
+    # would be worse than this documented hole: a checker claiming coverage it
+    # does not have is the defect this entire mechanism exists to prevent.
+    # Close it by making step-gates declare themselves, not by pattern-matching.
+    #
     # Probed for the same reason, and then SHAPE-CHECKED. `gh api --jq` writes
     # the error body to stdout on a non-2xx, so an unguarded read of this
     # endpoint splits `{"message":"Not Found",...}` into tokens, matches none of
