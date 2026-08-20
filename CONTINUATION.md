@@ -10,6 +10,33 @@ standard — `FLEET.md` is the standard.
 
 ---
 
+## 0. What this brief has NOT had — read before trusting it
+
+**This file has not been adversarially reviewed.** Every fact in it was verified
+directly against the files on 2026-08-20 — populations derived from the
+filesystem, claims checked at file:line, the drift detection demonstrated rather
+than asserted. But the pass whose whole job is to *kill* those findings never
+ran: the container restarted mid-flight and took the workflow with it.
+
+That matters because this brief's own §7 says reviews and subagents are inputs
+rather than conclusions, and **the same applies to this brief.** Two errors were
+caught on this work only because something re-derived a population that had
+already been "verified" — see §5. There is no reason to think this file is the
+one document that got everything right first time.
+
+**Do this before acting on §4.** Run the audit that was lost, or its equivalent:
+
+| Lens | Brief |
+| :-- | :-- |
+| Universal docs | Do `~/AGENTS.md` (in `ops` at `snapshot/AGENTS.md`), `FLEET.md`, `CADENCE.md`, this repo's `AGENTS.md`, `README.md`, and `fleet-template` all describe the SAME cycle and rules? Is precedence stated consistently in each place it appears? Does `FLEET.md`'s Enforcement section describe what the script actually does? |
+| The checker | Read `scripts/fleet-conformance.sh` in full. Hunt vacuous passes: which `gh api` calls distinguish *absent* from *refused*? Does every derivation that could return empty abort? Can any plausible `FLEET.md` rewrite make `cycle_scan()` half-parse? |
+| Contract accuracy | Re-derive every population in §4b and §5 from the filesystem. Report repos wrongly included **and** wrongly excluded — a repo where a claim is already true must be left alone. |
+| New-repo path | Trace §6 end to end. What must a human still do by hand, and what breaks for each step forgotten? |
+| Breakage | For every action §4 implies, what is its blast radius? Assume §5 understates at least one. |
+
+Run them read-only and in parallel, then refute the results before acting. If a
+lens confirms everything, be suspicious of the lens.
+
 ## 1. Definition of done — the owner's words, unabridged
 
 > Every existing repo held to this standard, every new one automatically held to
@@ -83,19 +110,24 @@ wrong order fail.
 
 ### 4a. Fix the PR bodies, then merge
 
-Eighteen PRs are open. **Thirteen citation PR bodies describe only their first
-commit** while carrying two or three; the body is the merge record and a squash
-carries it forward. `levelflow-cloud#366`'s body is already corrected.
-Each body also says "no gate reads this file", which stops being true the moment
-#76 lands.
+**Open PRs are not landed work.** Nothing in §3 is "done" under §1's definition
+until these merge — a green branch that never lands protects no repo.
+
+**Re-derive this list before acting on it; do not trust the state below.** As of
+writing: `levelflow-cloud#366` is MERGED as `73000d6`, `#367` (its corrections)
+was open with checks running, and these fifteen were open:
 
 ```
-levelflow-cloud#366  grown-men-grow#118  timeshift#77   pathfinder#79
-mimic#52             craft#34            fleet-template#21  thats-extra#55
-proper-form#32       portfolio#36        windwardline-com#51
-windwardline-labs#35 windwardline-media#31  windwardline-strategy#32
-venture#2            windwardline#76
+grown-men-grow#118   timeshift#77          pathfinder#79      mimic#52
+craft#34             fleet-template#21     thats-extra#55     proper-form#32
+portfolio#36         windwardline-com#51   windwardline-labs#35
+windwardline-media#31  windwardline-strategy#32  venture#2   windwardline#76
 ```
+
+**Thirteen citation PR bodies describe only their first commit** while carrying
+two or three; the body is the merge record and a squash carries it forward.
+`levelflow-cloud#366`'s was corrected before it merged. Each body also says "no
+gate reads this file", which stops being true the moment #76 lands.
 
 **Merge order is load-bearing: citations first, then `windwardline#76`.** The
 checker reads `main`. Landing #76 first makes every repo report
@@ -163,10 +195,20 @@ These look like corrections and are not.
   This is recorded in the script itself rather than patched with a heuristic,
   because a checker claiming coverage it lacks is the defect being prevented.
 
-## 6. The new-repo guarantee — the part that is not finished
+## 6. The new-repo guarantee — NOT MET, and it is half the requirement
 
-The owner requires that **every new repo is automatically held**. Two mechanisms
-exist and one gap is known:
+**State this plainly rather than let it read as a detail.** The owner's
+requirement has two halves — every *existing* repo held, and every *new* repo
+automatically held. The first half is done and enforced. **The second is not.**
+
+A repo created today by following `fleet-template`'s README to the letter starts
+conformant on the citation and **broken on the auto-merge lane**: it runs on the
+degraded `GITHUB_TOKEN` path, whose pushes fire no workflow runs at all, so its
+post-deploy headers probe never runs and nobody is told. Until §6's two gaps
+close, "every new one automatically held" is aspiration, not fact — and it must
+not be reported as done.
+
+Two mechanisms exist, and two gaps sit between them and the guarantee:
 
 - The checker **derives the fleet live** from GitHub — every non-archived,
   non-template repo, minus the exceptions register. A new repo is in scope the
@@ -200,3 +242,77 @@ Both propagate to every future repo, which is why they are the priority of §4c.
   cannot run, say so plainly and say why; do not report it as clean.
 - **Preserve standing claims.** Nothing here may be quietly retired. If a trap in
   §5 stops being true, say so and record who verified it.
+
+## 8. Open-issue register — every finding, routed
+
+Nothing found on 2026-08-20 may live only in a chat transcript. This is the
+complete list. **Re-derive every population before acting** (§7); the state
+column is what was true when written, not a licence to skip checking.
+
+### Fleet-wide — detailed above
+
+| # | Issue | Where |
+| :-- | :-- | :-- |
+| 1 | `verify-action-pins` gate unnamed in ~13 contracts | §4b.1 |
+| 2 | "every same-repo PR" false in every contract | §4b.2 |
+| 3 | Hold enumeration omits *unrecognised update type* | §4b.3 |
+| 4 | Daily-cron claim false in 5 repos, TRUE in others | §4b.4, §5 |
+| 5 | `deferred-major` ordering defect in the template | §5 |
+| 6 | `fleet-template` README: no auto-merge App secrets | §6 |
+| 7 | `fleet-template` README step 5 would require the un-requirable job | §6 |
+| 8 | Checker cannot see step-gates | §5, and in the script |
+| 9 | 13 PR bodies under-describe their change sets | §4a |
+
+### Fleet-wide — not detailed above
+
+**10. The review lane's Dependabot guard is re-run leaky.** Each repo's
+`claude-review.yml` gates on `github.actor != 'dependabot[bot]'`. `github.actor`
+becomes the *human* who clicks Re-run, so re-running a Dependabot PR's checks
+fires the review that was meant to skip. `dependabot-auto-merge.yml:46-49` solves
+the identical problem correctly with `pull_request.user.login`, and its comment
+says why. Two workflows, same question, one re-run-safe. **Fails safe** — it adds
+a review rather than removing a guard — so this is a consistency fix, not urgent.
+Touches `.github/workflows/` in ~14 repos. Fix the guard *before* documenting it,
+or the contract describes behaviour about to change.
+
+**11. `security.yml:9`'s comment names jobs that do not exist.** It labels the
+weekly cron "Semgrep, CodeQL, Secret scan, License policy". Confirmed wrong in
+`levelflow-cloud` and `thats-extra`, which have no CodeQL and no license-policy
+job. **`pathfinder` genuinely has both** (`security.yml:38`, `:94`) — its contract
+naming them is correct, so do not "fix" it. **Population not derived** — do that
+first.
+
+**12. `fleet-template`'s new paragraph opens with an ordinal.** "A fourth
+workflow…" is a count, in the change set that imports *enumerate the gates rather
+than counting them*, in the one repo whose whole job is to be copied. Repos made
+from it add and drop workflows and the ordinal goes stale silently.
+
+### Repo-specific
+
+| Repo | Issue |
+| :-- | :-- |
+| `grown-men-grow` | `scripts/verify-repository.mjs` `requiredFiles` (~`:351-353`) lists `ci.yml`, `security.yml`, `claude-review.yml` — **not** `dependabot-auto-merge.yml`. Deleting that workflow passes gate 6 while `AGENTS.md` describes it at length. One line. |
+| `timeshift` | `docs/DEMO_SCRIPT.md` pins into `prisma/schema.prisma` are each one line high: `:93` and `:240` cite 66–69 (actual **65–68**); `:102` and `:241` cite 75 (actual **74** — 75 is the model's closing brace). `:102` is a rehearsed `[POINT]` cue quoting the line inline. |
+| `timeshift` | `README.md:47` links the contract as `[`CLAUDE.md`](CLAUDE.md)`, which resolves to the one-line `@AGENTS.md` pointer — GitHub renders that as plain text, so the highest-traffic path to the contract dead-ends. `README.md:162`'s bare §-ref is fine and should stay. |
+| `portfolio` | `AGENTS.md`'s law that "fleet claims here (test counts, product roster) mirror the launch registry — verify against source repos before editing" does not name the CONVERGE summary, which is now a second species of mirrored claim. An agent editing it reads the law, sees its edit uncovered, and skips the check. |
+| `thats-extra` | `.github/dependabot.yml` groups all npm production deps, all dev deps, and all actions into three PRs. `fetch-metadata` reports the **highest** semver change in a PR, so one major holds its whole group. Arming is per-group there, not per-package — a repo-specific consequence the byte-identical workflow cannot carry. |
+| `windwardline-com` | **UNVERIFIED.** `.vercelignore` excludes only `docs`, so `AGENTS.md` may serve at `windwardline.com/AGENTS.md`. Raised twice in review; a `curl` from this session failed at the network layer, so it is unchecked either way. The repo is public, so this is serving discipline rather than disclosure — the contract asserts "specs never serve" and this file sits outside that. Check with `curl -sI`. |
+
+### Raised and NOT acted on — decide, do not silently drop
+
+**13. Citation placement.** Two reviewers noted the cycle and delivery rules
+landed in each `AGENTS.md`'s identity lede rather than under `## Laws`, where an
+agent looks for what binds it. Left as-is because the lede is read first and the
+file is auto-loaded whole; recorded because it was raised twice and never
+answered either way. Owner's call.
+
+### Process gaps from this session
+
+**14. The fan-out's verify phase never ran.** The container restarted mid-flight.
+Its enumeration work was re-verified by hand afterwards — 17/17 conformant with
+anchored matching — but the independent per-repo quality check it was going to
+run did not happen. The prose it wrote was reviewed by the fleet review lane in
+most repos, which caught real omissions; treat unreviewed repos as unreviewed.
+
+**15. This brief's own adversarial pass never ran.** See §0. It is the first
+thing to fix, not the last.
