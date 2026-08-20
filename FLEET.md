@@ -273,17 +273,31 @@ the next session must not rediscover. Anchor durable checks to content hashes,
 never to commit SHAs a squash merge will orphan. Do not start work you cannot
 finish — stopping mid-implementation is a worse parking state than not starting.
 
-**Enforcement.** This standard is held by pathway 3, the review lane, which
-fetches this document on every PR and holds the diff against it — not by the
-conformance checker, because a working method is not a static repo artifact.
-That is a deliberate reading of the change-together law, recorded here rather
-than left silent: `scripts/fleet-conformance.sh` is unchanged by this section on
-purpose. Closure conditions 3 and 4 of the closure rule below — applied to every
-existing repo, seeded into `fleet-template` — are **OPEN** as of 2026-08-19. The
-checkable half (every repo's `AGENTS.md` citing this section) is deliberately
-NOT yet in the checker: adding it before the repos carry the citation would put
-the whole fleet non-conformant and break the Monday cadence. Add it in the same
-change set that finishes condition 3.
+**Enforcement — and its current gap, stated plainly.** This standard is **not
+yet deterministically enforced**, and that is a gap being closed, not a design
+choice. The first version of this section named pathway 3, the review lane, as
+its enforcement. That was circular: two subsections above, this same document
+declares the review lane advisory and explicitly not a required gate. A standard
+cannot be held by a mechanism it defines as non-binding.
+
+Worse, an agent governed by this standard reads its repo's `AGENTS.md`. It does
+not read this file unless something points it here. A working method that lives
+only in the fleet standard may never reach the agent it governs.
+
+The closure path, in the order that avoids a non-conformance window:
+
+1. Every fleet repo's `AGENTS.md` cites this section, so the standard reaches
+   the agent at the file it actually reads. (Closure condition 3.)
+2. `scripts/fleet-conformance.sh` then requires that citation, in the same
+   change set that finishes step 1 — deterministic enforcement, per the
+   change-together law, with no interval during which the fleet is
+   non-conformant against a rule its repos do not yet satisfy.
+3. `fleet-template` seeds the citation so every future repo starts conformant.
+   (Closure condition 4.)
+
+Until steps 1–3 land, **closure conditions 3 and 4 are OPEN** and this standard
+is held by convention alone. Recorded here rather than left silent, because the
+alternative is a standard that reads as enforced and is not.
 
 ## Preferred stack
 
