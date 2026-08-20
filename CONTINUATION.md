@@ -170,10 +170,12 @@ design — merge #76 manually after review.
 **"Deployed", for this work.** Every artifact here is a `.md` file or a shell
 script in repos with no deploy step, so the word has no literal meaning and §1
 still requires it. The substitute, stated so nobody has to invent one: after
-#76 lands, run `scripts/fleet-conformance.sh` from a **fresh clone** of
-`windwardline/windwardline` at `main` and record the per-repo output. Green from
-a fresh clone against `main` is what "deployed" means for this change set. A run
-from an existing working tree does not count — see the stale-clone trap in §5.
+#76 lands, run `scripts/fleet-conformance.sh` against `main` **from a clean
+checkout** — `git worktree add /tmp/fleet-verify origin/main`, or a throwaway
+clone — and record the per-repo output. Green from a clean checkout against
+`main` is what "deployed" means for this change set. A run from an existing
+working tree does not count — see the stale-clone trap in §5, which is about the
+very checkouts this work will be done in.
 
 ### 4b. Correct the contract inaccuracies
 
@@ -232,8 +234,11 @@ These look like corrections and are not.
   step — **not** at `:92`, which is `fetch-metadata`'s `uses:` line — so the
   labelling block can
   simply move above the gate check) but costs a fourteen-repo propagation.
-- **The `/workspace/*` clones are on stale feature branches. Derive from
-  `origin/main`, never from a working tree.** Every repo there sits on
+- **The local clones are on stale feature branches. Derive from `origin/main`,
+  never from a working tree.** This was written from a container whose copies
+  lived under `/workspace/*`; it applies identically to whatever directory holds
+  them on the machine doing the work, and more sharply there, since that is
+  where the merges happen. Every repo sits on
   `claude/converge-citation` (or another feature branch) and several predate the
   citation commit. `grep CONVERGE /workspace/ops/AGENTS.md` returns **zero** and
   `git show origin/main:AGENTS.md` in the same repo returns the full chain — the
@@ -409,15 +414,26 @@ prompt below is written to be pasted as-is, and is kept here rather than in a
 chat so it survives.
 
 ```
-Clone windwardline/windwardline and check out the branch
-claude/converge-enforcement (it is PR #76, still open). Read CONTINUATION.md in
-that branch in full before doing anything else — it is the brief, and it is not
-on main yet, which is itself part of the task. FLEET.md in the same repo is the
-standard the brief enforces, scripts/fleet-conformance.sh is that standard's
-deterministic checker, and CADENCE.md is a third universal document the brief
-only just discovered contradicts FLEET.md. You have no prior conversation;
-those files plus the seventeen repos are all the context that exists, and that
-is deliberate.
+You are running on the machine where all seventeen repositories are already
+checked out. Find the windwardline/windwardline clone, run git fetch origin, and
+check out the branch claude/converge-enforcement — that is PR #76, still open.
+Do not clone a second copy; work the checkouts that are there. Read
+CONTINUATION.md on that branch in full before doing anything else. It is the
+brief, and it is not on main yet, which is itself part of the task. FLEET.md in
+the same repo is the standard the brief enforces, scripts/fleet-conformance.sh
+is that standard's deterministic checker, CADENCE.md is a third universal
+document the brief only just discovered contradicts FLEET.md, and ~/AGENTS.md is
+the machine-level contract every agent on this machine reads — it binds
+everywhere and delegates the working method to FLEET.md. You have no prior
+conversation; those files plus the seventeen repos are all the context that
+exists, and that is deliberate.
+
+Before you trust anything you read in a working tree, run git fetch origin and
+git status in each repo you touch. Every one of those local clones is sitting on
+a feature branch, several cut before the work you are about to merge, and some
+carry local commits that were never pushed. That is not hypothetical — it has
+already produced one false conformance finding and one false refutation of it,
+on the same file, in opposite directions.
 
 Your job is section 4, in order: fix the PR bodies, merge the fifteen PRs in the
 stated order, correct the contract inaccuracies, close the new-repo path, and
@@ -431,8 +447,8 @@ yourself, fix, re-rank, test, update, report. Refute means you attack your own
 finding before you act on it, and verify means you re-derive the claim yourself
 rather than trusting a report — including every claim in this brief. Section 3
 says "17/17 conformant"; treat that as a claim to re-derive, not a fact. Section
-5 lists the traps, and the first one will bite you: the /workspace clones sit on
-stale feature branches, so read from origin/main, never from a working tree.
+5 lists the traps, and the first one is the local checkouts described above:
+read state with git show origin/main:<path>, never from a working tree.
 
 Derive populations, never curate them. Wherever this brief gives you a count
 without a command that reproduces it — section 8 item 16 names three — write the
@@ -450,10 +466,12 @@ Done means all seven of these, and section 1 has the owner's own words for it:
 tested, verified, committed, pushed, merged, deployed, and cleaned up. Merged is
 not "PR opened" — six of the sixteen PRs are drafts and cannot merge until you
 mark them ready. Deployed, for a change set of markdown and shell in repos with
-no deploy step, is defined in section 4a: fleet-conformance.sh green from a
-fresh clone of windwardline/windwardline at main, with the per-repo rows
-recorded. Cleaned up is defined in section 1: branches reset onto the default
-branch, no orphaned state.
+no deploy step, is defined in section 4a: fleet-conformance.sh green against
+main from a clean checkout — a git worktree off origin/main, or a throwaway
+clone — with the per-repo rows recorded. Running it from your working tree does
+not count, for the reason above. Cleaned up is defined in section 1: branches
+reset onto the default branch, no orphaned state — and on this machine that
+includes the local feature branches you will have finished with.
 
 Section 10i splits ownership item by item and is the authority on what is
 yours. In short: levelflow-cloud's rebuild program is not — its state of record
