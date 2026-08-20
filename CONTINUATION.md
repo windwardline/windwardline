@@ -409,11 +409,15 @@ prompt below is written to be pasted as-is, and is kept here rather than in a
 chat so it survives.
 
 ```
-Read /workspace/windwardline/CONTINUATION.md in full before doing anything else.
-It is the brief. FLEET.md in the same repo is the standard it enforces, and
-scripts/fleet-conformance.sh is that standard's deterministic checker. You have
-no prior conversation; these three files plus the repos themselves are all the
-context that exists, and that is deliberate.
+Clone windwardline/windwardline and check out the branch
+claude/converge-enforcement (it is PR #76, still open). Read CONTINUATION.md in
+that branch in full before doing anything else — it is the brief, and it is not
+on main yet, which is itself part of the task. FLEET.md in the same repo is the
+standard the brief enforces, scripts/fleet-conformance.sh is that standard's
+deterministic checker, and CADENCE.md is a third universal document the brief
+only just discovered contradicts FLEET.md. You have no prior conversation;
+those files plus the seventeen repos are all the context that exists, and that
+is deliberate.
 
 Your job is section 4, in order: fix the PR bodies, merge the fifteen PRs in the
 stated order, correct the contract inaccuracies, close the new-repo path, and
