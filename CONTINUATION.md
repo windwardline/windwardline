@@ -73,6 +73,15 @@ never let a harness failure read as the subject refusing).
 | `~/AGENTS.md` (archived in `windwardline/ops` at `snapshot/AGENTS.md`) | The cross-tool contract every client on the machine reads — one file, four symlinked paths. It **delegates** the working method to `FLEET.md`. |
 | Each repo's `AGENTS.md` | Where an agent actually reads it. Carries a summary plus repo-specific law. |
 | `fleet-template` | What a new repo starts from. |
+| `levelflow-cloud/docs/HANDOFF.md` §6b | **A sixth home, and the one most likely to drift.** It carries the full eight-step long form as an executable kickoff prompt, and says of itself "It does not check the long form below" — the copy an agent actually pastes and runs is the one nothing enforces. It was missing from this table until 2026-08-20; the §0 lens meant to catch cycle drift excluded it. |
+
+**The return pointer.** `levelflow-cloud/docs/HANDOFF.md` is the Levelflow
+rebuild's state of record and it points here for anything fleet-wide. This brief
+governs the fleet; HANDOFF governs the rebuild; where they overlap **this file
+wins on fleet state and HANDOFF wins on rebuild state**. HANDOFF's "The fleet
+standard, 2026-08-20" section is a summary that will go stale — do not correct
+the fleet from it, and do not read it as a completion notice. The two documents
+are the whole record: there is no third place, and no chat.
 
 **Precedence, already stated in `FLEET.md` and not to be re-litigated:** the
 global `~/AGENTS.md` binds machine-level law everywhere and is not overridable;
@@ -113,26 +122,58 @@ wrong order fail.
 **Open PRs are not landed work.** Nothing in §3 is "done" under §1's definition
 until these merge — a green branch that never lands protects no repo.
 
-**Re-derive this list before acting on it; do not trust the state below.** As of
-writing: `levelflow-cloud#366` is MERGED as `73000d6`, `#367` (its corrections)
-was open with checks running, and these fifteen were open:
+**Re-derive this list before acting on it; do not trust the state below.** The
+derivation, not a curated list:
 
 ```
-grown-men-grow#118   timeshift#77          pathfinder#79      mimic#52
-craft#34             fleet-template#21     thats-extra#55     proper-form#32
-portfolio#36         windwardline-com#51   windwardline-labs#35
-windwardline-media#31  windwardline-strategy#32  venture#2   windwardline#76
+gh search prs --owner windwardline --state open --head claude/converge-citation \
+  --json number,repository,isDraft,url
+gh pr view 76 --repo windwardline/windwardline --json number,isDraft,mergeable,mergeStateStatus
 ```
+
+**State as of 2026-08-20 02:56 UTC, derived that way. Fourteen citation PRs, not
+fifteen** — an earlier count in this file put `windwardline#76` inside the
+citation set; it is the enforcement PR and merges *last*, so it is listed apart:
+
+| PR | draft? |
+| :-- | :-- |
+| `grown-men-grow#118`, `timeshift#77`, `pathfinder#79`, `mimic#52`, `craft#34`, `fleet-template#21`, `thats-extra#55`, `proper-form#32`, `portfolio#36` | ready (9) |
+| `windwardline-com#51`, `windwardline-labs#35`, `windwardline-media#31`, `windwardline-strategy#32`, `venture#2` | **DRAFT (5)** |
+| `windwardline#76` — the enforcement, merges last | **DRAFT** |
+
+**A draft PR cannot be merged, and this file did not say so until now.** Six of
+the sixteen are drafts; §1 makes "merged" a condition of done, so the sequence
+below was literally unexecutable as first written. `gh pr ready <n> --repo <r>`
+first, or the merge call fails and reads like a permissions problem.
+
+**`levelflow-cloud` and `ops` are not in that list and are not missing.**
+levelflow-cloud's citation merged in `#366` (`73000d6`); `ops` already carried
+the chain before this session, line-wrapped in its `AGENTS.md` lede. Both are
+citation-conformant on `main`. Seventeen repos, fifteen PRs, two already done.
 
 **Thirteen citation PR bodies describe only their first commit** while carrying
 two or three; the body is the merge record and a squash carries it forward.
-`levelflow-cloud#366`'s was corrected before it merged. Each body also says "no
-gate reads this file", which stops being true the moment #76 lands.
+`levelflow-cloud#366`'s was corrected before it merged. **The claim that each
+body also says "no gate reads this file" is FALSE and was curated, not
+derived** — five bodies were pulled (craft#34, fleet-template#21, portfolio#36,
+timeshift#77, venture#2) and none contains the phrase. It appeared only in an
+earlier version of `#366`'s body, which `#366`'s final body explicitly retracts.
+Re-derive with `gh pr view <n> --repo <r> --json body` before acting on any
+claim about what a body says. Fixing a body is `gh pr edit <n> --repo <r> --body-file <f>`; it changes no commit and
+triggers no CI, so it is cheap and it is the merge record.
 
 **Merge order is load-bearing: citations first, then `windwardline#76`.** The
 checker reads `main`. Landing #76 first makes every repo report
 `converge-citation:absent` until its own citation merges. This repo has no CI by
 design — merge #76 manually after review.
+
+**"Deployed", for this work.** Every artifact here is a `.md` file or a shell
+script in repos with no deploy step, so the word has no literal meaning and §1
+still requires it. The substitute, stated so nobody has to invent one: after
+#76 lands, run `scripts/fleet-conformance.sh` from a **fresh clone** of
+`windwardline/windwardline` at `main` and record the per-repo output. Green from
+a fresh clone against `main` is what "deployed" means for this change set. A run
+from an existing working tree does not count — see the stale-clone trap in §5.
 
 ### 4b. Correct the contract inaccuracies
 
@@ -176,8 +217,10 @@ These look like corrections and are not.
   `grep -qE '^[[:space:]]*uses:.*osv-scanner-reusable'`.
 - **Do not edit `templates/dependabot-auto-merge.yml` casually.** The checker
   compares every repo's copy against it **by git blob hash**, so any byte change
-  desynchronizes fourteen repos on the lane that arms unattended merges. `craft`
-  already differs deliberately (documented `LANE_HELD`).
+  desynchronizes **thirteen** repos on the lane that arms unattended merges —
+  not fourteen; `craft` already differs deliberately (documented `LANE_HELD`),
+  which the next clause said while the count contradicted it. Fourteen repos
+  carry the file; thirteen are in sync with the template.
 - **There is a real defect in that template, deliberately left for a decision.**
   Its comment claims "Label majors before any hold can fire". False: the
   merge-gate hold at `:139-141` fires *before* the `deferred-major` labelling at
@@ -185,8 +228,29 @@ These look like corrections and are not.
   own comment names `fleet-template` as deliberately gateless — a major bump is
   held **unlabelled** and never reaches the deferred-majors issue, which is the
   exact failure the ordering was built to prevent. The fix is safe in isolation
-  (`UPDATE_TYPE` is set by `fetch-metadata` at `:92`, so the labelling block can
+  (`UPDATE_TYPE` is set at `:101`, in the `env:` block of the "Decide and arm"
+  step — **not** at `:92`, which is `fetch-metadata`'s `uses:` line — so the
+  labelling block can
   simply move above the gate check) but costs a fourteen-repo propagation.
+- **The `/workspace/*` clones are on stale feature branches. Derive from
+  `origin/main`, never from a working tree.** Every repo there sits on
+  `claude/converge-citation` (or another feature branch) and several predate the
+  citation commit. `grep CONVERGE /workspace/ops/AGENTS.md` returns **zero** and
+  `git show origin/main:AGENTS.md` in the same repo returns the full chain — the
+  working tree is on `claude/fmp-key-consumer-inventory`, cut before the
+  citation landed. A conformance claim derived from a working tree is a claim
+  about whatever branch happened to be checked out. `git fetch origin main` then
+  `git show origin/main:<path>` is the only safe read. This trap has already
+  produced one false "ops is non-conformant" finding and one false refutation of
+  it, in opposite directions, on the same file.
+- **"17/17 conformant" is a conclusion, not evidence, and it is not fully
+  earned.** §3 states it; what is actually recorded is that a hand re-run after
+  a container restart reported it. The anchor pattern is not written down, the
+  per-repo rows were not preserved, and §14 records that the independent verify
+  phase never ran at all. Re-derive it — the script prints a per-repo row by
+  design — and record the rows, not the ratio. The correct shape already exists
+  in this file: see the `UNVERIFIED` entry for windwardline-com in §8, which
+  names the reason and the remedy.
 - **`pathfinder` really does have `codeql` and `license-policy` jobs.** Its
   contract naming them is correct. The "no CodeQL job" drift note applies to
   *other* repos' `security.yml:9` comments, not to pathfinder's contract.
@@ -316,3 +380,234 @@ most repos, which caught real omissions; treat unreviewed repos as unreviewed.
 
 **15. This brief's own adversarial pass never ran.** See §0. It is the first
 thing to fix, not the last.
+
+**16. Three of the four §4b populations have no recorded derivation.** §4b.4
+carries its command (`grep -qE '^[[:space:]]*uses:.*osv-scanner-reusable'`) and
+names the two ways it was previously derived wrong. §4b.1–3 say only "each was
+verified against the workflow files" — so "fourteen repos" for the action-pin
+gate, "~13 contracts" for the review-lane claim, and "~14 repos" in §8.10 are
+counts with no reproducible method behind them. That is the same shape §5 says
+cost two wrong derivations on the cron population, and it is the shape the
+"derive populations rather than curating them" rule exists to prevent. Record
+the predicate beside each population before acting on it. Do not act on a bare
+count.
+
+**17. This brief was read adversarially on 2026-08-20 and the findings above
+are what came back.** Six of them were fixed in place the same night: the draft
+status of six PRs (§4a), the missing return pointer to `HANDOFF.md` (§2), the
+sixth home of the cycle (§2), the undefined "deployed" (§4a), the stale-clone
+trap (§5), and the unearned "17/17" (§5). §0's five audit lenses remain unrun —
+the pass that found these was a document audit, not the code-and-behaviour audit
+§0 asks for. Item 15 stays open.
+
+## 9. The brief for whoever executes this — paste it whole
+
+The owner is handing this to a different frontier model at highest effort. That
+model has **none** of the conversation this brief came out of; this file,
+`FLEET.md`, and `scripts/fleet-conformance.sh` are the entire inheritance. The
+prompt below is written to be pasted as-is, and is kept here rather than in a
+chat so it survives.
+
+```
+Read /workspace/windwardline/CONTINUATION.md in full before doing anything else.
+It is the brief. FLEET.md in the same repo is the standard it enforces, and
+scripts/fleet-conformance.sh is that standard's deterministic checker. You have
+no prior conversation; these three files plus the repos themselves are all the
+context that exists, and that is deliberate.
+
+Your job is section 4, in order: fix the PR bodies, merge the fifteen PRs in the
+stated order, correct the contract inaccuracies, close the new-repo path, and
+update FLEET.md's record. Section 6 is the half of the requirement that is NOT
+met — a new repo is not automatically held to the standard today — and it is
+the part that matters most, because every repo created after you finish inherits
+whatever you leave.
+
+Hold yourself to CONVERGE, the cycle the standard defines: find, refute, verify
+yourself, fix, re-rank, test, update, report. Refute means you attack your own
+finding before you act on it, and verify means you re-derive the claim yourself
+rather than trusting a report — including every claim in this brief. Section 3
+says "17/17 conformant"; treat that as a claim to re-derive, not a fact. Section
+5 lists the traps, and the first one will bite you: the /workspace clones sit on
+stale feature branches, so read from origin/main, never from a working tree.
+
+Derive populations, never curate them. Wherever this brief gives you a count
+without a command that reproduces it — section 8 item 16 names three — write the
+predicate first, run it, and act on what it returns. Two wrong populations have
+already shipped from grepping one phrasing when several existed, and from
+matching a commented-out job as though it were live.
+
+Changes must be universal and must enhance, not weaken. The same standard in
+every repo, no variations, no accommodations. Where you find a rule that is
+false in some repos and true in others, section 5's cron trap is the model: a
+blanket edit that breaks an accurate contract is a regression even when it
+closes a defect elsewhere.
+
+Done means all seven of these, and section 1 has the owner's own words for it:
+tested, verified, committed, pushed, merged, deployed, and cleaned up. Merged is
+not "PR opened" — six of the sixteen PRs are drafts and cannot merge until you
+mark them ready. Deployed, for a change set of markdown and shell in repos with
+no deploy step, is defined in section 4a: fleet-conformance.sh green from a
+fresh clone of windwardline/windwardline at main, with the per-repo rows
+recorded. Cleaned up is defined in section 1: branches reset onto the default
+branch, no orphaned state.
+
+Two things are out of scope and must not be touched. levelflow-cloud's rebuild
+program is not yours — its state of record is docs/HANDOFF.md in that repo and
+its own owner resumes it separately; the only levelflow-cloud work in scope is
+its AGENTS.md, and only where a fleet-wide correction genuinely applies to it.
+And templates/dependabot-auto-merge.yml is compared across repos by git blob
+hash, so any byte you change there desynchronizes fourteen repos on the lane
+that arms unattended merges — section 5 explains the real defect sitting in it
+and why it was left for a decision rather than fixed.
+
+Report what you could not verify as plainly as what you did. A check that
+reports success without having evaluated anything is the single defect class
+this entire effort exists to close; do not let your own report become one.
+```
+
+**One thing to say out loud when handing this over.** The brief is honest about
+its own gaps — §0 lists five audit lenses that have never been run, §6 says the
+new-repo guarantee is not met, and §8 routes fifteen open findings. That honesty
+is the deliverable, not a caveat on it. An executor who reads §3 and stops has
+been told the work is finished; an executor who reads §0 first has been told
+what to distrust. Point at §0.
+
+## 10. The adversarial pass — run 2026-08-20, findings re-verified here
+
+§0 said this brief had never been attacked. It has now. Two independent
+read-only passes ran against it; what follows is what survived **my own
+re-derivation**, with the checks written out so nobody has to trust either the
+reviewer or me. One headline finding was refuted and is recorded as refuted,
+because a register that only grows is not a register.
+
+### 10a. REFUTED — `ops` is fine, and the refutation is the point
+
+The pass ranked "`ops` has no pushed branch, no PR, and no cycle on `main`" as
+its single most actionable defect, and concluded the §4 sequence cannot close.
+**It is wrong.** Re-derived:
+
+```
+$ git -C /workspace/ops fetch origin main && git rev-parse origin/main
+9c478f0faae446765ee0b97c19ae42980ddfcdc9
+$ git show origin/main:AGENTS.md | grep -c 'find → refute → verify yourself'
+1
+```
+
+`ops` carries the full chain on `main`, line-wrapped in its lede. A grep that
+anchors on one line misses it; the checker normalises whitespace and passes it.
+This is the second time this exact file has produced a false finding in each
+direction, which is why the stale-clone and whitespace traps are in §5. **Do not
+open a PR against `ops` for this.**
+
+### 10b. CONFIRMED and decisive — the checker cannot see `fleet-template`
+
+`scripts/fleet-conformance.sh:26-27` builds its universe as
+
+```
+gh repo list "$OWNER" --json name,isArchived,isTemplate \
+  --jq '[.[] | select((.isArchived or .isTemplate) | not) | .name] …'
+```
+
+and the GitHub API returns **`"is_template": true`** for
+`windwardline/fleet-template` (control: `mimic` returns `false`). So the seed
+repo is dropped from `$ALL` before any pass runs — citation, gate enumeration,
+dependency-scan, required files, all of it — and no row is printed for a repo
+that was silently dropped.
+
+**This is the documented incident recurring through a different mechanism.** The
+script's own comment records that fleet-template was once exempted as "no CI, no
+ruleset", then grew `ci.yml`, `security.yml` and a review lane, and "ran 61
+`pull_request` builds and merged eight PRs through no gate at all, and the
+checker stayed silent because it had been told not to look." The exemption
+register was fixed; the `isTemplate` filter does the same thing and nothing
+re-verifies it. The re-verification loop at `:603-617` iterates `$EXEMPT` only.
+
+It also means **"17/17" cannot be a checker output** — the checker can print at
+most sixteen rows. And §6, whose entire subject is fleet-template, states the
+filter approvingly while describing the mechanism that blinds the checker to
+§6's own subject.
+
+**Fix shape, not a fix:** either drop `isTemplate` from the filter and let the
+exceptions register be the only exemption mechanism, or keep it and make the
+script print a `skipped: <repo> (isTemplate)` row per drop. The second is
+cheaper; the first is what "no accommodations" means. Whichever is chosen, a
+repo dropped silently is the defect class, not the filter.
+
+### 10c. CONFIRMED — a live false green in `grown-men-grow`
+
+`grown-men-grow/.github/workflows/security.yml` has exactly **one** cron —
+`17 9 * * 1`, weekly — and its `dependency-scan` job at `:84` carries **no**
+`if:` guard. So the scan runs weekly on schedule, which is precisely what
+`FLEET.md:78` forbids and why: the advisory database changes with no commit, and
+a weekly scan let a widened advisory sit four days. The checker tests only for a
+job-level `if:` containing `github.event.schedule`, so a repo whose *workflow*
+has no daily cron at all passes as "runs on every trigger". Derived predicate for
+the real population: a repo is compliant only if its `security.yml` has a daily
+cron **and** its scan job has no schedule guard. The checker currently tests the
+second half only.
+
+### 10d. CONFIRMED — `fleet-template`'s daily cron runs zero jobs
+
+Its `security.yml` has two jobs, `semgrep:24` and `secret-scan:38`, and **both**
+are guarded to `17 9 * * 1`. The daily cron at `:10` therefore fires a run in
+which nothing executes and which reports success. Its own comment on that line
+reads `# daily: Dependency scan + Headers live` — neither job exists in the file
+(the OSV job is commented out at `:58-66`, and there is no `headers-live` job at
+all). A green that evaluated nothing, in the repo every future repo is copied
+from. Combined with 10b, the seed repo is both unchecked and self-describing as
+running scans it does not run.
+
+### 10e. CONFIRMED — two universal documents disagree
+
+`FLEET.md:78`: "**`Dependency scan` carries no schedule guard either**."
+`CADENCE.md:34-37`: "`17 13 * * *` runs `Headers live` only, and **the scan jobs
+skip themselves on the daily one** — so that run reports success while scanning
+nothing." CADENCE describes as current a state FLEET.md now forbids. §1 names
+exactly this — two documents asserting incompatible things — as a defect, and §8
+claimed to be the complete list while omitting it. `CADENCE.md` is a universal
+document and belongs in §2's table; it is not there either.
+
+### 10f. Corrections to §8's populations — all curated, all now derived
+
+- **§8 item 11** (`security.yml:9`'s stale comment) is wrong in **five** repos,
+  not two: `fleet-template`, `mimic`, `thats-extra`, `timeshift`,
+  `levelflow-cloud`. `pathfinder` carries the same comment and is **correct** —
+  it really has `codeql:38` and `license-policy:94`. The other six repos say
+  "full scan suite" and `grown-men-grow` has no comment.
+- **§8 item 12** (the `fleet-template` ordinal, "A fourth workflow…") is **three**
+  repos, not one: `fleet-template/AGENTS.md:19`, `mimic/AGENTS.md:15`,
+  `proper-form/AGENTS.md:11` — the last two both read "Of the four workflows
+  only `security.yml` carries `workflow_dispatch`". A count, in the change set
+  whose own rule is *enumerate the gates rather than counting them*. The finding
+  was framed as "the one repo whose whole job is to be copied", and the frame is
+  what dropped two repos.
+- **The `thats-extra` dependabot-grouping row is not repo-specific.** Its
+  `dependabot.yml` is byte-identical to `craft`, `mimic`, `timeshift` and
+  `levelflow-cloud`, and `pathfinder`'s differs only by comments and an
+  `ignore:` block. The row also says the byte-identical workflow "cannot carry"
+  the consequence; it does, at `templates/dependabot-auto-merge.yml:176-177`.
+- **`timeshift/README.md:162`** was cleared as "fine and should stay". It reads
+  "the same contract (**CLAUDE.md §13**)"; `CLAUDE.md` is one line and has no
+  §13 — §13 is `AGENTS.md:197`. Same dead end as `:47`, cleared without checking.
+
+### 10g. The standing caveat on `craft`
+
+§5 protects `craft`'s schedule guard as correct-today. It is — verified at
+`craft/.github/workflows/security.yml:57-60`, and its two crons make the
+contract sentence true. But `FLEET.md:458` schedules that guard for **deletion**
+("drop the `if:` on `Dependency scan`, then remove `craft` from both lists"), and
+`fleet-conformance.sh:639`'s `DEPSCAN_HELD="craft"` exists only to stop the
+checker reddening it meanwhile. So §5's trap protects a sentence the standard
+requires to become false. When the hold lifts, `craft` joins the five — and the
+daily-cron correction must be re-derived, not replayed from the list in §5.
+
+### 10h. What the pass could not check, stated plainly
+
+`gh` is absent from the audit container, so no finding above was produced by
+*running* `fleet-conformance.sh` — all of it is read against the script,
+the filesystem and the API. `windwardline.com/AGENTS.md` remains **UNVERIFIED**:
+the agent proxy denies CONNECT to that host (policy denial, 403 on `/` as well),
+so the §8 entry's marking stands and its remedy is still owed. Commit counts
+were pulled for two of the thirteen under-described PR bodies; the other eleven
+are unchecked, and the arithmetic (14 citation PRs − `venture#2`, which is a
+single commit fully described) is what supports "thirteen".
