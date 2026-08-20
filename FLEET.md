@@ -168,6 +168,123 @@ retention, deletion contact — linked from the surface where collection
 happens (enforced by repo contracts and the review lane; precedents:
 pathfinder `/privacy`, levelflow's legal panel, timeshift `/privacy`).
 
+## How the work is done — the CONVERGE cycle
+
+The standard above says what a repo must *contain*. This says how work on it is
+*conducted*. It is owner-directed and applies to every agent, on every fleet
+repo, existing and future.
+
+`CONVERGE` is a standing one-word command. It means: work the repo's sequence
+from wherever it stands, and when the current item is genuinely done — gates
+green, deployed, verified in production, branches cleaned — run another full
+cycle.
+
+**Reporting is part of the command, not a courtesy.** Every `converge` gets a
+detailed report, never a status line: where the overall build stands with the
+full ranked sequence visible, what the adversarial review found and what was
+refuted, what was verified personally, what changed, what is blocked, and what
+the agent got wrong.
+
+### The cycle
+
+1. **FIND.** Several adversarial agents, one lens each, each asked what is WRONG
+   or MISSING rather than what to improve. Every finding carries file:line or
+   command output, the exact population it affects, and the procedural mechanism
+   that let it through.
+2. **REFUTE.** A second, independent pass whose brief is to KILL each finding —
+   inflated severity, already remedied, wrong population, arithmetic that does
+   not hold. A finding survives only if the refuter personally verified it.
+   Expect to kill a fifth; expect some to come back worse than filed. Finding
+   and refuting are different jobs, and one pass doing both protects its own
+   conclusions.
+3. **VERIFY YOURSELF.** Re-derive every load-bearing claim personally rather
+   than relaying an agent's word — especially any claim about to be acted on,
+   and any claim that flatters the work. Two traps, both paid for: a DELTA is
+   not a LEVEL (an improvement over a bad baseline is not a good result), and
+   identical numbers from two supposedly different runs are proof the knob did
+   nothing, not agreement.
+4. **FIX durably**, not with patches.
+5. **RE-RANK the whole sequence** rather than appending to it. Re-ranking and
+   updating are separate obligations; neither substitutes for the other.
+   Anything homeless gets an owner. Placing an item often surfaces an ordering
+   constraint nobody had written down — look for it.
+6. **TEST whether the sequence reaches best-possible positioning**, and keep
+   hunting if not, or name the input boundary that stops you.
+7. **UPDATE the state-of-record document** — every ruling, reversal, and
+   practice learned the hard way.
+8. **REPORT** as described above.
+
+Do not stop at turn boundaries. Never claim green when it is not. If a round
+yields only nulls and validations, say the diminished-returns point is reached
+rather than manufacturing another.
+
+### Delivery discipline
+
+- **Enumerate the gates; never count them.** Name each one, in the report and in
+  any document a resumer copies. A count is not a checklist — it hides the gate
+  nobody ran. This is not hypothetical: a session reported "six gates green" for
+  fifty-odd rounds while the contract listed seven, and the omitted one was
+  never run.
+- **Stage explicit paths. Never `git add -A`.** Audit the staged diff against
+  what you actually authored. Never run a write-capable background agent against
+  the working tree a commit is staged from.
+- **Validate before mutating.** Anything that writes must check its inputs
+  before the first write, and a run that refuses must leave nothing behind.
+- **Preserve standing claims.** No rewrite may silently retire an invalidation
+  notice, caveat, or warning attached to an artifact. Those are retired by a
+  human who revalidated, with the reason recorded — never as a side effect of
+  re-running something.
+- **Derive populations; do not curate them.** When installing a law of the form
+  "every X must Y", derive the set of X by inspection, with any exemption
+  verifying its own premise. A hand-picked list is how something sits outside
+  its own law for fifty rounds. Make the predicate stable under the fix, so
+  converting a member does not remove it from the population.
+- **A harness failure must never read as the subject refusing.** An executed
+  test asserts that the runner STARTED before it asserts anything about what the
+  subject said. Spawn the repo's own binary by absolute path, never a resolver
+  that depends on the working directory. Prove refusal tests against a cold
+  cache — a green that depends on one machine's caches is not a green.
+- **Then:** commit (Conventional Commits, explaining *why*), push to the
+  designated branch only, open a PR, drive CI to green, merge, reset the branch
+  onto the default branch, verify the merge-triggered deploy **end to end** —
+  naming the E2E and production-verification steps specifically, since a green
+  run that skipped them is not a verified deploy — and leave zero open PRs and a
+  clean tree.
+- **No model identifiers** in commit messages, PR titles or bodies, code
+  comments, or any other pushed artifact. Chat replies only.
+
+### Advisory review is advisory
+
+The review lane is not a required gate, and "wait for a clean round" is not a
+merge criterion unless someone decided it is. Rounds that never converge to zero
+are evidence about the loop, not a reason to keep looping.
+
+**The review lane bills the owner's Claude subscription, not separate credits.**
+Every push to an open PR spends the same budget the working session draws on.
+Under a constrained usage limit an unmerged PR is a second meter running, and an
+agent must say so in its report rather than letting the cost stay invisible.
+
+### Stopping
+
+A safe stopping point means tested, verified, committed, pushed, merged,
+deployed, cleaned up, and a dated resume block in the state-of-record document
+naming the current head, what is next, what is untouched, and what constraint
+the next session must not rediscover. Anchor durable checks to content hashes,
+never to commit SHAs a squash merge will orphan. Do not start work you cannot
+finish — stopping mid-implementation is a worse parking state than not starting.
+
+**Enforcement.** This standard is held by pathway 3, the review lane, which
+fetches this document on every PR and holds the diff against it — not by the
+conformance checker, because a working method is not a static repo artifact.
+That is a deliberate reading of the change-together law, recorded here rather
+than left silent: `scripts/fleet-conformance.sh` is unchanged by this section on
+purpose. Closure conditions 3 and 4 of the closure rule below — applied to every
+existing repo, seeded into `fleet-template` — are **OPEN** as of 2026-08-19. The
+checkable half (every repo's `AGENTS.md` citing this section) is deliberately
+NOT yet in the checker: adding it before the repos carry the citation would put
+the whole fleet non-conformant and break the Monday cadence. Add it in the same
+change set that finishes condition 3.
+
 ## Preferred stack
 
 The default stack for every project. Deviations follow the protocol below —
@@ -284,8 +401,12 @@ or any pull_request run) rather than trusting this table.
    a check it already required.
 3. **The review lane** holds diffs against each repo's operating contract on
    every PR.
-4. **The done-gate** (workspace Stop hook) holds local sessions to
-   typecheck + lint + tests before they may finish.
+4. **The done-gate** (workspace Stop hook) holds local sessions to each
+   repo's FULL declared gate set before they may finish — enumerated from
+   that repo's `AGENTS.md`, not the three this line used to name. It read
+   "typecheck + lint + tests" until 2026-08-19, which is the count-not-a-
+   checklist defect the CONVERGE section above forbids, written into the
+   pathway meant to enforce it.
 5. **New repos** start from `windwardline/fleet-template` and must pass the
    conformance checker before first release. The checker, not the template,
    is the authority — a template can go stale; the checker is run against
