@@ -311,15 +311,38 @@ third place the cycle is written down, free to drift from both the standard and
 the repos it governs — the curated-population defect named in the delivery
 rules below, reintroduced inside the enforcement itself. Deriving it means
 revising the cycle above re-points every check automatically, and any repo
-still carrying the old chain goes red on the next sweep.
+still carrying the old chain goes red on the next sweep — once the revision is
+on `main`, which is where the checker reads it. It reads the standard remotely
+rather than from whatever clone the sweep happens to run in, because a stale
+working copy would otherwise measure the fleet against an old cycle and report
+green: the one silent failure this whole mechanism exists to prevent.
 
 Verified 2026-08-20 rather than assumed: a ninth step was inserted into the
 cycle above and the checker re-run, every repo went red with no repo edited,
 and green again when the step was removed. Reordering is caught too — a
 contract listing the right steps in the wrong order fails, because an
-out-of-order cycle is a different method, not a cosmetic difference. The
-derivation fails closed: a run that reads fewer than six steps aborts rather
-than reporting a fleet it had nothing to check against.
+out-of-order cycle is a different method, not a cosmetic difference.
+
+The derivation fails closed, and an adversarial pass is why it does. The first
+version had four silent ways to hollow itself out, each of which would have
+reported a green fleet while checking less than it claimed: a title-cased
+`**Refute.**` yielded the bare letter `R`, which matches the first R in any
+document and imposes no ordering; a code-spanned ``**`REPORT`**`` was dropped
+from the chain entirely; `**TEST Whether The Sequence**` over-matched into
+`TEST W`, which no contract can contain, reddening the fleet over a wording
+change that altered nothing; and the scan stopped only at `##`, so it ran on
+through the `###` subsections below and would have promoted any numbered bold
+line there into a phantom step. A floor of "at least six steps" covered none of
+it — and that six was itself a fact about this document copied into the script,
+the very thing the derivation exists to avoid.
+
+It now reads the step name as a run of whole capitalised words with markup
+stripped and punctuation ignored, stops at the next heading of any depth, and
+compares the number of steps DERIVED against the number of numbered entries
+FOUND. A mismatch aborts. So a rewrite of the cycle either parses completely or
+stops the sweep; it can no longer half-parse into a check that passes on less
+than the whole chain. The derived chain is printed on every run, because a check
+whose authority is invisible is not a check.
 
 That closes a gap this section previously recorded rather than hid. The first
 version of it named pathway 3, the review lane, as its enforcement. That was
@@ -337,6 +360,14 @@ The closure path, and where each step stands:
    measured against every repo before the check became binding — the rule lands
    on a fleet that already satisfies it, which is the ordering constraint step 2
    was written to respect.
+
+   That ordering claim is exact, and it holds for the citation and the cycle
+   only. The gate-enumeration rule below did **not** land on a fleet that
+   satisfied it: on its first run every repo with workflows failed it, because
+   `dependabot-auto-merge.yml` was named in no contract in the fleet. The
+   contracts were corrected in the same effort rather than the rule being
+   softened into a warning — the register of held exceptions exists for facts
+   the owner has accepted, not for a rule nobody has got round to satisfying.
 
    **The exceptions register does not apply to this check** (owner ruling
    2026-08-20: "the same standard everywhere. No variations, no accommodations,

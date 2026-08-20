@@ -44,45 +44,6 @@ echo
 # as "no template" rather than as a failure to look.
 REPO_ROOT=$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")/.." && pwd)
 
-# The CONVERGE cycle, DERIVED FROM FLEET.md rather than copied into this script.
-#
-# FLEET.md's working method only reaches an agent through the file the agent
-# actually reads: its own repo's AGENTS.md. Every repo therefore carries a
-# summary of the cycle — and a summary is a copy, free to drift from the thing
-# it summarises. Eight reviewers in one round (2026-08-20) each said the same
-# thing: nothing asserted the two agreed.
-#
-# A literal chain hardcoded here would not fix that. It would be a THIRD copy,
-# free to drift from both — the curated-population defect this script's own
-# fleet enumeration exists to avoid, reintroduced in the enforcement itself. So
-# the expected chain is read out of FLEET.md at run time. Revise the cycle
-# there and this check re-points automatically; every repo still carrying the
-# old chain goes red on the next sweep, which is the drift detection the
-# citation could not otherwise have.
-#
-# Fail closed. A derivation that returns nothing must not read as "no steps to
-# check" — that is the vacuous pass this script refuses everywhere else.
-CYCLE=$(awk '
-  /^### The cycle/ { inlist=1; next }
-  inlist && /^## /  { exit }
-  inlist && /^[0-9]+\. \*\*/ {
-    line=$0
-    sub(/^[0-9]+\. \*\*/, "", line)
-    if (match(line, /^[A-Z][A-Z-]*( [A-Z][A-Z-]*)*/)) print substr(line, RSTART, RLENGTH)
-  }
-' "$REPO_ROOT/FLEET.md")
-CYCLE_STEPS=$(printf '%s\n' "$CYCLE" | grep -c '[A-Z]')
-if [ "${CYCLE_STEPS:-0}" -lt 6 ]; then
-  echo "ERROR: derived only ${CYCLE_STEPS} CONVERGE steps from FLEET.md — refusing to" >&2
-  echo "check the fleet against a chain this script failed to read. Repair the" >&2
-  echo "derivation, or FLEET.md's '### The cycle' list, before trusting any pass." >&2
-  exit 2
-fi
-
-fail=0
-printf '%-22s %s\n' "REPO" "DRIFT (empty = conformant)"
-printf '%-22s %s\n' "----" "----"
-
 # Absent and refused are different answers. `gh api` fails non-zero on both a
 # 404 and a rate limit, so a throttled run reported every file missing in all
 # 14 repos at once (2026-08-11, secondary rate limit mid-sweep). That is worse
@@ -97,6 +58,111 @@ probe() {
     *) refusal="$resp"; return 2 ;;
   esac
 }
+
+
+# The CONVERGE cycle, DERIVED FROM FLEET.md rather than copied into this script.
+#
+# FLEET.md's working method only reaches an agent through the file the agent
+# actually reads: its own repo's AGENTS.md. Every repo therefore carries a
+# summary of the cycle — and a summary is a copy, free to drift from the thing
+# it summarises. Eight reviewers in one round (2026-08-20) each said the same
+# thing: nothing asserted the two agreed.
+#
+# A literal chain hardcoded here would not fix that. It would be a THIRD copy,
+# free to drift from both — the curated-population defect this script's own
+# fleet enumeration exists to avoid, reintroduced in the enforcement itself.
+#
+# Read from main, not from the working tree. This script's header promises it
+# reads remote state only, and the promise has to hold for the ONE input that
+# defines pass/fail: a stale clone would otherwise measure the fleet against an
+# old cycle and report green, which is precisely the silent failure the whole
+# check exists to prevent. Set FLEET_MD_LOCAL=<path> to test a proposed change
+# before pushing it; the source is printed either way, because a check whose
+# authority is ambiguous is not a check.
+if [ -n "${FLEET_MD_LOCAL:-}" ]; then
+  STANDARD=$(cat "$FLEET_MD_LOCAL" 2>/dev/null)
+  echo "CONVERGE chain derived from LOCAL $FLEET_MD_LOCAL (override; main is what governs)"
+else
+  probe "repos/$OWNER/windwardline/contents/FLEET.md?ref=main"
+  case $? in
+    1) echo "ERROR: FLEET.md is absent from $OWNER/windwardline@main — refusing to" >&2
+       echo "check the fleet against a standard that is not there." >&2; exit 2 ;;
+    2) echo "ERROR: GitHub refused the request for FLEET.md — not drift, aborting." >&2
+       printf '%s\n' "$refusal" | head -3 >&2; exit 2 ;;
+  esac
+  STANDARD=$(gh api "repos/$OWNER/windwardline/contents/FLEET.md?ref=main" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null)
+  echo "CONVERGE chain derived from $OWNER/windwardline@main FLEET.md"
+fi
+
+# Two numbers come out of the scan, and they must agree: the numbered entries
+# the cycle list contains, and the step names successfully derived from them.
+# Comparing them is what removes the last hardcoded fact — an earlier version
+# required "at least 6 steps", which was itself a claim about FLEET.md copied
+# into this script, and it would have sat green while two steps silently
+# vanished.
+#
+# The scan stops at the NEXT HEADING OF ANY DEPTH. Stopping only at "## " ran
+# 143 lines past the cycle, through three "### " subsections, so any numbered
+# bold line added in those became a phantom cycle step.
+#
+# Formatting is stripped before the step name is read, because the name is the
+# WORD, not its markup: **`REPORT`** is REPORT. And the name must be a run of
+# ALL-CAPS words — a title-cased "**Refute.**" yields nothing rather than the
+# single letter "R", which would have matched the first R in any document,
+# imposed no ordering, and left REFUTE unchecked with the count still correct.
+# Nothing derived from a real entry is an ABORT, never a guess.
+cycle_scan() {
+  awk '
+    /^### The cycle/ { inlist=1; next }
+    inlist && /^#+ /  { exit }
+    inlist && /^[0-9]+\. / {
+      line=$0
+      sub(/^[0-9]+\. /, "", line)
+      gsub(/[*`_]/, "", line)                      # strip bold/code/emphasis
+      entries++
+      # Walk leading words while each is ENTIRELY capitals (hyphens allowed),
+      # ignoring trailing punctuation. Token-walking rather than one regex,
+      # because a regex over the whole run cannot tell "VERIFY YOURSELF" (two
+      # real name words) from "UPDATE FLEET.md" (one name word and a filename)
+      # — the caps-run form matched "UPDATE FLEET" and would have reddened the
+      # fleet over a wording change that altered nothing about the method.
+      # An internal dot keeps FLEET.md out; a trailing dot keeps FIND. in.
+      n=split(line, w, " ")
+      name=""
+      for (i=1; i<=n; i++) {
+        t=w[i]
+        sub(/[.,;:!?]+$/, "", t)
+        if (t ~ /^[A-Z][A-Z-]+$/) name = (name=="" ? t : name " " t)
+        else break
+      }
+      if (name != "") print "STEP " name
+    }
+    END { print "ENTRIES " entries+0 }
+  '
+}
+scan=$(printf '%s\n' "$STANDARD" | cycle_scan)
+CYCLE=$(printf '%s\n' "$scan" | sed -n 's/^STEP //p')
+CYCLE_ENTRIES=$(printf '%s\n' "$scan" | sed -n 's/^ENTRIES //p')
+CYCLE_STEPS=$(printf '%s\n' "$CYCLE" | grep -c '[A-Z]')
+if [ "${CYCLE_ENTRIES:-0}" -lt 2 ]; then
+  echo "ERROR: found ${CYCLE_ENTRIES:-0} numbered entries under '### The cycle' in" >&2
+  echo "FLEET.md — the scan failed to read the list. Refusing a vacuous pass." >&2
+  exit 2
+fi
+if [ "$CYCLE_STEPS" -ne "$CYCLE_ENTRIES" ]; then
+  echo "ERROR: '### The cycle' has $CYCLE_ENTRIES numbered entries but only" >&2
+  echo "$CYCLE_STEPS yielded a step name. A step must lead with an ALL-CAPS name" >&2
+  echo "(markup ignored): '**FIND.**', '**RE-RANK the sequence**', '**\`REPORT\`**'." >&2
+  echo "Derived so far: $(printf '%s' "$CYCLE" | tr '\n' ' ')" >&2
+  echo "Refusing to check the fleet against a chain this script only half read." >&2
+  exit 2
+fi
+echo "CONVERGE chain ($CYCLE_STEPS steps): $(printf '%s' "$CYCLE" | tr '\n' ' ')"
+echo
+
+fail=0
+printf '%-22s %s\n' "REPO" "DRIFT (empty = conformant)"
+printf '%-22s %s\n' "----" "----"
 
 for r in $REPOS; do
   drift=""
@@ -338,9 +404,23 @@ for r in $ALL; do
   # over $REPOS (exceptions removed) and this pass runs over $ALL, so there is
   # no shared iteration to hang a cached read on. The extra calls buy coverage
   # of exactly the repos an exemption would otherwise hide.
-  agents=$(gh api "repos/$OWNER/$r/contents/AGENTS.md?ref=main" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null)
+  #
+  # Probed, not just fetched. This pass runs LAST, after roughly forty calls per
+  # repo — exactly where the 2026-08-11 secondary rate limit landed — and a
+  # throttle there would otherwise report every contract as drift, which is the
+  # failure this script already committed in writing never to repeat. Absent and
+  # refused are different answers.
+  probe "repos/$OWNER/$r/contents/AGENTS.md?ref=main"
+  case $? in
+    1) rowdrift="$rowdrift agents-md:absent" ; agents="" ;;
+    2) echo; echo "ERROR: GitHub refused a request for $r (AGENTS.md) — not drift, aborting." >&2
+       printf '%s\n' "$refusal" | head -3 >&2
+       echo "Re-run after the rate limit resets: gh api /rate_limit --jq .resources.core" >&2
+       exit 2 ;;
+    0) agents=$(gh api "repos/$OWNER/$r/contents/AGENTS.md?ref=main" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null) ;;
+  esac
   if [ -z "$agents" ]; then
-    rowdrift="$rowdrift agents-md:unreadable"
+    [ -n "$rowdrift" ] || rowdrift="$rowdrift agents-md:empty"
   else
     # Closure condition 3: the standard reaches the agent at the file it reads.
     case "$agents" in
@@ -391,25 +471,65 @@ CYCLE_EOF
     # It was found because pathfinder printed a count — "Gates — seven
     # workflows" against eight on disk — and the other repos hid the same
     # omission by not counting. A count is not a checklist.
-    wfs=$(gh api "repos/$OWNER/$r/contents/.github/workflows?ref=main" --jq '.[].name' 2>/dev/null)
+    #
+    # Probed for the same reason, and then SHAPE-CHECKED. `gh api --jq` writes
+    # the error body to stdout on a non-2xx, so an unguarded read of this
+    # endpoint splits `{"message":"Not Found",...}` into tokens, matches none of
+    # them against *.yml, finds nothing unenumerated, and reports the repo
+    # conformant having examined nothing. That is the same hazard the
+    # dependabot-template comparison guards with its 40-hex blob-sha check, and
+    # a check that cannot tell "no workflows" from "GitHub refused" is worse
+    # than no check.
+    wfs=""
+    probe "repos/$OWNER/$r/contents/.github/workflows?ref=main"
+    case $? in
+      1) wfs="" ;;   # genuinely no workflows directory — nothing to enumerate
+      2) echo; echo "ERROR: GitHub refused a request for $r (workflows) — not drift, aborting." >&2
+         printf '%s\n' "$refusal" | head -3 >&2
+         exit 2 ;;
+      0) wfs=$(gh api "repos/$OWNER/$r/contents/.github/workflows?ref=main" --jq '.[].name' 2>/dev/null)
+         # Every line must look like a bare filename. Anything else means the
+         # response was not the array we asked for.
+         if printf '%s\n' "$wfs" | grep -qvE '^[A-Za-z0-9._-]*$'; then
+           echo; echo "ERROR: workflow listing for $r was not a filename array — aborting." >&2
+           printf '%s\n' "$wfs" | head -3 >&2
+           exit 2
+         fi ;;
+    esac
     unnamed=""
+    oldifs=$IFS
+    IFS=$'\n'
     for w in $wfs; do
-      case "$w" in *.yml|*.yaml) ;; *) continue ;; esac
-      case "$agents" in
-        *"$w"*) ;;
-        *) unnamed="$unnamed,$w" ;;
-      esac
+      IFS=$oldifs
+      case "$w" in *.yml|*.yaml) ;; *) IFS=$'\n'; continue ;; esac
+      # Anchored, not a substring: a contract naming `deploy-ci.yml` must not
+      # satisfy the requirement to name `ci.yml`. A `/` may precede, so
+      # `.github/workflows/ci.yml` still counts as naming it.
+      esc=$(printf '%s' "$w" | sed 's/[].[^$*\\]/\\&/g')
+      printf '%s' "$agents" \
+        | grep -qE "(^|[^A-Za-z0-9._-])${esc}($|[^A-Za-z0-9._-])" \
+        || unnamed="$unnamed,$w"
+      IFS=$'\n'
     done
+    IFS=$oldifs
     [ -n "$unnamed" ] && rowdrift="$rowdrift gates-unenumerated:${unnamed#,}"
   fi
   cite_seen=$((cite_seen + 1))
+  # A row for EVERY repo, pass or fail. The rule this block enforces is
+  # "enumerate the gates; never count them" — reporting only failures and
+  # closing with "conformant across N repos" would be the same defect one level
+  # up: if $ALL silently loses a repo (flipped to template, list truncated,
+  # partial enumeration) the number moves and nothing says which repo went
+  # unexamined. The count is not the evidence; the names are.
   if [ -n "$rowdrift" ]; then
     printf '%-22s %s\n' "$r" "$rowdrift"
     cite_fail=1
+  else
+    printf '%-22s %s\n' "$r" "✓"
   fi
 done
 if [ "$cite_fail" -eq 0 ]; then
-  echo "CONVERGE citation and gate enumeration conformant across $cite_seen repo(s), exceptions register included."
+  echo "CONVERGE citation and gate enumeration conformant — every repo named above, exceptions register included."
 else
   fail=1
 fi
