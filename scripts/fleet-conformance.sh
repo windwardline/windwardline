@@ -349,6 +349,42 @@ else
   fail=1
 fi
 
+# The exemptions' SECOND premise. An exempt repo is exempt from the ruleset and
+# auto-merge; it was never exempt from vulnerability alerts, which gate nothing
+# and cost nothing. windwardline, ops and venture all report alerts disabled,
+# and on 2026-08-24 that was correct — none of them carries a dependency
+# manifest, so the alerts scan nothing.
+#
+# But that is a fact about what those repos contain today, not a property of
+# being exempt, and nothing re-derives it. The day one grows a package.json its
+# advisories go unreported and the disabled setting still reads as deliberate.
+# Exactly the shape of the CI premise above — the one fleet-template actually
+# fell through while running 61 builds.
+echo
+alertprem_fail=0
+alertprem_seen=0
+for e in $EXEMPT; do
+  manifest=$(gh api "repos/$OWNER/$e/git/trees/HEAD?recursive=1" \
+    --jq '[.tree[].path
+           | select(test("(^|/)(package\\.json|requirements\\.txt|Gemfile|go\\.mod|Cargo\\.toml|pom\\.xml)$"))]
+          | first // empty' 2>/dev/null)
+  [ -n "$manifest" ] || continue
+  alertprem_seen=$(( alertprem_seen + 1 ))
+  if ! gh api "repos/$OWNER/$e/vulnerability-alerts" --silent >/dev/null 2>&1; then
+    printf '%-22s %s\n' "$e" "premise-stale: carries $manifest but Dependabot alerts are off — exempt from the ruleset never meant exempt from advisories"
+    alertprem_fail=1
+  fi
+done
+if [ "$alertprem_fail" -eq 0 ]; then
+  if [ "$alertprem_seen" -eq 0 ]; then
+    echo "Alert premises hold — no exempt repo carries a dependency manifest."
+  else
+    echo "Alert premises hold — all $alertprem_seen exempt repo(s) with a manifest have alerts on."
+  fi
+else
+  fail=1
+fi
+
 # The dependency scan must not carry a schedule guard. Its input is the
 # advisory database, which moves with no commit — so a weekly cron means a
 # repo can sit on a High advisory for six days, which is exactly what happened

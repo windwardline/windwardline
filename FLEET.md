@@ -391,6 +391,19 @@ exempt repo that has CI is not an exception — it is an unapplied rule. The
 checker re-derives each premise from remote state (ci/security workflow present,
 or any pull_request run) rather than trusting this table.
 
+**Exemption never covered vulnerability alerts.** These rows are exempt from the
+ruleset and auto-merge — gates that need CI to mean anything. Dependabot alerts
+gate nothing and cost nothing, so nothing about being exempt argues for having
+them off. All three currently report alerts disabled, and on 2026-08-24 that was
+correct: none carries a dependency manifest, so the alerts would scan nothing.
+
+That is a fact about what these repos contain today, not a property of being
+exempt, and it is precisely the kind of claim that goes stale without announcing
+itself — the day one grows a `package.json`, its advisories go unreported and the
+disabled setting still reads as deliberate. The checker therefore re-derives this
+premise too: any exempt repo carrying a dependency manifest with alerts off is
+drift, reported per repo and named for what it is.
+
 ## Enforcement pathways
 
 1. **`scripts/fleet-conformance.sh`** (this repo) — deterministic checker. It
