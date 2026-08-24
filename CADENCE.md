@@ -188,11 +188,19 @@ owner-decision items last.
    - `gh auth status` healthy.
 6. **Stray-repo sweep** — `.git` directories under `$HOME` outside
    `~/Projects` and client-internal zones; propose a safe move for any found.
-7. **Trajectory review** — read the week's `~/Projects/.remember/` dailies
-   plus `recent.md`, and memory `MEMORY.md`: repeated failures, permission
-   friction, guardrail near-misses, workflow inefficiencies. Durable lessons
-   are written to memory; improvement candidates go to the owner as a short
-   list.
+7. **Trajectory review** — read the week's dailies plus `recent.md`, and memory
+   `MEMORY.md`: repeated failures, permission friction, guardrail near-misses,
+   workflow inefficiencies. Durable lessons are written to memory; improvement
+   candidates go to the owner as a short list.
+   **The record is per project, not one directory.** `remember` writes into
+   `<PROJECT_DIR>/.remember`, so a session in `~/Projects/levelflow-cloud`
+   rolls up there and never touches `~/Projects/.remember`. Reading only the
+   workspace root is how run nine reviewed a week in which levelflow-cloud
+   logged 643 non-PR workflow runs and pathfinder 915, off a root whose newest
+   daily was five days old — the evidence existed, in directories the review
+   did not open. Enumerate `~/Projects/.remember` **and**
+   `~/Projects/*/.remember`, and read whichever have moved this week. A quiet
+   root is not a quiet week.
 8. **Meta-snapshot** — run `snapshot.sh` in `windwardline/ops` (private):
    versions the canonical standards file, global and workspace agent config,
    hooks, and agent memory. Lands by PR; aborts on key-shaped content.
