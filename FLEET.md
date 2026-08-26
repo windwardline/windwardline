@@ -168,6 +168,29 @@ retention, deletion contact — linked from the surface where collection
 happens (enforced by repo contracts and the review lane; precedents:
 pathfinder `/privacy`, levelflow's legal panel, timeshift `/privacy`).
 
+**Scratch copies of a repository are made by `scripts/scratch-clone.sh`, never
+by hand.** Every repo carries it, byte-identical to `templates/scratch-clone.sh`
+in this repo. Copying a working tree with `cp -R`, a bare `rsync`, or a local
+`git clone` is not permitted: those copy what is *there*, and what is there
+includes the data and the secrets. On 2026-08-25 a levelflow-cloud fan-out held
+**23 whole copies under `/private/tmp` — 148.8 GiB**, each carrying a 7.7 GB
+`.calibration-cache` that **no test reads** (the suite builds its own fixtures
+with `mkdtempSync`), and **20 copies of a live `.env.local`** beside them. A
+scratch copy made correctly is **12 MB**, and the same command that shrinks it
+by 683x is what stops the secret travelling.
+
+The script asks **git** what to copy — `git ls-files --cached --others
+--exclude-standard` — rather than filtering with a list of its own. A private
+list rots unnoticed until a copy is already gigabytes; git's ignore rules cannot,
+because they are load-bearing for every commit. `--exclude-standard` is required
+rather than incidental: it honours `.gitignore`, `.git/info/exclude`, **and**
+`core.excludesFile`. An `rsync --filter=':- .gitignore'` sees only the first, and
+leaked `.claude/settings.local.json` from the user's global excludes in testing.
+The script refuses to run where git reports nothing ignored, and asserts after
+copying that nothing ignored arrived — a copy that examined nothing must not
+report success.
+
+
 ## How the work is done — the CONVERGE cycle
 
 The standard above says what a repo must *contain*. This says how work on it is
