@@ -40,13 +40,13 @@ runs:
         LD_ORIGIN_PATH: ""
         LD_PRELOAD: ""
         LD_PROFILE: ""
-        LD_SHOW_AUXV: ""
         PS4: ""
         SHELLOPTS: ""
         TARGET_URL: ${{ inputs.url }}
         GITHUB_EVENT_NAME: ${{ github.event_name }}
         XDG_CONFIG_HOME: ""
       run: |
+        unset LD_SHOW_AUXV
         probe_root=$(/usr/bin/mktemp -d "${RUNNER_TEMP:?RUNNER_TEMP is required}/fleet-live-headers.XXXXXX")
         trap '/bin/rm -rf -- "$probe_root"' EXIT
         probe_home="$probe_root/home"

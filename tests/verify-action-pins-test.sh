@@ -244,7 +244,7 @@ if ruby -ryaml -e '
     empty = %w[
       BASHOPTS SHELLOPTS CDPATH GLOBIGNORE
       LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT LD_DEBUG LD_DEBUG_OUTPUT LD_PROFILE LD_PROFILE_OUTPUT
-      LD_SHOW_AUXV LD_ORIGIN_PATH GLIBC_TUNABLES
+      LD_ORIGIN_PATH GLIBC_TUNABLES
       DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH DYLD_FRAMEWORK_PATH DYLD_FALLBACK_LIBRARY_PATH
       DYLD_FALLBACK_FRAMEWORK_PATH DYLD_ROOT_PATH DYLD_IMAGE_SUFFIX DYLD_VERSIONED_LIBRARY_PATH
       DYLD_VERSIONED_FRAMEWORK_PATH DYLD_SHARED_CACHE_DIR DYLD_PRINT_TO_FILE
@@ -253,6 +253,8 @@ if ruby -ryaml -e '
       RUBYOPT RUBYLIB GEM_HOME GEM_PATH GEMRC BUNDLE_GEMFILE BUNDLE_PATH BUNDLE_USER_CONFIG
     ]
     empty.each { |key| abort "#{key} not neutralized" unless env.fetch(key) == "" }
+    abort "LD_SHOW_AUXV must be absent from the process environment" if env.key?("LD_SHOW_AUXV")
+    abort "LD_SHOW_AUXV is not unset before the first command" unless run.lines.first&.strip == "unset LD_SHOW_AUXV"
     abort "GIT_CONFIG_COUNT not neutralized" unless env.fetch("GIT_CONFIG_COUNT") == "0"
     %w[PIN_ACTION_PATH PIN_WORKSPACE PIN_GITHUB_SHA PIN_RUNNER_TEMP].each do |key|
       abort "missing trusted context binding #{key}" unless env.fetch(key).is_a?(String) && !env.fetch(key).empty?

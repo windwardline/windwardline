@@ -152,6 +152,8 @@ fi
 
 if grep -q '/usr/bin/env -i' "$ACTION" \
   && grep -q 'GITHUB_EVENT_NAME: \${{ github.event_name }}' "$ACTION" \
+  && ! grep -q 'LD_SHOW_AUXV:' "$ACTION" \
+  && grep -q '^        unset LD_SHOW_AUXV$' "$ACTION" \
   && ! grep -q '^inputs:' "$ACTION"; then
   printf 'ok - composite-has-no-caller-controlled-subject-or-environment\n'
   passes=$((passes + 1))
