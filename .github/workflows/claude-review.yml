@@ -70,6 +70,19 @@ jobs:
       # GITHUB_TOKEN already passed to the action below, so persisting it grants
       # nothing new.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Put the governing standard inside the sandbox before review. The action
+      # has no network egress, so a prompt that orders a fetch cannot run. A
+      # second checkout is explicit, pinned, read-only, and keeps the caller
+      # checkout at the workspace root for the action's own git operations.
+      - name: Checkout fleet standard
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: windwardline/windwardline
+          ref: main
+          path: .fleet-standard
+          sparse-checkout: FLEET.md
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
       - uses: anthropics/claude-code-action@86180fa9e4d311eed10c9cc49854c53dab5d517a # v1.0.184
         with:
           # The gate guarantees this is non-empty whenever this job runs.
@@ -91,13 +104,20 @@ jobs:
           claude_args: "--model opus --effort high"
           prompt: |
             Review this pull request as the fleet reviewer. Read AGENTS.md (the
-            repo operating contract) first and hold the diff against it. Report
-            only real findings: contract violations, bugs, security issues,
-            silent failures, missing or weakened tests, and docs that should
-            have ridden along in this change set. No style nits, no restating
-            the diff. Also fetch the fleet standard
-            (curl -s https://raw.githubusercontent.com/windwardline/windwardline/main/FLEET.md)
-            and hold the diff against its Preferred stack section: flag any new
-            dependency, service, or hosting artifact that deviates without a
-            recorded "Stack exception (owner-approved ...)" line in this repo's
-            AGENTS.md. If nothing is wrong, say so in one line.
+            repo operating contract) and .fleet-standard/FLEET.md first, then
+            hold the diff against both. Enforce FLEET.md's Preferred stack and
+            deviation protocol: a detectable alternate is allowed only when
+            AGENTS.md records an anchored, live
+            `Stack exception (owner-approved YYYY-MM-DD):` line with nonblank
+            reasoning and a valid, nonfuture date. Backtick/tilde-fenced
+            examples and HTML comments are not approvals. The deterministic checker catches known file and
+            dependency markers; this review owns semantic deviations a marker
+            cannot derive from repository state.
+
+            Report only real findings: contract or fleet-standard violations,
+            bugs, security issues, silent failures, missing or weakened tests,
+            and docs that should have ridden along in this change set. No style
+            nits and no restating the diff. This review is advisory, not a
+            required check. If nothing is wrong, say so in one line.
+
+            Review the diff. That is the part no sweep can do for you.

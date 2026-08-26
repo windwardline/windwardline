@@ -1,0 +1,23 @@
+{{DOMAIN}} Proprietary License Notice
+
+Copyright (c) 2026 Michael Lynn Peacock. All rights reserved.
+
+This repository and its contents, including source code, documentation,
+designs, text, images, and other materials, are proprietary and protected by
+applicable copyright and other intellectual property laws.
+
+No permission is granted to use, copy, modify, merge, publish, distribute,
+sublicense, sell, create derivative works from, or otherwise exploit any
+portion of this repository without prior written permission from the
+copyright holder.
+
+Access to or visibility of this repository does not grant any license or waive
+any rights. Third-party materials, if any, remain subject to their respective
+licenses and notices.
+
+THE MATERIALS ARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. TO THE MAXIMUM EXTENT
+PERMITTED BY LAW, THE COPYRIGHT HOLDER SHALL NOT BE LIABLE FOR ANY CLAIM,
+DAMAGES, OR OTHER LIABILITY ARISING FROM OR RELATED TO THE MATERIALS OR THEIR
+USE.
