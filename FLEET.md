@@ -272,6 +272,15 @@ enforces it now:
   bumps fleet-wide without a human, which is what makes pinning cost nothing here.
   Releasing a new gate version means tagging this repo.
 
+  Composite actions scrub hostile caller environments before invoking their
+  subject. Loader variables whose behavior is activated by presence are never
+  materialized as empty step variables: `LD_SHOW_AUXV` is omitted from the
+  declared environment and unset before the first command. Release `v1.1.0`
+  assigned it an empty value; glibc still emitted the auxiliary vector for every
+  child process, corrupting command substitutions while the underlying audit
+  itself passed. The action-manifest tests enforce the absence-plus-first-unset
+  shape for every shared action.
+
 App-class repos (a `package.json` at root) additionally: exact `typecheck` (or
 exact `check`), `lint`, and `test` script keys with nonblank string values; a
 committed lockfile

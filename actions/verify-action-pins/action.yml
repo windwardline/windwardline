@@ -39,7 +39,6 @@ runs:
         LD_DEBUG_OUTPUT: ""
         LD_PROFILE: ""
         LD_PROFILE_OUTPUT: ""
-        LD_SHOW_AUXV: ""
         LD_ORIGIN_PATH: ""
         GLIBC_TUNABLES: ""
         DYLD_INSERT_LIBRARIES: ""
@@ -77,6 +76,7 @@ runs:
       # runs, so the rule enforced here cannot drift from the rule enforced
       # after merge.
       run: |
+        unset LD_SHOW_AUXV
         pin_home=$(/usr/bin/mktemp -d "${PIN_RUNNER_TEMP:?PIN_RUNNER_TEMP is required}/fleet-pin-home.XXXXXX")
         if /usr/bin/env -i \
             PATH=/usr/bin:/bin \

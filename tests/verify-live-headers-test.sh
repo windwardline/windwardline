@@ -145,11 +145,13 @@ run_action_environment_case() {
         BASHOPTS BASH_COMPAT BASH_LOADABLES_PATH CDPATH CURL_HOME GLOBIGNORE PS4 SHELLOPTS
         DYLD_FALLBACK_FRAMEWORK_PATH DYLD_FALLBACK_LIBRARY_PATH DYLD_FRAMEWORK_PATH
         DYLD_IMAGE_SUFFIX DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH DYLD_PRINT_TO_FILE DYLD_ROOT_PATH
-        LD_AUDIT LD_DEBUG LD_DEBUG_OUTPUT LD_LIBRARY_PATH LD_ORIGIN_PATH LD_PRELOAD LD_PROFILE LD_SHOW_AUXV
+        LD_AUDIT LD_DEBUG LD_DEBUG_OUTPUT LD_LIBRARY_PATH LD_ORIGIN_PATH LD_PRELOAD LD_PROFILE
         XDG_CONFIG_HOME
       ].each do |name|
         abort "#{name} not neutralized" unless env.fetch(name) == ""
       end
+      abort "LD_SHOW_AUXV must be absent from the process environment" if env.key?("LD_SHOW_AUXV")
+      abort "LD_SHOW_AUXV is not unset before the first command" unless run.lines.first&.strip == "unset LD_SHOW_AUXV"
       abort "missing clean environment" unless run.include?("/usr/bin/env -i")
       abort "missing private HOME" unless run.include?(%q(HOME="$probe_home"))
       abort "missing private TMPDIR" unless run.include?(%q(TMPDIR="$probe_tmp"))

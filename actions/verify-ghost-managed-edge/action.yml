@@ -34,11 +34,11 @@ runs:
         LD_ORIGIN_PATH: ""
         LD_PRELOAD: ""
         LD_PROFILE: ""
-        LD_SHOW_AUXV: ""
         PS4: ""
         SHELLOPTS: ""
         XDG_CONFIG_HOME: ""
       run: |
+        unset LD_SHOW_AUXV
         probe_root=$(/usr/bin/mktemp -d "${RUNNER_TEMP:?RUNNER_TEMP is required}/fleet-ghost-edge.XXXXXX")
         trap '/bin/rm -rf -- "$probe_root"' EXIT
         probe_home="$probe_root/home"
