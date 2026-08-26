@@ -23,24 +23,31 @@
 # Anything less is an approximation of git's semantics that silently diverges.
 #
 # Usage:
-#   scripts/scratch-clone.sh <destination> [--with-git]
+#   scripts/scratch-clone.sh <destination> [--no-git]
 #
-#   --with-git   include .git (default: excluded; a scratch copy rarely needs
-#                history, and .git is frequently the largest tracked object)
+#   --no-git   omit .git. NOT the default, deliberately. .git was excluded by
+#             default in the first version and it was wrong: three levelflow-cloud
+#             test files shell out to `git status --porcelain` and `git ls-files`,
+#             so a copy without .git failed 19 tests in a way that read as missing
+#             DATA rather than a missing directory. A default whose failure mode
+#             misleads is worse than a slightly larger copy — .git is tens of MB
+#             against the gigabytes this script exists to avoid. Pass --no-git only
+#             when the copy will not run anything that shells out to git.
 set -euo pipefail
 
 die() { printf 'scratch-clone: %s\n' "$*" >&2; exit 1; }
 
 dest=""
-with_git=0
+with_git=1
 for arg in "$@"; do
   case "$arg" in
-    --with-git) with_git=1 ;;
+    --no-git)   with_git=0 ;;
+    --with-git) with_git=1 ;;   # accepted for compatibility; now the default
     -*) die "unknown option: $arg" ;;
     *) [ -z "$dest" ] || die "more than one destination given"; dest="$arg" ;;
   esac
 done
-[ -n "$dest" ] || die "usage: scratch-clone.sh <destination> [--with-git]"
+[ -n "$dest" ] || die "usage: scratch-clone.sh <destination> [--no-git]"
 
 command -v rsync >/dev/null 2>&1 || die "rsync not found"
 
@@ -73,10 +80,6 @@ git -C "$src" ls-files -z --cached --others --exclude-standard \
 copied=$(find "$dest" -type f 2>/dev/null | wc -l | tr -d ' ')
 [ "$copied" -gt 0 ] || die "copied 0 files — refusing to report success on an empty copy"
 
-if [ "$with_git" -eq 1 ]; then
-  rsync -a "$src/.git" "$dest/"
-fi
-
 # POST-CONDITION. The filter is asserted, not assumed. This does not guess at
 # filenames — an earlier draft matched `.env.*` and tripped on `.env.example`,
 # a TRACKED file that belongs in the copy. It asks git what it actually ignores
@@ -97,5 +100,21 @@ done < <(git -C "$src" status --ignored=matching --porcelain 2>/dev/null \
   || die "git reported no ignored paths at $src — refusing a check that examined nothing"
 
 [ -z "$leaked" ] || die "exclusion failed — ignored paths present in copy:$leaked"
+
+# .git is copied AFTER the assertion above, never before it. When this step ran
+# first, an rsync failure here aborted the script under `set -e` and the leak
+# assertion never executed — the copy landed on disk unverified, and the only
+# signal was a missing success line. A guard that is skipped by the failure of
+# an unrelated later step is not a guard.
+#
+# fsmonitor--daemon.ipc is a SOCKET, created by git's fsmonitor daemon in any
+# repo where it has run. rsync cannot recreate it (mkstempsock: Invalid argument,
+# exit 23). It is transient and regenerated on demand, so it is excluded by name
+# rather than by tolerating exit 23 — tolerating the code would mask genuine copy
+# failures too.
+if [ "$with_git" -eq 1 ]; then
+  rsync -a --exclude='fsmonitor--daemon.ipc' "$src/.git" "$dest/" \
+    || die "copying .git failed"
+fi
 
 printf 'scratch-clone: %s -> %s (%s)\n' "$src" "$dest" "$(du -sh "$dest" | cut -f1)"
