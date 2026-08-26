@@ -22,6 +22,7 @@ module BootstrapConfigValidator
     "CLAUDE.md",
     "LICENSE",
     "SECURITY.md",
+    "scripts/scratch-clone.sh",
     "templates/LICENSE",
     ".github/workflows/claude-review.yml",
     ".github/workflows/dependabot-auto-merge.yml"

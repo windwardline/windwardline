@@ -13,7 +13,24 @@ owner-decision items last. Its eight steps are the complete pathway named by
    goes to the owner with a proposed fix.
 2. **Actions failure sweep** — for every non-archived repository under the
    account, templates and checker exceptions included, two views over runs with
-   `event != pull_request`. The action
+   `event != pull_request`.
+   **Fetch the corpus with `--paginate`, and prove it covers the window.**
+   `per_page=100` sets a page size, not a result set: without `--paginate`
+   `gh api .../actions/runs` returns one page and stops. Run nine fetched
+   626 runs that way instead of 2,183 — pathfinder alone went from 95 to 915 —
+   and the window view showed 4 failures where there were 12. Nothing errored
+   and no list was empty; the busiest repos, which are the likeliest to be
+   broken, simply lost the most history. `--paginate` alone is still not
+   enough: the Actions API caps at 1,000 runs however you page it, and both
+   levelflow-cloud and pathfinder hit that ceiling, leaving levelflow's window
+   starting 08-18 when it needed 08-17. Re-fetch any repo that lands on a round
+   cap in day-sliced `created=` ranges (URL-encode the comparison —
+   `created=%3E%3D2026-08-17`), union, and dedupe by run `id`. Report the corpus
+   size and per-repo counts, and assert the oldest `created_at` returned
+   actually predates the window start — that is the only direct evidence the
+   window is covered. Every rule below reasons over whatever this fetch
+   returned, so all of them stay internally consistent on a truncated
+   population and produce a confident clean report. The action
    list is the **latest run per workflow job**: group by
    `(workflow_id, job identity)`, take the newest, report the ones not green —
    that is what is broken now. The window
@@ -186,11 +203,19 @@ owner-decision items last. Its eight steps are the complete pathway named by
    - `gh auth status` healthy.
 6. **Stray-repo sweep** — `.git` directories under `$HOME` outside
    `~/Projects` and client-internal zones; propose a safe move for any found.
-7. **Trajectory review** — read the week's `~/Projects/.remember/` dailies
-   plus `recent.md`, and memory `MEMORY.md`: repeated failures, permission
-   friction, guardrail near-misses, workflow inefficiencies. Durable lessons
-   are written to memory; improvement candidates go to the owner as a short
-   list.
+7. **Trajectory review** — read the week's dailies plus `recent.md`, and memory
+   `MEMORY.md`: repeated failures, permission friction, guardrail near-misses,
+   workflow inefficiencies. Durable lessons are written to memory; improvement
+   candidates go to the owner as a short list.
+   **The record is per project, not one directory.** `remember` writes into
+   `<PROJECT_DIR>/.remember`, so a session in `~/Projects/levelflow-cloud`
+   rolls up there and never touches `~/Projects/.remember`. Reading only the
+   workspace root is how run nine reviewed a week in which levelflow-cloud
+   logged 643 non-PR workflow runs and pathfinder 915, off a root whose newest
+   daily was five days old — the evidence existed, in directories the review
+   did not open. Enumerate `~/Projects/.remember` **and**
+   `~/Projects/*/.remember`, and read whichever have moved this week. A quiet
+   root is not a quiet week.
 8. **Meta-snapshot** — run `snapshot.sh` in `windwardline/ops` (private):
    versions the canonical standards file, global and workspace agent config,
    hooks, and agent memory. Lands by PR; aborts on key-shaped content.

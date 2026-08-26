@@ -23,6 +23,7 @@ FLEET_MD="$ROOT/FLEET.md"
 REVIEW_CALLER="$ROOT/templates/claude-review.yml"
 AUTOMERGE_WORKFLOW="$ROOT/templates/dependabot-auto-merge.yml"
 LICENSE_TEMPLATE="$ROOT/templates/proprietary-license.txt"
+SCRATCH_TEMPLATE="$ROOT/templates/scratch-clone.sh"
 APP_KEY_VERIFIER="$SCRIPT_DIR/github_app_key_verifier.rb"
 PROJECTS_ROOT="/Users/peacock/Projects"
 SECURITY_BIN="/usr/bin/security"
@@ -207,7 +208,8 @@ done
 [ -x "$HEADER_PROBE_BIN" ] || die "live-header probe is unavailable: $HEADER_PROBE_BIN"
 [ -x "$CONFORMANCE_BIN" ] || die "fleet conformance checker is unavailable: $CONFORMANCE_BIN"
 for required_file in "$VALIDATOR" "$INSPECTOR" "$FLEET_MD" "$REVIEW_CALLER" \
-                     "$AUTOMERGE_WORKFLOW" "$LICENSE_TEMPLATE" "$APP_KEY_VERIFIER"; do
+                     "$AUTOMERGE_WORKFLOW" "$LICENSE_TEMPLATE" "$SCRATCH_TEMPLATE" \
+                     "$APP_KEY_VERIFIER"; do
   [ -r "$required_file" ] || die "required bootstrap source is unavailable: $required_file"
 done
 
@@ -296,6 +298,7 @@ mkdir "$tmp/bootstrap-owned"
   "$REVIEW_CALLER" "$tmp/bootstrap-owned/claude-review.yml" \
   "$AUTOMERGE_WORKFLOW" "$tmp/bootstrap-owned/dependabot-auto-merge.yml" \
   "$LICENSE_TEMPLATE" "$tmp/bootstrap-owned/proprietary-license.txt" \
+  "$SCRATCH_TEMPLATE" "$tmp/bootstrap-owned/scratch-clone.sh" \
   "$APP_KEY_VERIFIER" "$tmp/bootstrap-owned/github-app-key-verifier.rb" \
   "$HEADER_PROBE_BIN" "$tmp/bootstrap-owned/verify-live-headers.sh" \
   "$CONFORMANCE_BIN" "$tmp/bootstrap-owned/fleet-conformance.sh" \
@@ -307,6 +310,7 @@ FLEET_MD="$tmp/bootstrap-owned/FLEET.md"
 REVIEW_CALLER="$tmp/bootstrap-owned/claude-review.yml"
 AUTOMERGE_WORKFLOW="$tmp/bootstrap-owned/dependabot-auto-merge.yml"
 LICENSE_TEMPLATE="$tmp/bootstrap-owned/proprietary-license.txt"
+SCRATCH_TEMPLATE="$tmp/bootstrap-owned/scratch-clone.sh"
 APP_KEY_VERIFIER="$tmp/bootstrap-owned/github-app-key-verifier.rb"
 HEADER_PROBE_BIN="$tmp/bootstrap-owned/verify-live-headers.sh"
 CONFORMANCE_BIN="$tmp/bootstrap-owned/fleet-conformance.sh"
@@ -525,6 +529,8 @@ done <"$tmp/files.tsv"
 
 cp -- "$REVIEW_CALLER" "$destination/.github/workflows/claude-review.yml"
 cp -- "$AUTOMERGE_WORKFLOW" "$destination/.github/workflows/dependabot-auto-merge.yml"
+/bin/mkdir -p "$destination/scripts"
+cp -- "$SCRATCH_TEMPLATE" "$destination/scripts/scratch-clone.sh"
 printf '@AGENTS.md\n' >"$destination/CLAUDE.md"
 staged_paths+=(
   ".github/workflows/claude-review.yml"
@@ -532,6 +538,7 @@ staged_paths+=(
   "CLAUDE.md"
   "LICENSE"
   "SECURITY.md"
+  "scripts/scratch-clone.sh"
 )
 
 ruby -e '

@@ -311,6 +311,29 @@ executable register. It also derives the nonempty production-origin population
 from live security policies and proves that canonical header probes plus the
 managed-edge rows equal that population exactly.
 
+**Scratch copies of a repository are made by `scripts/scratch-clone.sh`, never
+by hand.** Every repo carries it, byte-identical to `templates/scratch-clone.sh`
+in this repo. Copying a working tree with `cp -R`, a bare `rsync`, or a local
+`git clone` is not permitted: those copy what is *there*, and what is there
+includes the data and the secrets. On 2026-08-25 a levelflow-cloud fan-out held
+**23 whole copies under `/private/tmp` — 148.8 GiB**, each carrying a 7.7 GB
+`.calibration-cache` that **no test reads** (the suite builds its own fixtures
+with `mkdtempSync`), and **20 copies of a live `.env.local`** beside them. A
+scratch copy made correctly is **12 MB**, and the same command that shrinks it
+by 683x is what stops the secret travelling.
+
+The script asks **git** what to copy — `git ls-files --cached --others
+--exclude-standard` — rather than filtering with a list of its own. A private
+list rots unnoticed until a copy is already gigabytes; git's ignore rules cannot,
+because they are load-bearing for every commit. `--exclude-standard` is required
+rather than incidental: it honours `.gitignore`, `.git/info/exclude`, **and**
+`core.excludesFile`. An `rsync --filter=':- .gitignore'` sees only the first, and
+leaked `.claude/settings.local.json` from the user's global excludes in testing.
+The script refuses to run where git reports nothing ignored, and asserts after
+copying that nothing ignored arrived — a copy that examined nothing must not
+report success.
+
+
 ## How the work is done — the CONVERGE cycle
 
 The standard above says what a repo must *contain*. This says how work on it is
@@ -657,6 +680,19 @@ any live `pull_request` or `pull_request_target` trigger invalidates the premise
 A filename such as `ci.yml` and a historical run do not: neither proves that CI
 runs on the repository now.
 
+**Exemption never covered vulnerability alerts.** These rows are exempt from the
+ruleset and auto-merge — gates that need CI to mean anything. Dependabot alerts
+gate nothing and cost nothing, so nothing about being exempt argues for having
+them off. All three currently report alerts disabled, and on 2026-08-24 that was
+correct: none carries a dependency manifest, so the alerts would scan nothing.
+
+That is a fact about what these repos contain today, not a property of being
+exempt, and it is precisely the kind of claim that goes stale without announcing
+itself — the day one grows a `package.json`, its advisories go unreported and the
+disabled setting still reads as deliberate. The checker therefore re-derives this
+premise too: any exempt repo carrying a dependency manifest with alerts off is
+drift, reported per repo and named for what it is.
+
 ## Enforcement and reporting pathways
 
 1. **`scripts/fleet-conformance.sh`** (this repo) — deterministic checker. It
@@ -700,9 +736,10 @@ runs on the repository now.
    It checks the Levelflow handoff's fenced §6b prompt structurally against the
    cycle and delivery rules derived from this file; validates nonblank,
    nonfuture stack waivers outside code fences and HTML comments; asserts the exception, private, and
-   held tables against the checker's executable populations; and compares every
-   auto-merge lane to the canonical blob at this repo's captured default-branch
-   commit.
+   held tables against the checker's executable populations; compares every
+   auto-merge lane and scratch-clone helper to their canonical blobs at this
+   repo's captured default-branch commit; and re-derives whether any exempt repo
+   now carries a dependency manifest that requires vulnerability alerts.
 
    It then passes the same immutable repo-to-SHA snapshot to
    `scripts/verify-action-pins.sh`, which resolves every third-party action pin

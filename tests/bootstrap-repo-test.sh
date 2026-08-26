@@ -31,6 +31,7 @@ cp "$ROOT/FLEET.md" "$HARNESS/FLEET.md"
 cp "$ROOT/templates/claude-review.yml" "$HARNESS/templates/claude-review.yml"
 cp "$ROOT/templates/dependabot-auto-merge.yml" "$HARNESS/templates/dependabot-auto-merge.yml"
 cp "$ROOT/templates/proprietary-license.txt" "$HARNESS/templates/proprietary-license.txt"
+cp "$ROOT/templates/scratch-clone.sh" "$HARNESS/templates/scratch-clone.sh"
 printf '%s\n' "$TEST_TOKEN" >"$HARNESS/.bootstrap-test-fixture"
 HARNESS_PHYSICAL=$(cd -P "$HARNESS" && pwd -P)
 
@@ -765,6 +766,21 @@ else
   cat "$TMP/dot-git-case.out" >&2
 fi
 
+jq --arg source "$TMP/input/.gitignore" \
+  '.files["scripts/scratch-clone.sh"] = $source' \
+  "$TMP/public.json" >"$TMP/scratch-replacement.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/scratch-replacement.json" \
+     >"$TMP/scratch-replacement.out" 2>&1 &&
+   grep -q 'cannot replace bootstrap-controlled target scripts/scratch-clone.sh' \
+     "$TMP/scratch-replacement.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'caller files cannot replace the canonical scratch-clone helper'
+else
+  not_ok 'caller files cannot replace the canonical scratch-clone helper'
+  cat "$TMP/scratch-replacement.out" >&2
+fi
+
 gitleaks_targets_rejected=1
 gitleaks_target_outputs=''
 for target in .gitleaks.toml .gitleaksignore; do
@@ -1379,6 +1395,8 @@ if PATH="$TMP/hostile-bin:/usr/bin:/bin" \
    grep -q -- '-c core.hooksPath=/dev/null' "$TMP/git.log" &&
    grep -q 'fetch --prune origin' "$TMP/git.log" &&
    grep -q 'branch -D chore/bootstrap-fixture-apply' "$TMP/git.log" &&
+   cmp -s "$HARNESS/templates/scratch-clone.sh" \
+     "$HARNESS_PHYSICAL/projects/fixture-apply/scripts/scratch-clone.sh" &&
    ! test -e "$TMP/hostile-ran" &&
    ! grep -q 'attacker.invalid' "$TMP/git.log" &&
    ! grep -q 'TEST_SECRET_SENTINEL_9d8a' "$TMP/apply.out" "$TMP/gh.log" "$TMP/git.log" &&

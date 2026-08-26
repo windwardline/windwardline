@@ -48,7 +48,9 @@ The manifest's exact fields are:
 The finished repository has exactly four workflows: project-supplied `ci.yml`
 and `security.yml`, plus the bootstrap-owned canonical `claude-review.yml` and
 `dependabot-auto-merge.yml`. A fifth workflow is refused. Structural validation
-requires the exact fleet jobs, exact root permissions, and least-privilege job
+also installs the byte-current canonical `scripts/scratch-clone.sh`; a manifest
+cannot replace that helper. It requires the exact fleet jobs, exact root
+permissions, and least-privilege job
 permissions, rejects caller-supplied credential-context reads, and keeps the
 live header probe, advisory review, and auto-merge jobs out of
 `required_checks`. App-class

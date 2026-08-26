@@ -11,6 +11,7 @@ mkdir -p "$TMP/subject/scripts" "$TMP/subject/templates" "$TMP/bin"
 cp "$ROOT/scripts/fleet-conformance.sh" "$TMP/subject/scripts/fleet-conformance.sh"
 cp "$ROOT/scripts/actions_yaml_inspector.rb" "$TMP/subject/scripts/actions_yaml_inspector.rb"
 cp "$ROOT/templates/dependabot-auto-merge.yml" "$TMP/subject/templates/dependabot-auto-merge.yml"
+cp "$ROOT/templates/scratch-clone.sh" "$TMP/subject/templates/scratch-clone.sh"
 cat >"$TMP/subject/scripts/verify-action-pins.sh" <<'PIN_AUDITOR'
 #!/bin/bash
 [ "${1:-}" = --latest-release ] && { printf 'v1.0.0\taaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n'; exit 0; }
@@ -809,6 +810,10 @@ esac
 local_sha=$(git hash-object "$MOCK_SUBJECT/templates/dependabot-auto-merge.yml")
 canonical_sha=$local_sha
 [ "$MOCK_SCENARIO" = remote_template ] && canonical_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+local_scratch_sha=$(git hash-object "$MOCK_SUBJECT/templates/scratch-clone.sh")
+canonical_scratch_sha=$local_scratch_sha
+[ "$MOCK_SCENARIO" = scratch_copy_drift ] && repository_scratch_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+repository_scratch_sha=${repository_scratch_sha:-$canonical_scratch_sha}
 
 case "$endpoint" in
   user/repos*|users/windwardline/repos*)
@@ -845,8 +850,24 @@ case "$endpoint" in
   repos/windwardline/windwardline/contents/templates/dependabot-auto-merge.yml*)
     emit 200 "{\"sha\":\"$canonical_sha\",\"content\":\"WA==\"}"
     ;;
+  repos/windwardline/windwardline/contents/templates/scratch-clone.sh*)
+    if [ "$MOCK_SCENARIO" = scratch_canonical_refused ]; then
+      emit 403 '{"message":"Forbidden"}'
+    else
+      emit 200 "{\"sha\":\"$canonical_scratch_sha\",\"content\":\"WA==\"}"
+    fi
+    ;;
   repos/windwardline/fixture/contents/.github/workflows/dependabot-auto-merge.yml*)
     emit 200 "{\"sha\":\"$canonical_sha\",\"content\":\"WA==\"}"
+    ;;
+  repos/windwardline/fixture/contents/scripts/scratch-clone.sh*)
+    if [ "$MOCK_SCENARIO" = scratch_copy_missing ]; then
+      emit 404 '{"message":"Not Found"}'
+    elif [ "$MOCK_SCENARIO" = scratch_copy_refused ]; then
+      emit 403 '{"message":"Forbidden"}'
+    else
+      emit 200 "{\"sha\":\"$repository_scratch_sha\",\"content\":\"WA==\"}"
+    fi
     ;;
   repos/windwardline/fixture/contents/.github/dependabot.yml*)
     emit 200 "$(content_json "$(dependabot_body)")"
@@ -1071,6 +1092,8 @@ extra' ;;
     ;;
   repos/windwardline/ops/git/trees/dddddddddddddddddddddddddddddddddddddddd\?recursive=1)
     case "$MOCK_SCENARIO" in
+      alert_premise_disabled|alert_premise_enabled|alert_premise_refused)
+        tree='[{"path":"package.json","type":"blob"}]' ;;
       exempt_live_pr_workflow|exempt_block_sequence|exempt_indentless_sequence|exempt_spaced_on|exempt_explicit_on|exempt_tagged_on|exempt_escaped_on|exempt_tab_on|exempt_nested_token|exempt_non_main_default|exempt_slash_default)
         tree='[{"path":".github/workflows/docs.yml","type":"blob"}]' ;;
       exempt_filename_only) tree='[{"path":".github/workflows/ci.yml","type":"blob"}]' ;;
@@ -1152,6 +1175,13 @@ jobs: {}')"
     ;;
   repos/windwardline/windwardline/contents/.github/workflows\?ref=dddddddddddddddddddddddddddddddddddddddd|repos/windwardline/venture/contents/.github/workflows\?ref=dddddddddddddddddddddddddddddddddddddddd)
     emit 404 '{"message":"Not Found"}'
+    ;;
+  repos/windwardline/ops/vulnerability-alerts)
+    case "$MOCK_SCENARIO" in
+      alert_premise_enabled) emit 204 '' ;;
+      alert_premise_refused) emit 403 '{"message":"Forbidden"}' ;;
+      *) emit 404 '{"message":"Not Found"}' ;;
+    esac
     ;;
   repos/windwardline/*/actions/runs\?event=pull_request*)
     if [ "$MOCK_SCENARIO" = exempt_historical_runs ]; then emit 200 '{"total_count":7,"workflow_runs":[]}'; else emit 200 '{"total_count":0,"workflow_runs":[]}'; fi
@@ -1763,6 +1793,10 @@ run_case handoff-fence-needs-real-closer handoff_fake_closer 1 'HANDOFF.md-6b:.*
 run_case handoff-commented-prompt-is-not-executable handoff_commented_prompt 1 'HANDOFF.md-6b:.*prompt-fence-structure'
 run_case remote-template-is-canonical remote_template 0 'Fleet conformant'
 run_case canonical-template-survives-two-repo-loop two_repos 0 'fixture2[[:space:]]+✓'
+run_case scratch-copy-must-exist scratch_copy_missing 1 'missing:scratch-clone.sh'
+run_case scratch-copy-must-match-template scratch_copy_drift 1 'scratch-clone:differs-from-template'
+run_case scratch-copy-refusal-is-incomplete scratch_copy_refused 2 'scratch-clone.sh.*HTTP 403|refused'
+run_case scratch-template-refusal-is-incomplete scratch_canonical_refused 2 'scratch-clone template.*HTTP 403|refused'
 run_case failed-job-must-be-required failed_unrequired 1 'unrequired-job:Ungated_failed'
 run_case cancelled-job-must-be-required cancelled_unrequired 1 'unrequired-job:Ungated_cancelled'
 run_case empty-required-check-sample-aborts empty_sample 2 'required-check.*empty|sample.*empty|no PR-triggered'
@@ -1881,6 +1915,9 @@ run_case non-main-default-is-audited exempt_non_main_default 1 'exemption-stale:
 run_case slash-default-is-audited exempt_slash_default 1 'exemption-stale:.*docs.yml'
 run_case missing-exempt-default-aborts exempt_missing_default 2 'ops repository identity.*shape|default_branch'
 run_case malformed-exempt-branch-aborts exempt_branch_malformed 2 'ops default branch snapshot.*shape'
+run_case exempt-manifest-needs-alerts alert_premise_disabled 1 'alert-premise-stale: carries package.json'
+run_case exempt-manifest-with-alerts-passes alert_premise_enabled 0 'all 1 exempt repo\(s\) with a manifest have alerts on'
+run_case exempt-alert-refusal-is-incomplete alert_premise_refused 2 'vulnerability-alert premise.*HTTP 403|refused'
 run_case ci-filename-alone-does-not-invalidate exempt_filename_only 0 'Fleet conformant'
 run_case historical-runs-do-not-invalidate exempt_historical_runs 0 'Fleet conformant'
 run_case nested-pr-token-does-not-invalidate-exemption exempt_nested_token 0 'Fleet conformant'

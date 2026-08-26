@@ -844,6 +844,23 @@ else
 fi
 echo
 
+# The scratch-copy helper is a second byte-identity control. Resolve its
+# canonical blob from the same captured governing commit as every other fleet
+# template; a dirty or stale local checkout cannot redefine the safe copy path.
+if [ -n "${SCRATCH_TEMPLATE_SHA_OVERRIDE:-}" ]; then
+  CANONICAL_SCRATCH_SHA=$SCRATCH_TEMPLATE_SHA_OVERRIDE
+  is_sha "$CANONICAL_SCRATCH_SHA" || die_incomplete "SCRATCH_TEMPLATE_SHA_OVERRIDE is not a 40-hex blob SHA."
+  echo "Scratch-clone template canonical SHA from TEST OVERRIDE: $CANONICAL_SCRATCH_SHA"
+else
+  required_json "repos/$OWNER/windwardline/contents/templates/scratch-clone.sh?ref=$WINDWARDLINE_SHA" \
+    "$OWNER/windwardline scratch-clone template at $WINDWARDLINE_SHA"
+  CANONICAL_SCRATCH_SHA=$(printf '%s' "$JSON" | jq -er '.sha | select(type == "string")' 2>/dev/null) \
+    || die_incomplete "canonical scratch-clone template response had no SHA."
+  is_sha "$CANONICAL_SCRATCH_SHA" || die_incomplete "canonical scratch-clone template SHA was malformed."
+  echo "Scratch-clone template canonical SHA from $OWNER/windwardline at $WINDWARDLINE_SHA: $CANONICAL_SCRATCH_SHA"
+fi
+echo
+
 # Find the newest merged pull request using REST only. Closed-PR pages are read
 # to exhaustion because `sort=updated` is not `sort=merged`: a comment on an old
 # closed PR can move it ahead of the newest merge. A fixed first page would make
@@ -1149,6 +1166,25 @@ EOF
     case " $LANE_HELD " in
       *" $r "*) drift="$drift auto-merge-lane:hold-premise-stale" ;;
     esac
+  fi
+
+  # Scratch-clone helper — byte-identity, same reasoning as the auto-merge lane.
+  # It decides whether ignored caches and local secrets can enter a fan-out.
+  # Compare the repository blob at the captured default-branch commit to the
+  # governing template blob captured above; no local working-tree byte is
+  # trusted.
+  if optional_json "repos/$OWNER/$r/contents/scripts/scratch-clone.sh?ref=$repo_sha" \
+    "$r scratch-clone.sh at $repo_sha"; then
+    scratch_sha=$(printf '%s' "$JSON" | jq -er '.sha | select(type == "string")' 2>/dev/null) \
+      || die_incomplete "$r scratch-clone.sh response had no SHA."
+    is_sha "$scratch_sha" || die_incomplete "$r scratch-clone.sh SHA was malformed."
+  else
+    scratch_sha=""
+  fi
+  if [ -z "$scratch_sha" ]; then
+    drift="$drift missing:scratch-clone.sh"
+  elif [ "$scratch_sha" != "$CANONICAL_SCRATCH_SHA" ]; then
+    drift="$drift scratch-clone:differs-from-template"
   fi
 
   # Lockfiles are a tree-derived population, not a manifest checkbox. The same
@@ -2062,6 +2098,8 @@ workflow_has_pr_trigger() {
 
 echo
 exempt_fail=0
+alertprem_fail=0
+alertprem_seen=0
 for e in $EXEMPT; do
   live_pr_workflows=""
   capture_repo_snapshot "$e"
@@ -2075,6 +2113,25 @@ for e in $EXEMPT; do
   '
   [ "$(printf '%s' "$JSON" | jq -r '.truncated')" = false ] \
     || die_incomplete "$e default-branch tree was truncated; exemption audit would be partial."
+  manifest=$(printf '%s' "$JSON" | jq -r '
+    [.tree[] | select(.type == "blob") | .path
+     | select(test("(^|/)(package\\.json|requirements\\.txt|Gemfile|go\\.mod|Cargo\\.toml|pom\\.xml)$"))]
+    | first // empty
+  ') || die_incomplete "$e dependency-manifest premise could not be derived from its default-branch tree."
+  if [ -n "$manifest" ]; then
+    alertprem_seen=$((alertprem_seen + 1))
+    api_get "repos/$OWNER/$e/vulnerability-alerts" "$e Dependabot vulnerability-alert premise"
+    alert_rc=$?
+    case "$alert_rc:$API_STATUS" in
+      0:204) ;;
+      1:404)
+        printf '%-22s %s\n' "$e" "alert-premise-stale: carries $manifest but Dependabot alerts are off"
+        alertprem_fail=1
+        ;;
+      0:*) die_incomplete "$e vulnerability-alert premise returned unexpected HTTP $API_STATUS." ;;
+      *) die_incomplete "$e vulnerability-alert premise could not be read." ;;
+    esac
+  fi
   workflow_rows=$(printf '%s' "$JSON" | jq -r '
     .tree[] | select(.type == "blob") | .path
     | select(test("^\\.github/workflows/[^/]+\\.ya?ml$"))
@@ -2113,6 +2170,16 @@ else
   fail=1
 fi
 
+if [ "$alertprem_fail" -eq 0 ]; then
+  if [ "$alertprem_seen" -eq 0 ]; then
+    echo "Alert premises hold — no exempt repo carries a dependency manifest."
+  else
+    echo "Alert premises hold — all $alertprem_seen exempt repo(s) with a manifest have alerts on."
+  fi
+else
+  fail=1
+fi
+
 # Dependency scans need both halves of the daily guarantee: a live reusable OSV
 # job and a daily cron that reaches live work. Testing only for absence of a job
 # guard let a weekly-only workflow pass; testing only for a cron let
@@ -2126,7 +2193,6 @@ fi
 # `needs` edge must lead to the same proof. Quoted/escaped keys, flow sequences,
 # and block scalars therefore have their YAML meaning instead of a regex
 # approximation.
-
 # craft is held by the owner (2026-08-17) while unrelated work finishes there,
 # so its schedule guard is named rather than silently skipped.
 echo
