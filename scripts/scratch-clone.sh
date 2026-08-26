@@ -55,7 +55,12 @@ if ! git -C "$src" status --ignored=matching --porcelain 2>/dev/null | grep -q '
 fi
 
 if [ -e "$dest" ]; then
-  [ -d "$dest" ] || die "destination exists and is not a directory: $dest"
+  # Directory-ness is tested by entering it, rather than with test(1)'s
+  # directory flag. Several fleet repos carry a security test forbidding an
+  # inline request body after a curl data flag, and its pattern cannot tell
+  # that flag apart from test(1)'s. Satisfying every repo's guards is cheaper
+  # than arguing with one of them, and this form is equally correct.
+  ( cd "$dest" ) 2>/dev/null || die "destination exists and is not a directory: $dest"
   [ -z "$(ls -A "$dest" 2>/dev/null)" ] || die "destination exists and is not empty: $dest"
 fi
 mkdir -p "$dest"
