@@ -33,19 +33,20 @@ enforces it now:
 | Dimension | Origin | Enforced by |
 |---|---|---|
 | Security scan mechanics (Semgrep, gitleaks, OSV) | pathfinder `security.yml` | `security.yml` in every repo; scan jobs are required checks |
-| Live posture verification (prod headers) | levelflow `deploy.yml` polling | `Headers live` job (push + daily cron) in every prod-facing repo |
+| Live posture verification (prod headers) | levelflow `deploy.yml` polling | Exact `Headers live` or registered managed-edge job on post-merge push + daily cron in every prod-facing repo; never a PR-required check |
 | Test-enforced design contracts | craft (palette/contrast tests) | Each repo's own suite; pattern replicated in header contract tests |
 | TDD law and run-capture evidence | timeshift | Repo operating contracts |
 | Spec governance (§-law amendments) | levelflow | Repo operating contracts |
 | Dependency quarantine and trust policy | pathfinder `pnpm-workspace.yaml` | Repo-local policy files; Dependabot fleet-wide |
 | Deliberate minimalism (no-live-fetch CI, strict CSP) | portfolio, proper-form | Repo operating contracts |
 | Merge gating (green CI, linear history, auto-merge) | fleet-wide 2026-07-27 | `main-requires-green-ci` rulesets |
-| Advisory frontier-model review | this repo's `claude-review.yml` | Caller workflow in every repo |
+| Advisory frontier-model review | this repo's `claude-review.yml` | Caller workflow reports semantic findings; deterministic gates and contracts enforce |
 
 ## The standard — every fleet repo
 
 - `AGENTS.md` operating contract (purpose, stack, commands, gates, laws) and
-  `CLAUDE.md` containing exactly `@AGENTS.md`.
+  `CLAUDE.md` containing exactly the 11 bytes `@AGENTS.md\n`: one line, one
+  trailing LF, no second contract before or after it.
 - `LICENSE` and `SECURITY.md` (house forms; security scope names the repo's own
   domain).
 - `.github/dependabot.yml` (house form), with the repository's Dependabot
@@ -54,21 +55,64 @@ enforces it now:
   alerts surface advisories, automated fixes open the fix PRs. Both toggles
   were silently off on five repos until the first cadence run caught it —
   the account is personal, so GitHub's auto-enable-for-new-repos default is
-  dashboard-only; the checker is the guarantee, not the default.
-- `vercel.json` carrying the house seven-header set explicitly
+  dashboard-only; the checker is the guarantee, not the default. Every live
+  update lane carries exactly one `cooldown.default-days` value of at least
+  seven. The checker parses each lane separately and aborts if the live lane
+  population is empty; global line counts cannot let one lane's duplicate
+  value stand in for another lane's missing one. `version: 2`, lane identity,
+  schedule interval, and cron shape are structural. A valid
+  `open-pull-requests-limit: 0` is drift because it disables that lane; syntax
+  that parses is not proof that updates can run.
+- `vercel.json` carrying the house seven-header set explicitly on exactly one
+  catch-all `/(.*)` route
   (Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options,
   Referrer-Policy, X-Frame-Options, Permissions-Policy,
   Cross-Origin-Opener-Policy) — at the repo root, or the app directory in a
-  monorepo. Explicit always; never rely on platform-injected headers.
+  monorepo. Auxiliary cache or asset routes may coexist; headers split among
+  narrower routes do not satisfy the catch-all. Explicit always; never rely on
+  platform-injected headers. An inert `vercel.json` retained as a policy
+  artifact is not operational evidence that Vercel serves the application. It
+  cannot erase live evidence of alternate hosting or replace a required,
+  owner-approved stack exception.
 - `.github/workflows/ci.yml` — the repo's real gates.
-- `.github/workflows/security.yml` — Semgrep CE + Secret scan on PRs, pushes
-  and a weekly cron; `Dependency scan / osv-scan` on PRs, pushes and a **daily**
-  cron when the repo has a lockfile; plus `Headers live` when it serves a
-  production domain. Each cron comment names the jobs that cron actually runs:
+- `.github/workflows/security.yml` — Semgrep CE + Secret scan on pull requests,
+  pushes, and the exact weekly cron; those jobs skip the daily trigger.
+  `Dependency scan / osv-scan` runs on pull requests, pushes, and a **daily**
+  cron when the repo has a lockfile. It has no schedule guard, so the weekly
+  workflow invocation reaches it too. `Headers live` runs on pushes and the
+  daily cron when the repo serves a production domain; it never joins the
+  pull-request ruleset. Each cron comment
+  names the jobs that cron actually runs:
   the daily one read "Headers live probe only" for a day after the dependency
-  scan joined it, and a cadence comment is a claim about what executes that
-  nothing checks. **No job in it may
-  carry a `github.actor != 'dependabot[bot]'` guard.** Semgrep CE held one
+  scan joined it. The checker now proves both halves: every live reusable OSV
+  job has a daily cron, and every declared daily cron reaches at least one job
+  with a provably live schedule path, including its `needs` chain. A daily
+  schedule on which every job skips is drift. The expected scan population and
+  each OSV job's exact lockfile paths are derived independently from every
+  recognized lockfile at any path in the default-branch tree; zero
+  expected repositories abort, and deleting an OSV job from one of them is
+  drift rather than a way to leave the measured population. Dependabot's
+  enabled ecosystem/directory lanes are derived from that same set, plus the
+  one root GitHub Actions lane; cooldown days are strict integers of at least
+  seven. A production repo
+  is derived from the one concrete, non-placeholder HTTPS origin in its live
+  `SECURITY.md`. Each derived origin either uses the canonical header probe or
+  appears as the exact full row in the managed-edge register below. Deleting an
+  origin and its probe therefore cannot
+  shrink both the subject and its measurement to green: canonical header
+  probes plus managed-edge probes must equal the independently derived
+  production population. `Headers live` is one 12-minute job with one step:
+  `windwardline/windwardline/actions/verify-live-headers@<current release SHA>`,
+  a literal `url:` equal to that origin, and no inline replacement. The shared
+  action waits for push deployment propagation, retries bounded GET probes,
+  accepts only a final 200–399 response, and requires nonblank values for all
+  seven headers. A redirect's headers cannot stand in for its final response.
+  **No job in it may
+  carry a condition that reads `github.actor`, `github.triggering_actor`, the PR
+  user's login, or the event sender's login.** Trying to recognize only one
+  spelling of `dependabot[bot]` is not a boundary: expression functions can
+  construct the same value without that literal appearing in the file.
+  Semgrep CE held one
   until 2026-08-11: it is a required check, GitHub counts a skipped required
   check as satisfied, so it reported green without running on precisely the
   PRs that merge unattended — verified on mimic#35, whose rollup reads
@@ -83,7 +127,9 @@ enforces it now:
   the repository sits still. It ran weekly until 2026-08-17: nanoid
   GHSA-2v37-7h3g-55p8 widened on the 13th, nothing looked again until the
   17th, and the daily run in between reported `success` having skipped every
-  scan job. The checker asserts no `github.event.schedule` guard sits on it.
+  scan job. The checker rejects any job-level condition on a live dependency
+  scan unless it is the dated `craft` hold; absence of one literal schedule
+  expression is not proof that a push-only condition admits cron.
 - **A gate states what it examined, and a gate that examined nothing fails.**
   The standing property behind several of the rules above. Six separate
   controls in this fleet have reported success without evaluating anything:
@@ -101,23 +147,37 @@ enforces it now:
   `ignoreUntil` date, because **an accepted risk that cannot expire is an
   unreviewed one**: at the expiry the gate fails again and the decision is
   made a second time, on that day's facts. The checker asserts both fields on
-  every entry and fails an `ignoreUntil` already past — a lapsed date sitting
+  every entry, requires the reason to be nonblank, and rejects a malformed,
+  impossible, or already-past `ignoreUntil` calendar date — a lapsed date sitting
   in a file nobody reads is the exact failure this exists to prevent, and it
   is invisible until the scan happens to run. An entry suppresses a finding;
   it does not fix one, so it is written only where there is nothing to
   upgrade to. Precedent: grown-men-grow and craft, both for `extract-zip`,
   which has published no release since 2023. Never a blanket ignore, never an
   entry without a date.
-- `.github/workflows/claude-review.yml` — the thin caller of this repo's
-  reusable (`@main`, deliberate: one merge updates every repo), passing
-  `CLAUDE_CODE_OAUTH_TOKEN`.
+- `.github/workflows/claude-review.yml` — the thin caller of exactly
+  `windwardline/windwardline/.github/workflows/claude-review.yml@main`, the
+  fleet's sole mutable `uses:` reference. The central ref is deliberate: one
+  merge updates every caller. It passes `CLAUDE_CODE_OAUTH_TOKEN` and runs on
+  eligible same-repo PR events only when
+  `github.event.pull_request.user.login` — the PR author, stable across manual
+  reruns — is not `dependabot[bot]` and `github.base_ref` equals
+  `github.event.repository.default_branch`. Fork or missing-secret events skip.
+  The reusable
+  checks out this repo's `FLEET.md` at `main` into the review workspace before
+  the action runs, so the no-egress sandbox can enforce the Preferred stack
+  without an impossible network instruction.
 - `.github/workflows/dependabot-auto-merge.yml` — byte-identical fleet-wide,
   and verified so: the canonical copy is `templates/dependabot-auto-merge.yml`
-  in this repo, and the checker compares git blob SHAs rather than asking
-  whether a file is present. It decides what merges unattended, so presence
+  on `windwardline/windwardline@main`, and the checker compares remote git blob
+  SHAs rather than asking whether a file is present or trusting its local tree.
+  A proposed-change test may inject a 40-hex SHA only through the printed test
+  override. It decides what merges unattended, so presence
   is not evidence — the same reasoning as reading the cooldown value below.
   Green `semver-patch` and `semver-minor` Dependabot updates merge without a
-  human, majors never (they stay deferred and tracked per repo). The soak that
+  human; majors never merge. The lane is intended to label majors deferred and
+  track them per repo, subject to the unresolved ordering decision recorded
+  below. The soak that
   makes it safe is `cooldown: default-days: 7` on every update lane of
   `dependabot.yml` above: a release sits on the registry a week before a PR
   exists. `--auto` merges only on green required checks and bypasses no gate;
@@ -135,13 +195,34 @@ enforces it now:
   workflow run at all, so on the fallback path an auto-merged commit does not
   fire the post-merge `Headers live` probe. Each run's summary states which
   credential it used, because a silent fallback is indistinguishable from
-  success. The App landed 2026-08-11 and every fleet repo now runs on it,
-  proven rather than assumed: pathfinder#61 merged through the lane and its
+  success. The App landed 2026-08-11. Pathfinder#61 proves that repo used it:
+  it merged through the lane and its
   merge commit fired `CI` and `Security analysis` on `main` three seconds
-  later — runs that a `GITHUB_TOKEN` merge would not have produced at all.
+  later — runs that a `GITHUB_TOKEN` merge would not have produced at all. The
+  checker reads Dependabot's separate secret namespace and requires both exact
+  names in every repo; an Actions-secret listing cannot prove the opaque values.
+  The daily canary proves this repo's separate Actions-secret copies can mint an
+  installation token, not that each repo's Dependabot-secret values are valid.
 - Repository settings: auto-merge enabled; `main-requires-green-ci` ruleset
-  requiring every PR-running CI and scan job by name; linear history; no bypass
-  actors.
+  active against `~DEFAULT_BRANCH` only, requiring every completed,
+  non-skipped PR-running CI and scan job by name; strict up-to-date checking
+  off; linear history; blocked force pushes through GitHub's separate
+  `non_fast_forward` rule; no bypass actors. Cancelled jobs are completed and
+  therefore sampled. Skipped jobs are not gate candidates, but their names are
+  retained as evidence that a required context is a GitHub Actions job. Every
+  required context must appear in that sampled Actions population and carry the
+  live GitHub Actions App's `integration_id`. A matching context name from any
+  other source cannot satisfy the rule. That binding structurally excludes
+  external deploy-platform checks without a provider denylist. It proves the
+  reporting App, not which workflow produced the status. GitHub still matches
+  by job name; workflow path, trigger, and matrix identity are not part of the
+  ruleset key. Duplicate job names within a sampled run are therefore drift,
+  but App binding must never be described as workflow identity. The advisory
+  review and auto-merge job are never required checks. Neither is `Headers
+  live`: it remains mandatory on post-merge pushes and the daily schedule, but
+  a deployment-propagation probe cannot gate the pull request whose merge
+  produces that deployment.
+
 - `CLAUDE_CODE_OAUTH_TOKEN` actions secret — the review lane's only
   credential. Reviews bill the owner's Max subscription; API-key billing is
   fully retired (Console key revoked 2026-08-08; the vestigial `apikey` gate
@@ -156,17 +237,29 @@ enforces it now:
   real one. It fails two ways, both live on 2026-08-11: twelve repos carried
   `# v6` beside a SHA tagged v7.0.1, and two more named major aliases that were
   accurate when written and had since moved off the pinned commit. Naming the
-  patch tag closes the second path — an immutable tag cannot drift. Same-owner
-  refs are exempt by ref shape, not by owner: `@main` is deliberate (above) and
-  outside this rule, while a same-owner ref pinned to a SHA carries a version
-  comment like any other pin and is checked like any other pin.
+  patch tag closes the second path — an immutable tag cannot drift. The exact
+  review caller above is the sole mutable exception. Every other same-owner
+  `uses:` is either a local `./` reference or is pinned to a full SHA; a
+  same-owner SHA carries a version comment and is checked like any other pin.
+  Docker-action syntax has no Git commit or release-tag namespace: a
+  `docker://` reference is accepted only with a full lowercase OCI
+  `sha256:<64 hex>` digest. Mutable Docker tags are forbidden, and no Git tag
+  comment applies to a digest.
   Gated twice. At PR time by `actions/verify-action-pins` (this repo), carried as
   a **step** in each repo's already-required `Secret scan` job — a step adds no
   check name, so the gate landed in fourteen repos without touching a single
   ruleset. Fleet-wide after merge by the conformance checker, which also asserts
-  the step is still there; nothing in a ruleset would notice it being dropped.
-  Both run the same script, so the rule that blocks a merge is the rule the fleet
-  is later measured against.
+  an unconditional pinned `uses:` step remains inside the exact `Secret scan`
+  job. A comment, another job, run-block text, or any step-level `if:` or
+  `continue-on-error:` key cannot satisfy it. Nothing in a ruleset would notice
+  the step being dropped.
+  Both run the same script. The PR action reads the exact `github.sha` Git tree,
+  with replacement refs disabled; an uncommitted workspace mutation cannot
+  redefine what it audits. Tag discovery runs with repository and global Git
+  rewrites disabled, and the exact first comment token must equal a real
+  immutable tag. The checker also resolves this repo's newest semantic release
+  and rejects callers pinned to any older one. The rule that blocks a merge is
+  therefore the rule the fleet later measures against.
 
   The gate is pinned by SHA, not `@main`, and that is not incidental. A
   step-level `@main` reference trips this fleet's own
@@ -179,14 +272,44 @@ enforces it now:
   bumps fleet-wide without a human, which is what makes pinning cost nothing here.
   Releasing a new gate version means tagging this repo.
 
-App-class repos (a `package.json` at root) additionally: `typecheck` (or
-`check`), `lint`, and single-shot test scripts; a committed lockfile
+App-class repos (a `package.json` at root) additionally: exact `typecheck` (or
+exact `check`), `lint`, and `test` script keys with nonblank string values; a
+committed lockfile
 (`package-lock.json`, `pnpm-lock.yaml`, or equivalent); a contract test
 enforcing the header set. An app that collects any user data serves a
 `/privacy` page in the house form — what is kept, every processor named,
 retention, deletion contact — linked from the surface where collection
-happens (enforced by repo contracts and the review lane; precedents:
-pathfinder `/privacy`, levelflow's legal panel, timeshift `/privacy`).
+happens (enforced by repo contracts and deterministic gates; the semantic
+review may report omissions but is not enforcement; precedents: pathfinder
+`/privacy`, levelflow's legal panel, timeshift `/privacy`).
+
+## Managed-edge header exception
+
+The owner approved one capability-specific exception on 2026-08-24. Ghost(Pro)
+[requires Cloudflare DNS records to remain DNS-only](https://ghost.org/help/cloudflare-domain-setup/),
+so Windward Line cannot add the house response headers at Cloudflare without
+replacing Ghost's supported edge topology. This waives only the live seven-header
+result for the named origin. It does not waive CI, security scans, the local
+header policy artifact, DNS integrity, action pins, rulesets, or any other fleet
+control.
+
+| Repo | Approved | Managed origin | Required proof | Expiry |
+|---|---|---|---|---|
+| `grown-men-grow` | 2026-08-24 | `https://grownmengrow.com` on Ghost(Pro) | Exact `Ghost managed edge` one-step job on push + daily, calling `windwardline/windwardline/actions/verify-ghost-managed-edge@<current release SHA>` | Fails once all seven headers appear; remove this row and restore `Headers live` |
+
+The shared probe has no caller-controlled subject and no secrets. It resolves
+the apex and `grown-men-grow.ghost.io` through the same public resolver and
+requires identical nonempty IPv4 sets. It requires `www.grownmengrow.com` to
+resolve only to `178.128.137.126` and redirect exactly to the apex. From the
+final apex response, not an intermediate redirect, it rejects `cf-ray`,
+`cf-cache-status`, and a Cloudflare `server`; requires the observed Ghost
+`ghost-fastly: true;production` marker and Fastly/Varnish path marker; and
+requires at least one of the fleet's seven headers to remain absent. Once all
+seven arrive, the exception premise is stale and the job deliberately fails.
+The checker derives this table and requires exact full-row equality with its
+executable register. It also derives the nonempty production-origin population
+from live security policies and proves that canonical header probes plus the
+managed-edge rows equal that population exactly.
 
 ## How the work is done — the CONVERGE cycle
 
@@ -273,6 +396,9 @@ rather than manufacturing another.
   subject said. Spawn the repo's own binary by absolute path, never a resolver
   that depends on the working directory. Prove refusal tests against a cold
   cache — a green that depends on one machine's caches is not a green.
+
+### Operational completion and artifact rules
+
 - **Then:** commit (Conventional Commits, explaining *why*), push to the
   designated branch only, open a PR, drive CI to green, merge, reset the branch
   onto the default branch, verify the merge-triggered deploy **end to end** —
@@ -284,9 +410,11 @@ rather than manufacturing another.
 
 ### Advisory review is advisory
 
-The review lane is not a required gate, and "wait for a clean round" is not a
-merge criterion unless someone decided it is. Rounds that never converge to zero
-are evidence about the loop, not a reason to keep looping.
+The review lane is semantic reporting, not enforcement. Deterministic gates,
+the conformance checker, and repo operating contracts decide whether work may
+land. "Wait for a clean round" is not a merge criterion unless the owner makes
+it one. Rounds that never converge to zero are evidence about the loop, not a
+reason to keep looping.
 
 **The review lane bills the owner's Claude subscription, not separate credits.**
 Every push to an open PR spends the same budget the working session draws on.
@@ -303,19 +431,34 @@ never to commit SHAs a squash merge will orphan. Do not start work you cannot
 finish — stopping mid-implementation is a worse parking state than not starting.
 
 **Enforcement.** This standard is deterministically enforced.
-`scripts/fleet-conformance.sh` requires every repo's `AGENTS.md` to cite this
-section and to carry the cycle's steps **in order** — checked against a chain
+`scripts/fleet-conformance.sh` requires every repo's `AGENTS.md` to name
+`FLEET.md`, to carry the cycle's steps **in order**, and to keep `CLAUDE.md` equal
+to the exact 11-byte pointer `@AGENTS.md\n`. The cycle is checked against a chain
 **derived from this document at run time**, never a literal copied into the
-script. That distinction is the whole mechanism. A hardcoded chain would be a
-third place the cycle is written down, free to drift from both the standard and
-the repos it governs — the curated-population defect named in the delivery
-rules below, reintroduced inside the enforcement itself. Deriving it means
-revising the cycle above re-points every check automatically, and any repo
-still carrying the old chain goes red on the next sweep — once the revision is
-on `main`, which is where the checker reads it. It reads the standard remotely
-rather than from whatever clone the sweep happens to run in, because a stale
-working copy would otherwise measure the fleet against an old cycle and report
-green: the one silent failure this whole mechanism exists to prevent.
+script. The same derivation reads every bold delivery-rule label and checks
+the executable long form in `levelflow-cloud/docs/HANDOFF.md` §6b against both
+the ordered chain and those labels. It reads exactly one fenced prompt: each
+step must be its own consecutive `(N) **LABEL.**` entry and each delivery rule
+its own bold bullet. A narrative mention elsewhere in §6b cannot replace a
+missing executable entry. That prompt is a governed home of the method now, not
+an admitted manual copy. A hardcoded chain or rule list would be another place
+free to drift from the standard it claims to enforce.
+
+The checker captures each repository's default-branch SHA once, then pins every
+file and tree read in that audit to that one immutable snapshot. The same
+repo-to-SHA manifest drives the action-pin sweep; the sibling auditor does not
+enumerate repositories or resolve their branches a second time. This file and
+the canonical templates use the captured `windwardline/windwardline` SHA, never
+the clone that launched the script or a later mutable branch read. A stale
+clone or mid-audit push cannot redefine the method, unattended-merge lane, or
+pin population while the same run reports green. Proposed-change tests are
+explicit and printed:
+`FLEET_MD_LOCAL` for this document,
+`AUTOMERGE_TEMPLATE_SHA_OVERRIDE` for a validated 40-hex template blob, and
+`REVIEW_CALLER_SHA_OVERRIDE` for the reviewed caller blob. The caller override
+must still equal the checker's behavior-lock SHA; it cannot redefine that lock.
+Revising the cycle or its delivery rules on `main` therefore re-points every
+check automatically.
 
 Verified 2026-08-20 rather than assumed: a ninth step was inserted into the
 cycle above and the checker re-run, every repo went red with no repo edited,
@@ -323,8 +466,8 @@ and green again when the step was removed. Reordering is caught too — a
 contract listing the right steps in the wrong order fails, because an
 out-of-order cycle is a different method, not a cosmetic difference.
 
-The derivation fails closed, and an adversarial pass is why it does. The first
-version had four silent ways to hollow itself out, each of which would have
+The derivation fails closed, and adversarial tests are why it does. Earlier
+versions had silent ways to hollow themselves out, each of which would have
 reported a green fleet while checking less than it claimed: a title-cased
 `**Refute.**` yielded the bare letter `R`, which matches the first R in any
 document and imposes no ordering; a code-spanned ``**`REPORT`**`` was dropped
@@ -332,17 +475,14 @@ from the chain entirely; `**TEST Whether The Sequence**` over-matched into
 `TEST W`, which no contract can contain, reddening the fleet over a wording
 change that altered nothing; and the scan stopped only at `##`, so it ran on
 through the `###` subsections below and would have promoted any numbered bold
-line there into a phantom step. A floor of "at least six steps" covered none of
-it — and that six was itself a fact about this document copied into the script,
-the very thing the derivation exists to avoid.
-
-It now reads the step name as a run of whole capitalised words with markup
-stripped and punctuation ignored, stops at the next heading of any depth, and
-compares the number of steps DERIVED against the number of numbered entries
-FOUND. A mismatch aborts. So a rewrite of the cycle either parses completely or
-stops the sweep; it can no longer half-parse into a check that passes on less
-than the whole chain. The derived chain is printed on every run, because a check
-whose authority is invisible is not a check.
+line there into a phantom step. Prefix-matching also accepted `### The cycle
+rewritten`, duplicate headings replaced parser state, and a bold label wrapped
+onto the next line could reduce to its first word. It now requires one exact
+heading, consecutive numbering, and one unambiguous leading bold label closed
+on the entry line; then it compares entries found with steps derived and stops
+at the next heading of any depth. Any mismatch aborts with exit 2. The derived
+chain and delivery-rule count print on every run, because invisible authority
+is not authority.
 
 That closes a gap this section previously recorded rather than hid. The first
 version of it named pathway 3, the review lane, as its enforcement. That was
@@ -355,7 +495,7 @@ the agent it governs.
 
 The closure path, and where each step stands:
 
-1. Every repo's `AGENTS.md` cites this section, so the standard reaches the
+1. Every repo's `AGENTS.md` names `FLEET.md` and carries the cycle, so the standard reaches the
    agent at the file it actually reads. (Closure condition 3.) Rolled out and
    measured against every repo before the check became binding — the rule lands
    on a fleet that already satisfies it, which is the ordering constraint step 2
@@ -376,20 +516,17 @@ The closure path, and where each step stands:
    method is not a CI feature: it binds an agent editing a snapshot in `ops`
    exactly as it binds one editing an engine in `levelflow-cloud`, and the
    standards home is the last place the standard should fail to reach. So the
-   citation and gate-enumeration pass runs over every non-archived repo, in the
-   same shape as the visibility and suppression audits. It earned that on its
-   first run: it caught this repo — the exempt standards home — failing to
-   enumerate its own `fleet-credential-canary.yml`.
-2. `scripts/fleet-conformance.sh` requires that citation and verifies the cycle
-   against the derivation above — deterministic enforcement, landed in the same
-   change set as this paragraph, per the change-together law.
+   citation, cycle, exact-pointer, and gate-enumeration pass runs over every
+   non-archived repo, in the same shape as the visibility and suppression
+   audits. It earned that on its first run: it caught this repo — the exempt
+   standards home — failing to enumerate its own
+   `fleet-credential-canary.yml`.
+2. `scripts/fleet-conformance.sh` requires that citation, the exact
+   `CLAUDE.md` pointer, the derived cycle, and the derived delivery rules in the
+   Levelflow handoff's executable §6b prompt — deterministic enforcement,
+   landed with this paragraph under the change-together law.
 3. `fleet-template` seeds the citation so every future repo starts conformant.
    (Closure condition 4.)
-
-While the rollout pull requests are still merging, a repo whose citation has not
-yet reached `main` reports `converge-citation:absent`. That is the check
-working, not drift: the checker reads `main`, because `main` is the only state
-that governs anything.
 
 ## Preferred stack
 
@@ -406,12 +543,29 @@ never silent adoption.
 | Email | Resend on `windwardline.com` | — |
 | Automation | Zapier | — |
 
+Client access is a separate machine baseline, not an application-stack choice.
+Each of the six supported client surfaces exposes exactly Zapier, Stripe, FMP,
+Vercel, GitHub, Supabase, Neon through Vercel, Cloudflare, Aviationstack, Groq,
+and Resend. Nothing outside that set remains connected. The private
+`ops/service-baseline-check.py` pathway named in `CADENCE.md` derives the
+machine-readable inventories and requires current, complete attestations for
+UI-only surfaces. Missing, duplicate, extra, stale, or incomplete evidence is
+not parity and exits nonzero.
+
 **Deviation protocol:** an agent recommending a genuinely better option must put
 the question to the owner *before* adopting anything — never adopt silently. An
 approved deviation is recorded in that repo's `AGENTS.md` as a line beginning
-`Stack exception (owner-approved YYYY-MM-DD):` with the reasoning. The
-conformance checker fails any detectable deviation without a recorded approval,
-and the review lane holds every PR diff against this table.
+`Stack exception (owner-approved YYYY-MM-DD):` with nonblank reasoning. It must
+be an anchored live line outside backtick or tilde fenced examples and HTML
+comments, carry a valid date no later than today, and cannot be future-dated
+into authority it does not yet have. The
+conformance checker fails any detectable deviation without that exact approval,
+and deterministic checks enforce detectable deviations. The review lane
+reports semantic findings on eligible same-repo PR events whose
+`github.event.pull_request.user.login` — the PR author, stable across manual
+reruns — is not `dependabot[bot]` and whose base is the repository's dynamic
+default branch. Fork or missing-secret events skip;
+deterministic gates and repo contracts still bind them.
 
 ## Repository visibility
 
@@ -422,12 +576,16 @@ repos consumed 90% of the 3,000-minute monthly allowance by day 16; publishing
 five of them removed the entire projected overage without changing a single
 workflow. A repo created private is a recurring bill.
 
-**New repos are created public (owner-ruled 2026-08-16):** `gh repo create
---public --template windwardline/fleet-template`. The old `--private` default
-regrew this bill with every new project. A repo that must start private needs a
-row in the register below, added in the same change set that creates it — and
-the checker fails any private repo that is not on it, so the rule holds even if
-someone forgets the flag.
+**New repos are created public (owner-ruled 2026-08-16):** use the canonical
+`scripts/bootstrap-repo.sh` from a clean, GitHub-current `main`, beginning with
+its read-only `--dry-run`. Direct `gh repo create` is not the supported fleet
+path. The old `--private` default regrew this bill with every new project. A
+repo that must start private uses a bounded two-step sequence after bootstrap
+preflight: merge the reviewed register reservation, then immediately run apply
+mode and finish with full conformance. The interval in which the row names no
+existing repository is deliberate but never a stopping point. If creation
+cannot proceed, remove the reservation at once. There is no standing
+nonexistent private-by-design reservation.
 
 | Repo | Why it stays private |
 |---|---|
@@ -439,8 +597,9 @@ registered-private repo that turns public is an irreversible disclosure. The
 second is the more expensive mistake, so both fail the checker.
 
 Adding or removing a row here means amending this table and the checker's
-`PRIVATE_BY_DESIGN` list in the same change set. `grown-men-grow` left the
-register on 2026-08-18: it was the one private repo still running CI, and its
+`PRIVATE_BY_DESIGN` list in the same change set. The checker parses this table
+and aborts if those populations differ. `grown-men-grow` left the register on
+2026-08-18: it was the one private repo still running CI, and its
 652 runs in 18 days took the account to 100% of the allowance. The owner chose
 disclosure over the bill; the repo's decision log records it.
 
@@ -451,23 +610,36 @@ in the checker (`LANE_HELD`, `DEPSCAN_HELD`) and reported on every run rather
 than skipped — a skip list that cannot say why is how fleet-template sat exempt
 while merging eight PRs through no gate. A hold is a dated promise, not an
 exception: it carries the date it was granted and is emptied the moment the
-work it was protecting lands.
+work it was protecting lands. The checker parses this table, including each
+  row's `dependency-scan` and `auto-merge lane` categories, and aborts if the
+  executable held populations differ. Every registered repository must still
+  exist and be live. A held behavior that has already caught up is itself drift;
+  the register cannot preserve a stale exception after its premise disappears.
 
 | Repo | Held since | Behind | Closing it |
 |---|---|---|---|
 | craft | 2026-08-17 | dependency-scan schedule guard; auto-merge lane reorder | copy `templates/dependabot-auto-merge.yml` in, drop the `if:` on `Dependency scan`, then remove `craft` from both lists |
 
+Two canonical-template behaviors remain unresolved owner-decision follow-ups,
+not holds or exceptions. Lines 42–43 of
+`templates/dependabot-auto-merge.yml` falsely claim a manual rerun changes
+`github.actor`. Separately, the merge-gate hold runs before deferred-major
+labeling, so a gateless base branch can leave a major unlabelled and untracked.
+Any chosen correction must then roll through every copy. Neither is closed
+merely because its record exists here.
+
 ## Exceptions register
 
 | Repo | Exception | Why |
 |---|---|---|
-| `windwardline` (this repo) | No CI on its own content; PRs merge manually. Hosts the fleet reusable, this standard, and the conformance checker — its workflows gate the fleet, never itself. | Meta/standards home |
-| `venture` | Outside the fleet standard entirely | Private venture outside the Windward Line family |
+| `windwardline` (this repo) | No CI on its own content; PRs merge manually. Hosts the fleet reusable, this standard, and the conformance checker; those workflows serve or audit the fleet rather than gate this repo. | Meta/standards home |
+| `venture` | No CI, ruleset, or auto-merge lane; universal account checks still apply | Private venture outside the Windward Line family |
 | `ops` | No CI, no ruleset; snapshots land by PR, merged manually | Private meta-layer archive (canonical standards file, agent config, hooks, memory) — holds no application code |
 
 This register is mechanized: the conformance checker's exemption list mirrors it
-exactly, and everything else under the account is checked by default. Adding an
-exception means amending this table and the checker in the same change set.
+exactly, asserts that equality on every run, and checks everything else under
+the account by default. Adding an exception means amending this table and the
+checker in the same change set.
 
 **Exemption premises are re-verified every run.** Every row above rests on a
 claim — "no CI" — and a blanket skip list cannot notice when that claim stops
@@ -480,50 +652,123 @@ was unexempted on 2026-08-16 and now carries the full standard.
 
 The standing auto-merge rule admits no exceptions for repos with CI, so an
 exempt repo that has CI is not an exception — it is an unapplied rule. The
-checker re-derives each premise from remote state (ci/security workflow present,
-or any pull_request run) rather than trusting this table.
+checker enumerates every current default-branch workflow and reads its trigger;
+any live `pull_request` or `pull_request_target` trigger invalidates the premise.
+A filename such as `ci.yml` and a historical run do not: neither proves that CI
+runs on the repository now.
 
-## Enforcement pathways
+## Enforcement and reporting pathways
 
 1. **`scripts/fleet-conformance.sh`** (this repo) — deterministic checker. It
-   derives the fleet live from the GitHub account (every non-archived,
-   non-template repo minus the exceptions register), so a new repo is in scope
-   the moment it exists — inclusion is the default, exemption is the explicit
-   act — and it refuses a vacuous pass if enumeration returns nothing. Per repo
-   it verifies each item above, including ruleset depth (linear history rule
-   present, zero bypass actors), the Dependabot cooldown value rather than the
-   file's mere presence, and required-checks completeness: every successful job
-   from the latest merged PR's pull_request-triggered workflow runs must be a
-   required context, with the advisory review and the auto-merge job excluded —
-   dispatch and schedule runs against the same commit are not part of the
-   sample. It then runs `scripts/verify-action-pins.sh`, which resolves every
-   third-party action pin against the tags its SHA really carries, dereferencing
-   annotated tags. That sweep is deliberately wider than the fleet above — it
-   covers the exempted repos too, because this repo's own review lane held one
-   of the two original rot cases, and because `fleet-template` (in the fleet
-   proper since 2026-08-16) is how a bad comment would reach every repo created
-   after it. Prints a per-repo table and exits
-   non-zero on any drift. Run it from any machine with `gh` authenticated.
-   Scheduled execution rides pathway 6.
+   derives the account through paginated REST: every non-archived repo,
+   templates included. The exceptions register is removed from the main CI and
+   application-shape loop; citation, cycle, pointer, gate-enumeration,
+   visibility, suppression, dependency-scan, and action-pin audits still sweep
+   the full account. `fleet-template` can no longer disappear because GitHub
+   marks it `isTemplate`. A new repo is in scope the moment it exists.
+   Every read preserves HTTP status: exact 404 means absence only for an
+   optional resource; 403, 429, 500, transport failure, malformed JSON/base64,
+   and empty required data abort with exit 2 rather than becoming drift or a
+   pass. Repository, pull-request, workflow-run, job, ruleset, Actions-secret,
+   and Dependabot-secret pages prove progress by immutable item identity. Run
+   and job totals drive termination; repeated or overlapping pages, premature
+   short pages, total overflow, and unfinished jobs abort instead of hanging or
+   disappearing from the sample.
+
+   It verifies the following deterministic subset per repo: the exact 11-byte
+   `CLAUDE.md`; exact nonblank package-script keys; an unconditional action-pin step
+   inside `Secret scan`; both Dependabot App secret names; every update lane's
+   structurally nested cooldown; the catch-all header route; the exact current
+   live-header action and SECURITY.md origin for the independently derived,
+   nonempty production population; exact managed-edge register rows; canonical
+   security-workflow root permissions; and daily-scan cron, exact tree-derived
+   lockfile inputs, exact Dependabot ecosystem/directory lanes, and job
+   liveness. It validates ruleset
+   depth: active, default-branch-only, strict off, linear history plus the
+   separate force-push block, zero bypass actors, and every context bound to the
+   live GitHub Actions App identity. Required-check completeness
+   reconciles every REST page and samples all completed non-skipped jobs,
+   including failures and cancellations, on the newest merged PR. Pending jobs
+   abort because their conclusions are not final. Skipped names
+   remain in the inverse membership set: every required context must be a
+   sampled Actions job, so an external deploy check cannot hide behind a new
+   provider name. Jobs are excluded only when their run path is the actual
+   advisory review or auto-merge workflow; a similarly named job elsewhere is
+   still a gate candidate. Dispatch and schedule runs are not part of the sample. Zero PR, run,
+   job, expected-scan, update-lane, or repository populations abort.
+
+   It checks the Levelflow handoff's fenced §6b prompt structurally against the
+   cycle and delivery rules derived from this file; validates nonblank,
+   nonfuture stack waivers outside code fences and HTML comments; asserts the exception, private, and
+   held tables against the checker's executable populations; and compares every
+   auto-merge lane to the canonical blob at this repo's captured default-branch
+   commit.
+
+   It then passes the same immutable repo-to-SHA snapshot to
+   `scripts/verify-action-pins.sh`, which resolves every third-party action pin
+   against the tags its SHA really carries, dereferencing annotated tags. That
+   sweep covers the exempted repos too, because this repo's own review lane held
+   one of the two original rot cases, and because `fleet-template` is how a bad
+   comment would reach every repo created after it. It prints a per-repo table
+   and exits 1 on drift. If the sibling pin auditor or any required read cannot
+   complete, exit 2 is preserved rather than rewritten as drift. Run it from
+   any machine with `gh` authenticated. Scheduled execution rides pathway 6.
 2. **Rulesets** hold the merge gates; converting or creating a repo never drops
    a check it already required.
-3. **The review lane** holds diffs against each repo's operating contract on
-   every PR.
+3. **The review lane** reports semantic findings on eligible same-repo PR events
+   whose `github.event.pull_request.user.login` — the PR author, stable across
+   manual reruns — is not `dependabot[bot]` and whose base equals the
+   repository's dynamic default branch. It reads each
+   repo's operating contract and this file's Preferred stack. The reusable
+   checks out `FLEET.md` before the review action; it never orders a network
+   fetch from the no-egress sandbox. Fork or missing-secret events skip. The
+   predicate is the PR author, not the person who initiated a rerun. This
+   pathway is advisory; deterministic gates and contracts enforce.
 4. **The done-gate** (workspace Stop hook) holds local sessions to each
    repo's FULL declared gate set before they may finish — enumerated from
    that repo's `AGENTS.md`, not the three this line used to name. It read
    "typecheck + lint + tests" until 2026-08-19, which is the count-not-a-
    checklist defect the CONVERGE section above forbids, written into the
    pathway meant to enforce it.
-5. **New repos** start from `windwardline/fleet-template` and must pass the
-   conformance checker before first release. The checker, not the template,
-   is the authority — a template can go stale; the checker is run against
-   the standard as written here.
+5. **The new-repo bootstrap** is the creation pathway, not a checklist. From a
+   clean, GitHub-current `windwardline/windwardline@main`, run
+   `scripts/bootstrap-repo.sh --dry-run --manifest <absolute JSON path>`, then
+   rerun without `--dry-run` only after preflight passes. It validates the real
+   project files, closed manifest bundle, ordered gates, exact four-workflow set
+   and least-privilege schemas, current immutable fleet-action release, GitHub
+   identities, and Keychain item presence before creating anything. Before any
+   repository-owned helper executes, it proves the canonical origin, clean
+   `main`, and byte-current remote head, then freezes every bootstrap-owned
+   helper and manifest source into private snapshots. Apply mode
+   proves the exact App identity and its active all-repository Windward Line
+   installation before remote creation and reads creation state back on any ambiguous result;
+   it never retries a name blindly. It creates from
+   `windwardline/fleet-template` under `/Users/peacock/Projects`, proves the
+   release commit contains every shared action path the generated workflows
+   call, and runs the bootstrap-owned staged gitleaks scan through its fixed trusted executable
+   path before the first commit or push, refusing a non-positive examined-byte
+   count, and lands the project through a gated squash PR. Repository secrets
+   are installed only after the merged head, default-branch commit, and complete
+   tree are rebound to the validated commit. The App key is reauthenticated from
+   the same stream uploaded to Dependabot. The
+   final pass enables and verifies vulnerability alerts, automated fixes,
+   auto-merge, the GitHub-Actions-bound
+   ruleset, production probes, clean local `main`, and full fleet conformance. A
+   public repository also gets verified private vulnerability reporting; a
+   private repository gets truthful alternate reporting instructions because
+   GitHub exposes that form only on public repositories.
+   post-create failure retains and names both targets; it never claims rollback.
+   Private-by-design creation uses the bounded two-step reservation above and
+   cannot leave a nonexistent row behind. The manifest and exact procedure live
+   in `docs/new-repo-bootstrap.md`. The checker, not the template, remains the
+   authority, and a new repository enters its derived population the moment
+   GitHub creates it.
 6. **The weekly fleet-health cadence** — `CADENCE.md` (this repo), executed by
-   a Claude Code scheduled task every Monday 09:00 ET: conformance run,
-   Actions failure sweep, guardrail-drift audit, stray-repo sweep, meta-layer
-   snapshot to the private `ops` repo, and trajectory review. The checklist is
-   versioned; the task is only the trigger.
+   a Claude Code scheduled task every Monday 09:00 ET, in this order:
+   conformance; Actions failures; open issues and PRs; production and preview
+   runtime errors; permission, config, agent-exit, MCP, exact service-baseline,
+   symlink, and GitHub-auth guardrails; stray repos; trajectory; then the meta-layer snapshot to private
+   `ops`. The checklist is versioned; the task is only the trigger.
 
 Changing this document is changing the fleet standard: land it by PR here, then
 make the conformance checker agree with it in the same change set.
@@ -537,8 +782,3 @@ or another named pathway above; applied to every existing fleet repo; and seeded
 into `fleet-template` for future repos. This applies retroactively to gaps 1–3
 (contracts, done-gate, security + review lanes — all four conditions verified
 2026-08-04) and prospectively to every remaining and future gap.
-
-The CONVERGE cycle closed under the same four conditions on 2026-08-20:
-codified in this document; enforced by `scripts/fleet-conformance.sh` against a
-chain derived from it rather than copied from it; applied to every existing
-fleet repo; and seeded into `fleet-template` for future ones.

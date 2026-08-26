@@ -3,15 +3,17 @@
 Fires every Monday 09:00 ET as a Claude Code scheduled task. This file is the
 checklist the task executes; the task is only the trigger. Changing the cadence
 is a PR here. Results are reported in-chat as tables — drift first,
-owner-decision items last.
+owner-decision items last. Its eight steps are the complete pathway named by
+`FLEET.md`; neither document maintains a shorter substitute list.
 
 ## Every week
 
 1. **Conformance** — run `scripts/fleet-conformance.sh` (this repo). Mechanical
    drift is fixed same-day by the standing flow; anything requiring judgment
    goes to the owner with a proposed fix.
-2. **Actions failure sweep** — for every fleet repo (live enumeration, same as
-   the checker), two views over runs with `event != pull_request`. The action
+2. **Actions failure sweep** — for every non-archived repository under the
+   account, templates and checker exceptions included, two views over runs with
+   `event != pull_request`. The action
    list is the **latest run per workflow job**: group by
    `(workflow_id, job identity)`, take the newest, report the ones not green —
    that is what is broken now. The window
@@ -31,20 +33,24 @@ owner-decision items last.
    list was read by eye. This failure mode turns a real red into a
    confident clean report, so it costs more than a missed check.
    **A workflow with more than one cron fans out the same way, and job
-   identity is then the set of jobs that did not skip.** `security.yml`
-   carries two schedules: `17 9 * * 1` runs the full suite, `17 13 * * *`
-   runs `Headers live` only, and the scan jobs skip themselves on the daily
-   one — so that run reports **success while scanning nothing**. Run seven
-   found craft's weekly scan failing at 09:56Z on a real advisory with a
-   Headers-only `success` at 13:51Z the same day; the next day's daily run
-   would have superseded the failure in the latest-run view and retired a
-   live finding without anyone deciding to. Two runs that executed different
-   job sets are not comparable, and the later cannot supersede the earlier.
-   Read the jobs, not the run conclusion: a run whose scan jobs skipped is
-   not a scan, and a green one is not evidence the tree is clean. The same
-   reading error made the five `success` rows before it look like five clean
-   dependency scans when not one of them had run the scanner. Push and cron
-   failures (weekly Semgrep, Headers live) surface nowhere else. Report
+   identity is then the set of jobs that did not skip.** A conformant
+   `security.yml` carries two schedules. The exact weekly path at
+   `17 9 * * 1` admits Semgrep and Secret scan. The daily path at
+   `17 13 * * *` admits `Dependency scan` plus `Headers live` where present.
+   Semgrep and Secret scan skip only the daily trigger. Dependency scan has no
+   schedule guard, so it also runs in the weekly invocation; its required paths
+   are pull request, push, and daily because its advisory input changes without
+   a commit. `Headers live` runs after merge on push and on the daily schedule;
+   it is never a pull-request ruleset requirement.
+   The checker proves a daily cron reaches live work. `craft` remains the dated
+   hold: its dependency job is still weekly-guarded, so its daily Headers-only
+   success cannot supersede its weekly dependency result. Run seven found that
+   weekly scan failing at 09:56Z with a Headers-only success at 13:51Z the same
+   day. Two runs that executed different job sets are not comparable, and the
+   later cannot supersede the earlier. Read the jobs, not the run conclusion: a
+   green run is evidence only for the jobs it executed. Push and cron failures
+   (weekly Semgrep and Secret scan; push and daily Headers live) surface nowhere
+   else. Report
    workflows examined alongside failures found, so a clean sweep is visibly
    "looked at 44, found 1". Run two swept window-only and produced 10
    findings of which 9 were already fixed hours earlier the same day.
@@ -60,33 +66,33 @@ owner-decision items last.
    predated the merged `HEALTH_RETRY_DELAY_MS` retry, with the next 8
    scheduled `Production health` runs green — resolved in state.
 3. **Open-issue and open-PR sweep** — enumerate open issues across every
-   fleet repo (`gh issue list`). Automated alert issues
+   non-archived repository under the account, templates and checker exceptions
+   included. Automated alert issues
    (`production-alert.yml` and kin) are acted on, not just counted: an
    alert nobody sweeps is a log line — pathfinder#15 sat unread 16 days
    before the first cadence run closed it.
-   Then open PRs, same reasoning: enumerate them across every fleet repo
-   **plus `windwardline` and `ops`**, and flag anything older than seven
-   days. The no-CI repos are the structural accumulators — everywhere else
-   `--squash --auto` lands work by itself, but these two need a human, and
-   nothing else watches that gap: run three found the guardrail-drift pair
+   Then open PRs across that same derived population and flag anything older
+   than seven days. Re-derive which repos have no CI on each run; they are the
+   structural accumulators because `--squash --auto` cannot land their work.
+   Nothing else watches that gap: run three found the guardrail-drift pair
    stalled since 2026-08-08 while the daily log recorded it as shipped.
    Authored is not landed — a `.remember/` daily saying work is done is not
    evidence it merged; verify against the default branch. Distinguish
    deliberately parked drafts (craft#5, the Lighthouse gate held until two
    studies clear 95) from stalled work. Report PRs examined alongside
    stalled found, so a clean sweep is visibly "looked at N, found 0".
-   **Dependabot PRs changed shape on 2026-08-11.** Green patch and minor
-   updates now land themselves, so an open Dependabot PR is no longer a
-   backlog item — it is a **hold**, and the hold is the finding. Read the
+   **Dependabot PRs changed shape on 2026-08-11.** In every CI-bearing,
+   non-exempt repo, green patch and minor updates now land themselves, so an
+   open Dependabot PR is no longer a backlog item — it is a **hold**, and the
+   hold is the finding. Read the
    auto-merge run's step summary for the reason: a maintainer change on the
    released package, a pre-1.0 version, a major (labelled `deferred-major`),
    an unrecognised update type, or the `no-automerge` label. A maintainer
    change in particular is the signature the lane exists to stop at, so it is
-   read the week it appears, not counted. Every fleet repo is in the lane —
-   levelflow-cloud joined when the GitHub App landed the same evening, and the
-   exceptions register no longer holds a row for it. Run six's nine-PR pile-up
-   is what closed this gap — none of them was stale enough to trip the
-   seven-day flag.
+   read the week it appears, not counted. Every CI-bearing repo outside the
+   exceptions register is in the lane. Levelflow-cloud joined when the GitHub
+   App landed the same evening. Run six's nine-PR pile-up is what closed this
+   gap — none of them was stale enough to trip the seven-day flag.
    **A repaired credential does not retroactively unblock the PRs held behind
    it.** The lane fires on pull_request events; a secret corrected afterwards
    changes nothing until something re-runs. Run eight found three levelflow-cloud
@@ -115,7 +121,7 @@ owner-decision items last.
    at least one live app, in the environment being cleared — or "no errors"
    and "no telemetry" read alike.
    Runtime-log retention is one day on Pro; the errors table holds seven.
-5. **Guardrail drift** — two scripts, then two checks with no script.
+5. **Guardrail drift** — five scripts, then two checks with no script.
    - Permission surface: `scripts/permission-audit.sh` (this repo) exits
      clean — no interpreter or task-runner wildcards on standing allow,
      credential reads ask-gated, no fence-defeating local wildcards, no
@@ -166,6 +172,15 @@ owner-decision items last.
      stores it exists to protect. Exit 1 invariant, 2 drift. It also runs daily
      from `windwardline-toolchain-update`, so detection does not depend on this
      cadence being executed.
+   - Exact service baseline: `service-baseline-check.py` in `windwardline/ops`
+     (private) exits 0. It verifies that all six supported client surfaces
+     expose exactly Zapier, Stripe, FMP, Vercel, GitHub, Supabase, Neon through
+     Vercel, Cloudflare, Aviationstack, Groq, and Resend: no missing route,
+     duplicate route, or extra business integration. Static registries,
+     read-only CLI status, and Keychain attribute checks are collected live;
+     UI-only client inventories require complete attestations no older than 14
+     days. Exit 1 is an invariant violation; 2 is missing or stale evidence.
+     The checker never launches an MCP server, starts OAuth, or reads a secret.
    - The four AGENTS.md paths resolve to one inode (`ls -laiL`); restore the
      symlinks if not.
    - `gh auth status` healthy.
@@ -204,15 +219,6 @@ that reports it as a finding is misreading the fleet.
 Failures that recur by design. Confirm the stated condition still holds, then
 move on — do not re-investigate from scratch each week.
 
-- **fleet-template's `Claude review` lane fails intermittently.** It returns
-  `is_error:true` against the template's placeholder content and no application
-  code. It failed on every run from before 2026-08-09 through 2026-08-17 02:23Z,
-  then passed three times the same day (19:27Z, 20:06Z, 22:16Z) with the lane
-  and the reusable caller both unchanged since 2026-08-11 — so the red is flaky,
-  not structural, and "it has never passed" is no longer true. Advisory lane,
-  exempt repo, nothing gated. The check that it is still benign: the same
-  workflow is green in a real repo the same day. A **run of reds with no green
-  anywhere in the fleet** is a real finding, not this entry.
 - **pathfinder Dependabot security updates for `postcss` and `brace-expansion`**
   fail `security_update_not_possible`. Dependabot resolves declared ranges and
   cannot see pnpm `overrides`; `pnpm-workspace.yaml` already forces the whole

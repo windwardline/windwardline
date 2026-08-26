@@ -1,0 +1,58 @@
+name: Verify Ghost managed edge
+description: Verify the owner-approved, self-expiring Ghost(Pro) production-edge exception.
+
+runs:
+  using: composite
+  steps:
+    - name: Verify the managed Ghost production edge
+      # The calling workflow controls job environment and every earlier step.
+      # Start Bash without startup files, then retain only the inputs required
+      # by the fixed, credential-free production probe.
+      shell: /bin/bash --noprofile --norc -euo pipefail {0}
+      env:
+        BASHOPTS: ""
+        BASH_COMPAT: ""
+        BASH_ENV: /dev/null
+        BASH_LOADABLES_PATH: ""
+        CDPATH: ""
+        CURL_HOME: ""
+        DYLD_FALLBACK_FRAMEWORK_PATH: ""
+        DYLD_FALLBACK_LIBRARY_PATH: ""
+        DYLD_FRAMEWORK_PATH: ""
+        DYLD_IMAGE_SUFFIX: ""
+        DYLD_INSERT_LIBRARIES: ""
+        DYLD_LIBRARY_PATH: ""
+        DYLD_PRINT_TO_FILE: ""
+        DYLD_ROOT_PATH: ""
+        ENV: /dev/null
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
+        GLOBIGNORE: ""
+        LD_AUDIT: ""
+        LD_DEBUG: ""
+        LD_DEBUG_OUTPUT: ""
+        LD_LIBRARY_PATH: ""
+        LD_ORIGIN_PATH: ""
+        LD_PRELOAD: ""
+        LD_PROFILE: ""
+        LD_SHOW_AUXV: ""
+        PS4: ""
+        SHELLOPTS: ""
+        XDG_CONFIG_HOME: ""
+      run: |
+        probe_root=$(/usr/bin/mktemp -d "${RUNNER_TEMP:?RUNNER_TEMP is required}/fleet-ghost-edge.XXXXXX")
+        trap '/bin/rm -rf -- "$probe_root"' EXIT
+        probe_home="$probe_root/home"
+        probe_tmp="$probe_root/tmp"
+        /bin/mkdir -p "$probe_home" "$probe_tmp"
+        /usr/bin/env -i \
+          PATH=/usr/bin:/bin \
+          LC_ALL=C \
+          HOME="$probe_home" \
+          TMPDIR="$probe_tmp" \
+          GHOST_EDGE_ATTEMPTS=5 \
+          GHOST_EDGE_RETRY_DELAY_SECONDS=45 \
+          GHOST_EDGE_REQUEST_TIMEOUT_SECONDS=20 \
+          GHOST_EDGE_PUSH_DELAY_SECONDS=60 \
+          /bin/bash --noprofile --norc \
+          "$GITHUB_ACTION_PATH/verify-ghost-managed-edge.sh" \
+          "$GITHUB_EVENT_NAME"

@@ -1,8 +1,8 @@
 name: Verify action pin comments
 description: >
-  Fails the job when a third-party `uses:` pin carries a trailing version comment
-  that does not name a tag the pinned SHA actually holds, or names a moving major
-  alias where an immutable patch tag exists. Audits the checked-out working tree.
+  Fails the job when a remote `uses:` ref is mutable outside the sole fleet-review
+  exception, or when a SHA pin's comment does not name its exact release tag.
+  Audits the immutable workflow tree at `github.sha`.
 
 # Deliberately a composite action, not a reusable workflow. A called workflow
 # contributes its own check name, which every repo's ruleset would then have to
@@ -10,16 +10,93 @@ description: >
 # between adding the job and requiring it. A composite runs as a STEP inside a
 # job that is already required, so the gate lands with no ruleset change at all.
 #
-# Referenced at @main by every caller, like the review lane: one merge here
-# updates the gate fleet-wide.
+# Every caller pins a released commit and names its immutable tag. A release is
+# followed by an explicit fleet rollout; callers never execute mutable @main.
 runs:
   using: composite
   steps:
     - name: Action pin comments
-      shell: bash
+      # The calling PR controls workflow/job environment and every earlier step.
+      # Override shell startup hooks before Bash starts, then give the auditor an
+      # allowlisted environment and a private HOME. Otherwise BASH_ENV, RUBYOPT,
+      # GIT_CONFIG_* or a PATH entry written through GITHUB_PATH can replace the
+      # parser or forge the tag map while the required check reports success.
+      shell: /bin/bash --noprofile --norc -euo pipefail {0}
+      env:
+        BASH_ENV: /dev/null
+        ENV: /dev/null
+        BASHOPTS: ""
+        SHELLOPTS: ""
+        BASH_LOADABLES_PATH: ""
+        BASH_COMPAT: ""
+        CDPATH: ""
+        GLOBIGNORE: ""
+        PS4: ""
+        LD_PRELOAD: ""
+        LD_LIBRARY_PATH: ""
+        LD_AUDIT: ""
+        LD_DEBUG: ""
+        LD_DEBUG_OUTPUT: ""
+        LD_PROFILE: ""
+        LD_PROFILE_OUTPUT: ""
+        LD_SHOW_AUXV: ""
+        LD_ORIGIN_PATH: ""
+        GLIBC_TUNABLES: ""
+        DYLD_INSERT_LIBRARIES: ""
+        DYLD_LIBRARY_PATH: ""
+        DYLD_FRAMEWORK_PATH: ""
+        DYLD_FALLBACK_LIBRARY_PATH: ""
+        DYLD_FALLBACK_FRAMEWORK_PATH: ""
+        DYLD_ROOT_PATH: ""
+        DYLD_IMAGE_SUFFIX: ""
+        DYLD_VERSIONED_LIBRARY_PATH: ""
+        DYLD_VERSIONED_FRAMEWORK_PATH: ""
+        DYLD_SHARED_CACHE_DIR: ""
+        DYLD_PRINT_TO_FILE: ""
+        CURL_HOME: ""
+        GIT_CONFIG: ""
+        GIT_CONFIG_GLOBAL: ""
+        GIT_CONFIG_SYSTEM: ""
+        GIT_CONFIG_PARAMETERS: ""
+        GIT_CONFIG_COUNT: "0"
+        RUBYOPT: ""
+        RUBYLIB: ""
+        GEM_HOME: ""
+        GEM_PATH: ""
+        GEMRC: ""
+        BUNDLE_GEMFILE: ""
+        BUNDLE_PATH: ""
+        BUNDLE_USER_CONFIG: ""
+        PIN_ACTION_PATH: ${{ github.action_path }}
+        PIN_WORKSPACE: ${{ github.workspace }}
+        PIN_GITHUB_SHA: ${{ github.sha }}
+        PIN_RUNNER_TEMP: ${{ runner.temp }}
       # Resolves tags via `git ls-remote`, not the REST API — no token, and
       # immune to the secondary rate limit that halted a fleet sweep on
       # 2026-08-11. The script is the same one the fleet conformance checker
       # runs, so the rule enforced here cannot drift from the rule enforced
       # after merge.
-      run: bash "$GITHUB_ACTION_PATH/../../scripts/verify-action-pins.sh" --local "$GITHUB_WORKSPACE"
+      run: |
+        pin_home=$(/usr/bin/mktemp -d "${PIN_RUNNER_TEMP:?PIN_RUNNER_TEMP is required}/fleet-pin-home.XXXXXX")
+        if /usr/bin/env -i \
+            PATH=/usr/bin:/bin \
+            LC_ALL=C \
+            HOME="$pin_home" \
+            GIT_CONFIG_NOSYSTEM=1 \
+            GIT_CONFIG_GLOBAL=/dev/null \
+            GIT_CONFIG_SYSTEM=/dev/null \
+            GIT_CONFIG_COUNT=0 \
+            GIT_TERMINAL_PROMPT=0 \
+            GIT_NO_REPLACE_OBJECTS=1 \
+            /bin/bash --noprofile --norc \
+            "$PIN_ACTION_PATH/../../scripts/verify-action-pins.sh" \
+            --git-tree "$PIN_WORKSPACE" "$PIN_GITHUB_SHA"; then
+          pin_rc=0
+        else
+          pin_rc=$?
+        fi
+        /bin/rm -rf -- "$pin_home"
+        case "$pin_rc" in
+          0) ;;
+          *) /usr/bin/false ;;
+        esac

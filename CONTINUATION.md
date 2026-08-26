@@ -8,6 +8,144 @@ state costs more than recording it did.
 Delete this file when the sequence in §4 is closed. It is a work record, not a
 standard — `FLEET.md` is the standard.
 
+## 2026-08-21 safe-stop resume block — this supersedes older state below
+
+The active checkout is `/Users/peacock/Projects/windwardline`, branch
+`claude/converge-enforcement`, tracking the same remote branch at
+`d4ac6ec11d3d1f0c25ccf9d37596b9b4d21c2940`. PR #76 is open, draft,
+mergeable, and has no commits beyond that SHA. The work described here is a
+large **uncommitted and unstaged** adversarial rewrite. Preserve it. Do not
+switch branches, discard paths, or merge #76 until the full suite is green.
+
+Modified tracked paths:
+
+- `.github/workflows/claude-review.yml`
+- `AGENTS.md`, `CADENCE.md`, `FLEET.md`, `README.md`, this file
+- `actions/verify-action-pins/action.yml`
+- `scripts/fleet-conformance.sh`, `scripts/verify-action-pins.sh`
+
+Untracked authored paths:
+
+- `scripts/actions_yaml_inspector.rb`
+- `templates/claude-review.yml`
+- `tests/actions-yaml-inspector-test.rb`
+- `tests/fleet-conformance-test.sh`
+
+Safe-stop evidence, run from the checkout on 2026-08-21:
+
+- `git diff --check` — clean.
+- `bash -n scripts/fleet-conformance.sh scripts/verify-action-pins.sh tests/fleet-conformance-test.sh` — clean.
+- `ruby tests/actions-yaml-inspector-test.rb` — **24 runs, 35 assertions, zero failures/errors/skips**.
+- `actionlint .github/workflows/claude-review.yml` — clean.
+- `shellcheck` on both scripts and the shell harness — no warnings/errors;
+  four informational notices only (three intentional single-quoted Ruby
+  programs and the cleanup function invoked by a trap).
+- The full shell harness was green through most of its prior 95-case run, then
+  ended at **91 passed / 4 failed**. Two failures were stale invalid YAML
+  fixtures and were corrected; one expectation was corrected because explicit
+  YAML `on` syntax is valid; one scope test now expects the deliberate local
+  non-vacuity refusal. More cases and implementation changes landed after that
+  run. **The complete harness has not been rerun since. Do not infer green.**
+
+What is already closed remotely, despite stale sections below: all fourteen
+citation PRs, the Levelflow §6b enforcement rollout, the fleet-template schedule
+fix, the grown-men-grow prerequisite, the contract/static/app rollouts, and the
+caller/template rollouts merged before this rewrite. Their local clones were
+returned to clean `main`. Current open PRs, re-derived at this stop, are only
+`windwardline#76` (this draft), `levelflow-cloud#370` (draft rebuild work; not
+this task), and held Dependabot PR `craft#29`.
+
+### Current implementation direction
+
+The checker now uses a Ruby/Psych AST (`scripts/actions_yaml_inspector.rb`) for
+GitHub Actions YAML rather than regular expressions. It rejects duplicate keys,
+aliases, anchors, multi-document input, malformed cron fields, hidden control
+flow, and fake `uses:` text. It has structural modes for PR triggers, action
+references, security jobs, and Dependabot lanes. The shell code now checks HTTP
+status and one-document JSON/base64 boundaries, pages repository and ruleset
+populations, snapshots default branches by commit SHA, rejects truncated Git
+trees, derives lockfiles recursively, checks workflow activation state, and
+binds required contexts to the live GitHub Actions App id.
+
+The rewritten action-pin auditor uses a private per-run cache, ignores inherited
+OWNER/TMPDIR policy inputs, rejects floating tag comments even when no patch tag
+exists, reads remote manifests by blob SHA, detects symlinked manifests, and
+fails local zero-reference scans. Its composite action begins a scrubbed shell
+environment. The review caller has an exact canonical template and behavior
+lock. CONVERGE cycle/delivery derivation ignores fenced, indented-code, and HTML
+comment examples; the Levelflow handoff fence parser now requires one real,
+complete, uncommented fence.
+
+The new-repository bootstrap is being closed against the same fail-closed
+standard. Its manifest is a sealed bundle: every source is a regular file under
+the bundle root, with no symlink traversal. It accepts exactly four validated,
+least-privilege workflows. Before remote creation, apply mode proves the App key
+through live authentication; ambiguous creation gets an exact repository
+readback, never a blind retry. Before the first commit or push, the staged tree
+runs through the bootstrap-owned gitleaks scan at its fixed trusted executable
+path. The bootstrap PR merges before repository secrets are installed. Final
+verification includes private vulnerability reporting for public repositories
+and truthful alternate reporting instructions for private ones. Private-by-design
+creation is a bounded reservation followed immediately by creation and full
+conformance; a reservation for a nonexistent repo is never a stopping state.
+
+### Do next, in this order
+
+1. Read the live diff, `FLEET.md`, and this block. Run the complete shell harness
+   first. Repair tests so each advertised failure reaches the intended code
+   path. In particular, remote pin fixtures must mock
+   `branches/<name>` → `git/trees/<sha>` → `git/blobs/<sha>`; an early unhandled
+   endpoint is not a content-decoder test. Run every defined ruleset-source,
+   App-identity, caller-lock, pagination, disabled-workflow, nested-lockfile,
+   indented-Markdown, and commented-handoff case.
+2. Finish the remaining fail-closed code before adding rollout work:
+   - Validate `runs-on` shape and mutually exclusive reusable/runner job schemas
+     in the YAML inspector.
+   - Make the PR-time pin action audit the immutable `GITHUB_SHA` Git tree with
+     `git ls-tree`/`git show`, not a sparse or mutable checkout. Keep the scrubbed
+     environment. Compare the exact parsed version-comment token; do not delete
+     punctuation from it.
+   - Return exact structurally valid pin-action refs from the inspector and
+     require every caller to use the current released SHA. The current fleet is
+     still on vulnerable `v1.0.0`; do not claim the PR-time and weekly auditors
+     are the same until the new release is tagged and all callers are rolled out.
+   - Add the canonical `actions/verify-live-headers` composite. A Headers-live
+     job must call that exact released action with the production URL; an inline
+     nonblank `run:` is nominal evidence only. Derive production membership from
+     the one concrete non-placeholder HTTPS deployment URL in live `SECURITY.md`.
+     Add `https://pathfinder.windwardline.com` to Pathfinder's SECURITY scope;
+     add the missing job to grown-men-grow. Thirteen production repos should be
+     derived, never listed by hand.
+   - Complete structural Dependabot cooldown integration and its indentless-lane
+     regression test.
+3. Keep GitHub's real boundary explicit. `integration_id` proves the status came
+   from the GitHub Actions App, not which workflow produced it. GitHub matches
+   required checks by job name and ignores workflow, matrix, and trigger type;
+   duplicate names are ambiguous. A personal account cannot use organization
+   required-workflow rulesets. Document this residual boundary and do not call
+   App binding workflow identity. Enforce unique job names where deterministic,
+   but do not overclaim that it protects the same PR that rewrites its workflow.
+4. Run Ruby tests, the complete shell harness, `bash -n`, `shellcheck`,
+   `actionlint`, local pin audits, and a self-review. Then obtain another
+   independent read-only adversarial review; the previous reviewer was stopped
+   at this safe point, not exhausted.
+5. Commit only explicit paths. After #76 is final, merge it manually (this repo
+   has no CI), tag the merged main commit as the next immutable fleet-action
+   release, and roll both composite-action pins through every derived caller by
+   PR. Update all fourteen `main-requires-green-ci` rulesets so every required
+   check carries GitHub Actions `integration_id` (live App id was 15368 at this
+   stop); preserve every other rule, condition, and bypass array. The live state
+   still had 52 required-check rows across 14 rulesets with no source binding.
+6. Run the clean-main fleet checker only after those rollouts. Then finish and
+   verify the hardened new-repo bootstrap integration, global AGENTS/ops snapshot,
+   service-baseline parity, all seventeen local/GitHub clean-main checks, PR and
+   deploy cleanup, and finally delete this file.
+
+Do **not** edit `templates/dependabot-auto-merge.yml` or its fleet copies: its two
+known defects remain owner decisions. Preserve the `craft` hold. Do not absorb
+Levelflow rebuild PR #370. No ruleset, tag, PR, deployment, or service mutation
+was made during the unfinished rewrite recorded in this block.
+
 ---
 
 ## 0. What this brief has NOT had — read before trusting it
