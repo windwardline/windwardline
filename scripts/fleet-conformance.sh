@@ -115,6 +115,29 @@ for r in $REPOS; do
     esac
   fi
 
+  # Scratch-clone helper — byte-identity, same reasoning as the lane above.
+  # Presence says nothing: this file decides whether a fan-out copies a repo's
+  # ignored paths along with it, and a weakened copy of it is worse than none,
+  # because it reports success. levelflow-cloud held 23 whole copies under
+  # /private/tmp on 2026-08-25 (148.8 GiB, 20 of them carrying a live
+  # .env.local) purely because copies were made by hand.
+  #
+  # Same 40-hex guard as above: `gh api --jq` writes the error body to stdout
+  # on a 404, so two missing files would otherwise compare equal.
+  want=$(git -C "$REPO_ROOT" hash-object templates/scratch-clone.sh 2>/dev/null)
+  got=$(gh api "repos/$OWNER/$r/contents/scripts/scratch-clone.sh?ref=main" --jq '.sha' 2>/dev/null)
+  case "$got" in
+    [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;;
+    *) got="" ;;
+  esac
+  if [ -z "$want" ]; then
+    drift="$drift no-template:scratch-clone.sh"
+  elif [ -z "$got" ]; then
+    drift="$drift missing:scratch-clone.sh"
+  elif [ "$got" != "$want" ]; then
+    drift="$drift scratch-clone:differs-from-template"
+  fi
+
   # The soak is read, not assumed. Auto-merge without a cooldown is a same-day
   # supply-chain window, so every update lane must carry at least seven days —
   # the file's presence says nothing about the number inside it.
