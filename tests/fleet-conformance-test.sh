@@ -924,6 +924,10 @@ extra' ;;
   repos/windwardline/fixture/contents/SECURITY.md*)
     if [ "$MOCK_SCENARIO" = security_origin_missing ]; then
       emit 200 "$(content_json 'This repository has no declared deployment.')"
+    elif [ "$MOCK_SCENARIO" = security_origin_non_ascii ]; then
+      # craft's real SECURITY.md carries an arrow here. Under a scheduled task
+      # (LANG unset) ruby reads this as US-ASCII and String#scan raises.
+      emit 200 "$(content_json 'Report via the workflow (Security → Advisories) for https://fixture.example.com')"
     elif [ "${MOCK_SCENARIO#ghost_}" != "$MOCK_SCENARIO" ] \
       && [ "$MOCK_SCENARIO" != ghost_unregistered ]; then
       emit 200 "$(content_json 'This repository and the deployment at https://grownmengrow.com')"
@@ -1386,6 +1390,42 @@ run_case() {
   else
     printf 'not ok - %s (expected rc=%s /%s/, got rc=%s)\n' "$name" "$expected_rc" "$pattern" "$rc"
     sed -n '1,100p' "$TMP/out-$name" | sed 's/^/  /'
+    failures=$((failures + 1))
+  fi
+}
+
+run_locale_independence_case() {
+  name=non-ascii-security-md-survives-unset-locale
+  if [ -n "$CASE_FILTER" ]; then
+    case "$name" in *"$CASE_FILTER"*) ;; *) return ;; esac
+  fi
+  standard valid >"$TMP/standard-$name.md"
+  : >"$TMP/log-$name"
+  # The locale is cleared deliberately. Run this under a UTF-8 shell without
+  # clearing it and the case passes whether or not the fix is present, which
+  # is a test that cannot fail.
+  # A subshell, not env(1): run_with_timeout is a shell function and env cannot
+  # invoke one. The first draft of this test used env, got exit 127, and passed
+  # anyway because 127 is not 2 — a test that examined nothing.
+  (
+    unset LANG LC_ALL LC_CTYPE
+    PATH="$TMP/bin:$PATH" \
+    MOCK_SCENARIO=security_origin_non_ascii \
+    MOCK_LOG="$TMP/log-$name" \
+    MOCK_SUBJECT="$TMP/subject" \
+    FLEET_MD_LOCAL="$TMP/standard-$name.md" \
+    GHOST_MANAGED_EDGE_REPOS_OVERRIDE=_NONE_ \
+    run_with_timeout bash "$TMP/subject/scripts/fleet-conformance.sh"
+  ) >"$TMP/out-$name" 2>&1
+  rc=$?
+  if [ "$rc" -ne 2 ] && [ "$rc" -ne 127 ] \
+    && grep -q 'REPO' "$TMP/out-$name" \
+    && ! grep -qE 'invalid byte sequence|could not be derived unambiguously' "$TMP/out-$name"; then
+    printf 'ok - %s\n' "$name"
+    passes=$((passes + 1))
+  else
+    printf 'not ok - %s (non-ASCII SECURITY.md must not abort the audit; rc=%s)\n' "$name" "$rc"
+    sed -n '1,60p' "$TMP/out-$name" | sed 's/^/  /'
     failures=$((failures + 1))
   fi
 }
@@ -1925,6 +1965,7 @@ run_case review-prefix-in-nonreview-workflow-is-a-gate-candidate review_prefix_n
 run_case policy-registers-match-code register_mismatch 2 'Exceptions register does not match checker EXEMPT'
 run_case registered-repo-must-exist registered_repo_missing 2 'craft repository identity.*absent|craft.*HTTP 404'
 run_case pin-auditor-incomplete-preserves-exit-two pin_auditor_incomplete 2 'ACTION PIN AUDIT INCOMPLETE'
+run_locale_independence_case
 if [ -z "$CASE_FILTER" ]; then
   run_template_universal_case
   run_no_graphql_case

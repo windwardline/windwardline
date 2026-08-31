@@ -28,6 +28,12 @@
 # passes an exact commit to --git-tree; --local remains a developer diagnostic.
 
 set -u
+
+# Locale-independent for the same reason as scripts/fleet-conformance.sh: this
+# script drives ruby over workflow YAML, and a scheduled task runs with LANG
+# unset, making ruby's default external encoding US-ASCII.
+LC_ALL=C.UTF-8
+export LC_ALL
 OWNER="windwardline"
 REVIEW_WORKFLOW_REF="windwardline/windwardline/.github/workflows/claude-review.yml@main"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
