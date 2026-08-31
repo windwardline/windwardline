@@ -43,7 +43,7 @@ DEPSCAN_HELD="craft"
 # Capability-specific live-header exception. This is not a fleet exemption:
 # grown-men-grow remains in every other audit population. The full governing
 # table row and this executable copy are asserted byte-for-byte below.
-GHOST_MANAGED_EDGE_ROW='| `grown-men-grow` | 2026-08-24 | `https://grownmengrow.com` on Ghost(Pro) | Exact `Ghost managed edge` one-step job on push + daily, calling `windwardline/windwardline/actions/verify-ghost-managed-edge@<current release SHA>` | Fails once all seven headers appear; remove this row and restore `Headers live` |'
+GHOST_MANAGED_EDGE_ROW='| `grown-men-grow` | 2026-08-24 | `https://grownmengrow.com` on Ghost(Pro) | Exact 12-minute `Ghost managed edge` one-step job on push + daily, its step named exactly `Verify the managed Ghost production edge`, calling `windwardline/windwardline/actions/verify-ghost-managed-edge@<current release SHA>` | Fails once all seven headers appear; remove this row and restore `Headers live` |'
 if [ -n "${GHOST_MANAGED_EDGE_REPOS_OVERRIDE+x}" ]; then
   [ -n "${FLEET_MD_LOCAL:-}" ] \
     || { echo "ERROR: GHOST_MANAGED_EDGE_REPOS_OVERRIDE is test-only and requires FLEET_MD_LOCAL." >&2; exit 2; }
@@ -53,7 +53,7 @@ if [ -n "${GHOST_MANAGED_EDGE_REPOS_OVERRIDE+x}" ]; then
     case "$GHOST_MANAGED_EDGE_REPOS_OVERRIDE" in
       ''|*[!A-Za-z0-9._\ -]*) echo "ERROR: GHOST_MANAGED_EDGE_REPOS_OVERRIDE contains an invalid repository name." >&2; exit 2 ;;
     esac
-    GHOST_MANAGED_EDGE_ROW="| \`$GHOST_MANAGED_EDGE_REPOS_OVERRIDE\` | 2026-08-24 | \`https://grownmengrow.com\` on Ghost(Pro) | Exact \`Ghost managed edge\` one-step job on push + daily, calling \`windwardline/windwardline/actions/verify-ghost-managed-edge@<current release SHA>\` | Fails once all seven headers appear; remove this row and restore \`Headers live\` |"
+    GHOST_MANAGED_EDGE_ROW="| \`$GHOST_MANAGED_EDGE_REPOS_OVERRIDE\` | 2026-08-24 | \`https://grownmengrow.com\` on Ghost(Pro) | Exact 12-minute \`Ghost managed edge\` one-step job on push + daily, its step named exactly \`Verify the managed Ghost production edge\`, calling \`windwardline/windwardline/actions/verify-ghost-managed-edge@<current release SHA>\` | Fails once all seven headers appear; remove this row and restore \`Headers live\` |"
   fi
 fi
 GHOST_MANAGED_EDGE_REPOS=$(printf '%s\n' "$GHOST_MANAGED_EDGE_ROW" | awk -F '|' 'NF > 2 { cell=$2; gsub(/[`[:space:]]/, "", cell); print cell }')

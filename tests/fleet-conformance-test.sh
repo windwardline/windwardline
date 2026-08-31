@@ -1368,12 +1368,12 @@ MD
   case "$1" in
     ghost_valid|ghost_stale_ref|ghost_inline|ghost_header_conflict|ghost_missing|ghost_register_mismatch)
       cat <<'MD'
-| `fixture` | 2026-08-24 | `https://grownmengrow.com` on Ghost(Pro) | Exact `Ghost managed edge` one-step job on push + daily, calling `windwardline/windwardline/actions/verify-ghost-managed-edge@<current release SHA>` | Fails once all seven headers appear; remove this row and restore `Headers live` |
+| `fixture` | 2026-08-24 | `https://grownmengrow.com` on Ghost(Pro) | Exact 12-minute `Ghost managed edge` one-step job on push + daily, its step named exactly `Verify the managed Ghost production edge`, calling `windwardline/windwardline/actions/verify-ghost-managed-edge@<current release SHA>` | Fails once all seven headers appear; remove this row and restore `Headers live` |
 MD
       ;;
     ghost_register_field_mismatch)
       cat <<'MD'
-| `fixture` | 2026-08-25 | `https://grownmengrow.com` on Ghost(Pro) | Exact `Ghost managed edge` one-step job on push + daily, calling `windwardline/windwardline/actions/verify-ghost-managed-edge@<current release SHA>` | Fails once all seven headers appear; remove this row and restore `Headers live` |
+| `fixture` | 2026-08-25 | `https://grownmengrow.com` on Ghost(Pro) | Exact 12-minute `Ghost managed edge` one-step job on push + daily, its step named exactly `Verify the managed Ghost production edge`, calling `windwardline/windwardline/actions/verify-ghost-managed-edge@<current release SHA>` | Fails once all seven headers appear; remove this row and restore `Headers live` |
 MD
       ;;
   esac
@@ -2065,6 +2065,37 @@ run_case review-prefix-in-nonreview-workflow-is-a-gate-candidate review_prefix_n
 run_case policy-registers-match-code register_mismatch 2 'Exceptions register does not match checker EXEMPT'
 run_case registered-repo-must-exist registered_repo_missing 2 'craft repository identity.*absent|craft.*HTTP 404'
 run_case pin-auditor-incomplete-preserves-exit-two pin_auditor_incomplete 2 'ACTION PIN AUDIT INCOMPLETE'
+# The registers the checker hardcodes are compared, in every other test, against
+# a FIXTURE FLEET.md this suite writes itself. That can only ever prove the
+# checker agrees with the fixture. On 2026-08-31 the managed-edge row was edited
+# in the real FLEET.md and the suite stayed green at 203/203 while a live run
+# aborted on the first read — the third time in this effort that a green harness
+# was measuring something other than the subject. This case reads the shipped
+# document and the shipped script, so document-versus-checker divergence fails
+# here rather than waiting for someone to run the fleet.
+run_register_matches_document_case() {
+  name=doc-registers-match-the-shipped-checker
+  if [ -n "$CASE_FILTER" ]; then
+    case "$name" in *"$CASE_FILTER"*) ;; *) return ;; esac
+  fi
+  doc_row=$(awk '/^\| *`grown-men-grow` *\| *2026-/ { print; exit }' "$ROOT/FLEET.md")
+  code_row=$(awk -F "'" '/^GHOST_MANAGED_EDGE_ROW=/ { print $2; exit }' \
+    "$ROOT/scripts/fleet-conformance.sh")
+  if [ -z "$doc_row" ] || [ -z "$code_row" ]; then
+    printf 'not ok - %s (a row read empty: doc=%s bytes, code=%s bytes)\n' \
+      "$name" "${#doc_row}" "${#code_row}"
+    failures=$((failures + 1))
+  elif [ "$doc_row" = "$code_row" ]; then
+    printf 'ok - %s\n' "$name"
+    passes=$((passes + 1))
+  else
+    printf 'not ok - %s (FLEET.md row and GHOST_MANAGED_EDGE_ROW differ)\n' "$name"
+    printf '  doc : %s\n  code: %s\n' "$doc_row" "$code_row"
+    failures=$((failures + 1))
+  fi
+}
+run_register_matches_document_case
+
 run_locale_independence_case
 if [ -z "$CASE_FILTER" ]; then
   run_template_universal_case
