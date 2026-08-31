@@ -337,7 +337,13 @@ final apex response, not an intermediate redirect, it rejects `cf-ray`,
 requires at least one of the fleet's seven headers to remain absent. Once all
 seven arrive, the exception premise is stale and the job deliberately fails.
 The checker derives this table and requires exact full-row equality with its
-executable register. It also derives the nonempty production-origin population
+executable register. Every other test of that equality compares the checker to a
+FIXTURE `FLEET.md` the suite writes itself, which can only prove the checker
+agrees with the fixture: on 2026-08-31 this row was edited here, the harness
+stayed green at 203/203, and a live run aborted on the first read. One case in
+`tests/fleet-conformance-test.sh` therefore reads the shipped document and the
+shipped script directly, so that divergence fails in the suite rather than
+waiting for someone to run the fleet. It also derives the nonempty production-origin population
 from live security policies and proves that canonical header probes plus the
 managed-edge rows equal that population exactly.
 
