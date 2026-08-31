@@ -11,6 +11,20 @@
 # FLEET.md is the standard; this script is its enforcement. Change them together.
 
 set -u
+
+# Ruby derives its default external encoding from the ambient locale. Under a
+# scheduled task LANG is unset, so that encoding is US-ASCII and every String#scan
+# over a Markdown or YAML file carrying a non-ASCII byte raises
+# "invalid byte sequence in US-ASCII". On 2026-08-31 this aborted the whole run at
+# craft's SECURITY.md, whose line 8 contains an en-dash arrow, and the failure was
+# reported as `craft SECURITY.md deployment URL could not be derived unambiguously`
+# — drift attributed to a repo for a fault entirely inside this script. A checker
+# whose verdict depends on the caller's environment is not a checker, and one whose
+# harness failure reads as the subject refusing is worse than one that stops.
+# scripts/bootstrap-repo.sh already pins this for the same reason.
+LC_ALL=C.UTF-8
+export LC_ALL
+
 OWNER="windwardline"
 here=$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)
 YAML_INSPECTOR="$here/actions_yaml_inspector.rb"
