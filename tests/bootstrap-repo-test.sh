@@ -38,7 +38,7 @@ HARNESS_PHYSICAL=$(cd -P "$HARNESS" && pwd -P)
 cat >"$TMP/input/AGENTS.md" <<'EOF'
 # Fixture - operating contract
 
-The global contract applies. FLEET.md governs the working method.
+The live global contract at `~/AGENTS.md` applies. `FLEET.md` governs the working method.
 
 ## Commands
 
@@ -959,6 +959,478 @@ if ! run_bootstrap --dry-run --manifest "$TMP/agents-missing-gate.json" \
 else
   not_ok 'AGENTS.md gate enumeration must equal ci_gates'
   cat "$TMP/agents-missing-gate.out" >&2
+fi
+
+sed 's#`~/AGENTS.md`#the global contract#' "$TMP/input/AGENTS.md" \
+  >"$TMP/agents-missing-global.md"
+jq --arg agents "$TMP/agents-missing-global.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-missing-global.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-missing-global.json" \
+     >"$TMP/agents-missing-global.out" 2>&1 &&
+   grep -q 'AGENTS.md must cite the live global contract ~/AGENTS.md' \
+     "$TMP/agents-missing-global.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'AGENTS.md must cite the live global contract before mutation'
+else
+  not_ok 'AGENTS.md must cite the live global contract before mutation'
+  cat "$TMP/agents-missing-global.out" >&2
+fi
+
+sed 's/`FLEET.md`/the fleet standard/' "$TMP/input/AGENTS.md" \
+  >"$TMP/agents-missing-fleet.md"
+jq --arg agents "$TMP/agents-missing-fleet.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-missing-fleet.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-missing-fleet.json" \
+     >"$TMP/agents-missing-fleet.out" 2>&1 &&
+   grep -q 'AGENTS.md must cite FLEET.md' "$TMP/agents-missing-fleet.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'AGENTS.md must cite FLEET.md before mutation'
+else
+  not_ok 'AGENTS.md must cite FLEET.md before mutation'
+  cat "$TMP/agents-missing-fleet.out" >&2
+fi
+
+sed 's#The live global contract at `~/AGENTS.md` applies\.#The live global contract at `~/AGENTS.md` does not apply.#' \
+  "$TMP/input/AGENTS.md" >"$TMP/agents-negated-global.md"
+jq --arg agents "$TMP/agents-negated-global.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-negated-global.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-negated-global.json" \
+     >"$TMP/agents-negated-global.out" 2>&1 &&
+   grep -q 'AGENTS.md must affirm that ~/AGENTS.md applies' \
+     "$TMP/agents-negated-global.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'a negated global-contract mention cannot satisfy applicability'
+else
+  not_ok 'a negated global-contract mention cannot satisfy applicability'
+  cat "$TMP/agents-negated-global.out" >&2
+fi
+
+sed 's#The live global contract at `~/AGENTS.md` applies\.#It is false that `~/AGENTS.md` applies.#' \
+  "$TMP/input/AGENTS.md" >"$TMP/agents-meta-negated-global.md"
+jq --arg agents "$TMP/agents-meta-negated-global.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-meta-negated-global.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-meta-negated-global.json" \
+     >"$TMP/agents-meta-negated-global.out" 2>&1 &&
+   grep -q 'AGENTS.md must affirm that ~/AGENTS.md applies' \
+     "$TMP/agents-meta-negated-global.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'a meta-negated global-contract mention cannot satisfy applicability'
+else
+  not_ok 'a meta-negated global-contract mention cannot satisfy applicability'
+  cat "$TMP/agents-meta-negated-global.out" >&2
+fi
+
+awk '
+  /^The live global contract at `~\/AGENTS[.]md` applies[.] `FLEET[.]md` governs the working method[.]$/ {
+    print "The live global contract at `~/AGENTS.md` still"
+    print "applies. `FLEET.md` governs the working method."
+    next
+  }
+  { print }
+' "$TMP/input/AGENTS.md" >"$TMP/agents-wrapped-global.md"
+jq --arg agents "$TMP/agents-wrapped-global.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-wrapped-global.json"
+: >"$TMP/gh.log"
+if run_bootstrap --dry-run --manifest "$TMP/agents-wrapped-global.json" \
+     >"$TMP/agents-wrapped-global.out" 2>&1 &&
+   grep -q 'Preflight complete:' "$TMP/agents-wrapped-global.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'a soft-wrapped affirmative global-contract clause remains live'
+else
+  not_ok 'a soft-wrapped affirmative global-contract clause remains live'
+  cat "$TMP/agents-wrapped-global.out" >&2
+fi
+
+sed 's#`FLEET.md` governs the working method#`FLEET.md` does not govern the working method#' \
+  "$TMP/input/AGENTS.md" >"$TMP/agents-negated-fleet.md"
+jq --arg agents "$TMP/agents-negated-fleet.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-negated-fleet.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-negated-fleet.json" \
+     >"$TMP/agents-negated-fleet.out" 2>&1 &&
+   grep -q 'AGENTS.md must affirm that FLEET.md governs' \
+     "$TMP/agents-negated-fleet.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'a negated fleet-contract mention cannot satisfy applicability'
+else
+  not_ok 'a negated fleet-contract mention cannot satisfy applicability'
+  cat "$TMP/agents-negated-fleet.out" >&2
+fi
+
+sed 's#`FLEET.md` governs the working method#Never say `FLEET.md` governs the working method#' \
+  "$TMP/input/AGENTS.md" >"$TMP/agents-meta-negated-fleet.md"
+jq --arg agents "$TMP/agents-meta-negated-fleet.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-meta-negated-fleet.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-meta-negated-fleet.json" \
+     >"$TMP/agents-meta-negated-fleet.out" 2>&1 &&
+   grep -q 'AGENTS.md must affirm that FLEET.md governs' \
+     "$TMP/agents-meta-negated-fleet.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'a meta-negated fleet-contract mention cannot satisfy applicability'
+else
+  not_ok 'a meta-negated fleet-contract mention cannot satisfy applicability'
+  cat "$TMP/agents-meta-negated-fleet.out" >&2
+fi
+
+sed 's#The live global contract at `~/AGENTS.md` applies\.#Incorrect. The live global contract at `~/AGENTS.md` applies.#' \
+  "$TMP/input/AGENTS.md" >"$TMP/agents-labeled-negated-global.md"
+jq --arg agents "$TMP/agents-labeled-negated-global.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-labeled-negated-global.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-labeled-negated-global.json" \
+     >"$TMP/agents-labeled-negated-global.out" 2>&1 &&
+   grep -q 'AGENTS.md must affirm that ~/AGENTS.md applies' \
+     "$TMP/agents-labeled-negated-global.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'a labelled rebuttal cannot lend force to a global-contract affirmation'
+else
+  not_ok 'a labelled rebuttal cannot lend force to a global-contract affirmation'
+  cat "$TMP/agents-labeled-negated-global.out" >&2
+fi
+
+sed 's#The live global contract at `~/AGENTS.md` applies\.#False; the global `~/AGENTS.md` still applies.#' \
+  "$TMP/input/AGENTS.md" >"$TMP/agents-labeled-negated-global-clause.md"
+jq --arg agents "$TMP/agents-labeled-negated-global-clause.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-labeled-negated-global-clause.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-labeled-negated-global-clause.json" \
+     >"$TMP/agents-labeled-negated-global-clause.out" 2>&1 &&
+   grep -q 'AGENTS.md must affirm that ~/AGENTS.md applies' \
+     "$TMP/agents-labeled-negated-global-clause.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'a labelled rebuttal across a semicolon cannot affirm the global contract'
+else
+  not_ok 'a labelled rebuttal across a semicolon cannot affirm the global contract'
+  cat "$TMP/agents-labeled-negated-global-clause.out" >&2
+fi
+
+sed 's#`FLEET.md` governs the working method\.#Wrong. `FLEET.md` governs the working method.#' \
+  "$TMP/input/AGENTS.md" >"$TMP/agents-labeled-negated-fleet.md"
+jq --arg agents "$TMP/agents-labeled-negated-fleet.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-labeled-negated-fleet.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-labeled-negated-fleet.json" \
+     >"$TMP/agents-labeled-negated-fleet.out" 2>&1 &&
+   grep -q 'AGENTS.md must affirm that FLEET.md governs' \
+     "$TMP/agents-labeled-negated-fleet.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'a labelled rebuttal cannot lend force to a fleet-contract affirmation'
+else
+  not_ok 'a labelled rebuttal cannot lend force to a fleet-contract affirmation'
+  cat "$TMP/agents-labeled-negated-fleet.out" >&2
+fi
+
+# The house form every live fleet contract actually carries. The affirmation
+# follows an eight-word clause and a thirty-three-word one; both must remain
+# statements rather than labels, or the rule that closes the rebuttal above
+# reddens seventeen correct contracts instead.
+awk '
+  /^The live global contract at `~\/AGENTS[.]md` applies[.] `FLEET[.]md` governs the working method[.]$/ {
+    print "Operating contract for AI work in this repo; the global `~/AGENTS.md` still applies. Work here follows the CONVERGE cycle and delivery discipline in `FLEET.md` — find, refute, verify yourself, fix, re-rank, test, update, report; enumerate the gates rather than counting them, stage explicit paths, validate before mutating, preserve standing claims, derive populations rather than curating them, and never let a harness failure read as the subject refusing. `FLEET.md` governs where it and this summary differ."
+    next
+  }
+  { print }
+' "$TMP/input/AGENTS.md" >"$TMP/agents-house-form.md"
+jq --arg agents "$TMP/agents-house-form.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-house-form.json"
+: >"$TMP/gh.log"
+if run_bootstrap --dry-run --manifest "$TMP/agents-house-form.json" \
+     >"$TMP/agents-house-form.out" 2>&1 &&
+   grep -q 'Preflight complete:' "$TMP/agents-house-form.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'the live fleet house-form contract clauses remain affirmative'
+else
+  not_ok 'the live fleet house-form contract clauses remain affirmative'
+  cat "$TMP/agents-house-form.out" >&2
+fi
+
+# A list-prefixed run of backticks is content inside a fence, never its closer.
+# Treating it as one released the fenced citation below it as operative policy.
+{
+  sed '/^The live global contract at `~\/AGENTS.md` applies\. `FLEET.md` governs the working method\.$/d' \
+    "$TMP/input/AGENTS.md"
+  # shellcheck disable=SC2088 # Literal policy path is the fixture under test.
+  printf '%s\n' \
+    '```text' \
+    '- ```' \
+    'The live global contract at ~/AGENTS.md applies. FLEET.md governs this repo.' \
+    '- ```' \
+    '```'
+} >"$TMP/agents-fence-false-closer.md"
+jq --arg agents "$TMP/agents-fence-false-closer.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-fence-false-closer.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-fence-false-closer.json" \
+     >"$TMP/agents-fence-false-closer.out" 2>&1 &&
+   grep -q 'AGENTS.md must cite the live global contract ~/AGENTS.md' \
+     "$TMP/agents-fence-false-closer.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'a list-prefixed line cannot close a root fence'
+else
+  not_ok 'a list-prefixed line cannot close a root fence'
+  cat "$TMP/agents-fence-false-closer.out" >&2
+fi
+
+# The opener stays container-aware: a fence opened inside a list item must still
+# close at its properly indented closer, or everything after it goes inert and
+# the fix for the case above would suppress live policy instead.
+{
+  sed '/^The live global contract at `~\/AGENTS.md` applies\. `FLEET.md` governs the working method\.$/d' \
+    "$TMP/input/AGENTS.md"
+  # shellcheck disable=SC2088 # Literal policy path is the fixture under test.
+  printf '%s\n' \
+    '- ```text' \
+    '  ~/AGENTS.md' \
+    '  ```' \
+    '' \
+    'The live global contract at `~/AGENTS.md` applies. `FLEET.md` governs the working method.'
+} >"$TMP/agents-list-fence-closes.md"
+jq --arg agents "$TMP/agents-list-fence-closes.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-list-fence-closes.json"
+: >"$TMP/gh.log"
+if run_bootstrap --dry-run --manifest "$TMP/agents-list-fence-closes.json" \
+     >"$TMP/agents-list-fence-closes.out" 2>&1 &&
+   grep -q 'Preflight complete:' "$TMP/agents-list-fence-closes.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'a list-nested fence still closes at its indented closer'
+else
+  not_ok 'a list-nested fence still closes at its indented closer'
+  cat "$TMP/agents-list-fence-closes.out" >&2
+fi
+
+sed 's#`~/AGENTS.md`#`~/AGENTS.md/archive`#' "$TMP/input/AGENTS.md" \
+  >"$TMP/agents-wrong-global-path.md"
+jq --arg agents "$TMP/agents-wrong-global-path.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-wrong-global-path.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-wrong-global-path.json" \
+     >"$TMP/agents-wrong-global-path.out" 2>&1 &&
+   grep -q 'AGENTS.md must cite the live global contract ~/AGENTS.md' \
+     "$TMP/agents-wrong-global-path.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'a descendant path cannot impersonate the live global contract'
+else
+  not_ok 'a descendant path cannot impersonate the live global contract'
+  cat "$TMP/agents-wrong-global-path.out" >&2
+fi
+
+sed 's#`FLEET.md`#`docs/FLEET.md`#' "$TMP/input/AGENTS.md" \
+  >"$TMP/agents-wrong-fleet-path.md"
+jq --arg agents "$TMP/agents-wrong-fleet-path.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-wrong-fleet-path.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-wrong-fleet-path.json" \
+     >"$TMP/agents-wrong-fleet-path.out" 2>&1 &&
+   grep -q 'AGENTS.md must cite FLEET.md' "$TMP/agents-wrong-fleet-path.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'a nested file cannot impersonate the root fleet standard'
+else
+  not_ok 'a nested file cannot impersonate the root fleet standard'
+  cat "$TMP/agents-wrong-fleet-path.out" >&2
+fi
+
+{
+  sed 's#`~/AGENTS.md`#the global contract#; s#`FLEET.md`#the fleet standard#' \
+    "$TMP/input/AGENTS.md"
+  printf '%s\n' '<!-- ~/AGENTS.md and FLEET.md are inert examples. -->'
+} >"$TMP/agents-comment-only-citations.md"
+jq --arg agents "$TMP/agents-comment-only-citations.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-comment-only-citations.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-comment-only-citations.json" \
+     >"$TMP/agents-comment-only-citations.out" 2>&1 &&
+   grep -q 'AGENTS.md must cite the live global contract ~/AGENTS.md' \
+     "$TMP/agents-comment-only-citations.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'HTML comments cannot satisfy bootstrap contract citations'
+else
+  not_ok 'HTML comments cannot satisfy bootstrap contract citations'
+  cat "$TMP/agents-comment-only-citations.out" >&2
+fi
+
+{
+  sed 's#`~/AGENTS.md`#the global contract#; s#`FLEET.md`#the fleet standard#' \
+    "$TMP/input/AGENTS.md"
+  # shellcheck disable=SC2088 # Literal policy path is the fixture under test.
+  printf '%s\n' '```text' '~/AGENTS.md' 'FLEET.md' '```'
+} >"$TMP/agents-fence-only-citations.md"
+jq --arg agents "$TMP/agents-fence-only-citations.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-fence-only-citations.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-fence-only-citations.json" \
+     >"$TMP/agents-fence-only-citations.out" 2>&1 &&
+   grep -q 'AGENTS.md must cite the live global contract ~/AGENTS.md' \
+     "$TMP/agents-fence-only-citations.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'fenced examples cannot satisfy bootstrap contract citations'
+else
+  not_ok 'fenced examples cannot satisfy bootstrap contract citations'
+  cat "$TMP/agents-fence-only-citations.out" >&2
+fi
+
+{
+  sed 's#`~/AGENTS.md`#the global contract#; s#`FLEET.md`#the fleet standard#' \
+    "$TMP/input/AGENTS.md"
+  printf '%s\n' '> ~/AGENTS.md and FLEET.md are quoted examples.'
+} >"$TMP/agents-blockquote-only-citations.md"
+jq --arg agents "$TMP/agents-blockquote-only-citations.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-blockquote-only-citations.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-blockquote-only-citations.json" \
+     >"$TMP/agents-blockquote-only-citations.out" 2>&1 &&
+   grep -q 'AGENTS.md must cite the live global contract ~/AGENTS.md' \
+     "$TMP/agents-blockquote-only-citations.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'block quotations cannot satisfy bootstrap contract citations'
+else
+  not_ok 'block quotations cannot satisfy bootstrap contract citations'
+  cat "$TMP/agents-blockquote-only-citations.out" >&2
+fi
+
+{
+  sed 's#`~/AGENTS.md`#the global contract#; s#`FLEET.md`#the fleet standard#' \
+    "$TMP/input/AGENTS.md"
+  # shellcheck disable=SC2088 # Literal policy path is the fixture under test.
+  printf '%s\n' '- > ~/AGENTS.md and FLEET.md are quoted examples.'
+} >"$TMP/agents-list-blockquote-only-citations.md"
+jq --arg agents "$TMP/agents-list-blockquote-only-citations.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-list-blockquote-only-citations.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-list-blockquote-only-citations.json" \
+     >"$TMP/agents-list-blockquote-only-citations.out" 2>&1 &&
+   grep -q 'AGENTS.md must cite the live global contract ~/AGENTS.md' \
+     "$TMP/agents-list-blockquote-only-citations.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'list-nested block quotations cannot satisfy bootstrap contract citations'
+else
+  not_ok 'list-nested block quotations cannot satisfy bootstrap contract citations'
+  cat "$TMP/agents-list-blockquote-only-citations.out" >&2
+fi
+
+{
+  sed 's#`~/AGENTS.md`#the global contract#; s#`FLEET.md`#the fleet standard#' \
+    "$TMP/input/AGENTS.md"
+  # shellcheck disable=SC2088 # Literal policy path is the fixture under test.
+  printf '%s\n' '> These paths are quoted examples:' '~/AGENTS.md and FLEET.md'
+} >"$TMP/agents-lazy-blockquote-only-citations.md"
+jq --arg agents "$TMP/agents-lazy-blockquote-only-citations.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-lazy-blockquote-only-citations.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-lazy-blockquote-only-citations.json" \
+     >"$TMP/agents-lazy-blockquote-only-citations.out" 2>&1 &&
+   grep -q 'AGENTS.md must cite the live global contract ~/AGENTS.md' \
+     "$TMP/agents-lazy-blockquote-only-citations.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'lazy block-quote continuations cannot satisfy bootstrap contract citations'
+else
+  not_ok 'lazy block-quote continuations cannot satisfy bootstrap contract citations'
+  cat "$TMP/agents-lazy-blockquote-only-citations.out" >&2
+fi
+
+{
+  sed '/^The live global contract at `~\/AGENTS.md` applies\. `FLEET.md` governs the working method\.$/d' \
+    "$TMP/input/AGENTS.md"
+  # This is not a valid backtick fence: its info string contains a backtick.
+  # shellcheck disable=SC2088 # Literal policy path is the fixture under test.
+  printf '%s\n' \
+    '> These policy claims are quoted examples:' \
+    '```bad`info' \
+    '~/AGENTS.md applies. FLEET.md governs this repo.'
+} >"$TMP/agents-invalid-fence-lazy-quote.md"
+jq --arg agents "$TMP/agents-invalid-fence-lazy-quote.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-invalid-fence-lazy-quote.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-invalid-fence-lazy-quote.json" \
+     >"$TMP/agents-invalid-fence-lazy-quote.out" 2>&1 &&
+   grep -q 'AGENTS.md must cite the live global contract ~/AGENTS.md' \
+     "$TMP/agents-invalid-fence-lazy-quote.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'an invalid backtick info string cannot end a lazy block quotation'
+else
+  not_ok 'an invalid backtick info string cannot end a lazy block quotation'
+  cat "$TMP/agents-invalid-fence-lazy-quote.out" >&2
+fi
+
+{
+  sed 's#`~/AGENTS.md`#the global contract#; s#`FLEET.md`#the fleet standard#' \
+    "$TMP/input/AGENTS.md"
+  # shellcheck disable=SC2088 # Literal policy path is the fixture under test.
+  printf '%s\n' \
+    '> This is a quoted example.' \
+    '## Contract sources' \
+    'The live global contract at ~/AGENTS.md applies. FLEET.md governs this repo.'
+} >"$TMP/agents-blockquote-heading-interrupt.md"
+jq --arg agents "$TMP/agents-blockquote-heading-interrupt.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-blockquote-heading-interrupt.json"
+: >"$TMP/gh.log"
+if run_bootstrap --dry-run --manifest "$TMP/agents-blockquote-heading-interrupt.json" \
+     >"$TMP/agents-blockquote-heading-interrupt.out" 2>&1 &&
+   grep -q 'Preflight complete:' "$TMP/agents-blockquote-heading-interrupt.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'a heading ends a lazy block quote before live contract citations'
+else
+  not_ok 'a heading ends a lazy block quote before live contract citations'
+  cat "$TMP/agents-blockquote-heading-interrupt.out" >&2
+fi
+
+{
+  sed 's#`~/AGENTS.md`#the global contract#; s#`FLEET.md`#the fleet standard#' \
+    "$TMP/input/AGENTS.md"
+  printf '%s\n' '- ```text' '  ~/AGENTS.md' '  FLEET.md' '  ```'
+} >"$TMP/agents-list-fence-only-citations.md"
+jq --arg agents "$TMP/agents-list-fence-only-citations.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-list-fence-only-citations.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-list-fence-only-citations.json" \
+     >"$TMP/agents-list-fence-only-citations.out" 2>&1 &&
+   grep -q 'AGENTS.md must cite the live global contract ~/AGENTS.md' \
+     "$TMP/agents-list-fence-only-citations.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'list-nested fenced examples cannot satisfy bootstrap contract citations'
+else
+  not_ok 'list-nested fenced examples cannot satisfy bootstrap contract citations'
+  cat "$TMP/agents-list-fence-only-citations.out" >&2
+fi
+
+{
+  sed 's#`~/AGENTS.md`#the global contract#; s#`FLEET.md`#the fleet standard#' \
+    "$TMP/input/AGENTS.md"
+  printf '%s\n' '<!-- ~/AGENTS.md and FLEET.md never close'
+} >"$TMP/agents-unclosed-comment.md"
+jq --arg agents "$TMP/agents-unclosed-comment.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-unclosed-comment.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-unclosed-comment.json" \
+     >"$TMP/agents-unclosed-comment.out" 2>&1 &&
+   grep -q 'AGENTS.md contains an unclosed fenced block or HTML comment' \
+     "$TMP/agents-unclosed-comment.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'ambiguous AGENTS.md Markdown fails before mutation'
+else
+  not_ok 'ambiguous AGENTS.md Markdown fails before mutation'
+  cat "$TMP/agents-unclosed-comment.out" >&2
+fi
+
+{
+  cat "$TMP/input/AGENTS.md"
+  printf '%s\n' '<!--' '> quoted text inside a closed comment' '-->'
+} >"$TMP/agents-closed-comment-blockquote.md"
+jq --arg agents "$TMP/agents-closed-comment-blockquote.md" \
+  '.files["AGENTS.md"] = $agents' "$TMP/public.json" >"$TMP/agents-closed-comment-blockquote.json"
+: >"$TMP/gh.log"
+if run_bootstrap --dry-run --manifest "$TMP/agents-closed-comment-blockquote.json" \
+     >"$TMP/agents-closed-comment-blockquote.out" 2>&1 &&
+   grep -q 'Preflight complete:' "$TMP/agents-closed-comment-blockquote.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'blockquote markers inside a closed HTML comment remain inert'
+else
+  not_ok 'blockquote markers inside a closed HTML comment remain inert'
+  cat "$TMP/agents-closed-comment-blockquote.out" >&2
 fi
 
 cp "$TMP/input/.github/workflows/security.yml" "$TMP/security-extra-job.yml"

@@ -43,8 +43,71 @@ agents_body() {
   cycle='CONVERGE: find refute verify yourself fix re-rank test update report.'
   [ "$MOCK_SCENARIO" = cycle_prefix ] \
     && cycle='CONVERGE: find refute verify yourself prefix re-rank test update report.'
+  global_contract='The live global contract at ~/AGENTS.md applies.'
+  fleet_contract='FLEET.md governs this repo.'
   waiver=''
   case "$MOCK_SCENARIO" in
+    global_contract_absent) global_contract='The global contract applies.' ;;
+    global_contract_wrong_path) global_contract='The live global contract is ~/AGENTS.md/archive.' ;;
+    global_contract_negated) global_contract='The live global contract at ~/AGENTS.md does not apply.' ;;
+    global_contract_meta_negated) global_contract='It is false that ~/AGENTS.md applies.' ;;
+    global_contract_labeled_negated) global_contract='Incorrect. The live global contract at ~/AGENTS.md applies.' ;;
+    global_contract_labeled_negated_clause) global_contract='False; the global ~/AGENTS.md still applies.' ;;
+    global_contract_house_form) global_contract='Operating contract for AI work in this repo; the global `~/AGENTS.md` still applies.' ;;
+    global_contract_trailing_colon) global_contract='The global `~/AGENTS.md` still applies: read it before anything here.' ;;
+    global_contract_fence_false_closer) global_contract='```text
+- ```
+The live global contract at ~/AGENTS.md applies.
+- ```
+```' ;;
+    global_contract_wrapped) global_contract='The live global contract at ~/AGENTS.md still
+applies.' ;;
+    global_contract_closed_comment_quote) global_contract='The live global contract at ~/AGENTS.md applies.
+<!--
+> quoted text inside a closed comment
+-->' ;;
+    global_contract_invalid_fence_lazy) global_contract='> These policy claims are quoted examples:
+```bad`info
+The live global contract at ~/AGENTS.md applies.' ;;
+    global_contract_blockquoted) global_contract='> The live global contract is ~/AGENTS.md.' ;;
+    global_contract_list_blockquoted) global_contract='- > The live global contract is ~/AGENTS.md.' ;;
+    global_contract_lazy_blockquoted) global_contract='> These paths are quoted examples:
+The live global contract is ~/AGENTS.md.' ;;
+    blockquote_heading_interrupt) global_contract='> This is a quoted example.
+## Contract sources
+The live global contract at ~/AGENTS.md applies.' ;;
+    global_contract_list_fenced) global_contract='- ```text
+  ~/AGENTS.md
+  ```' ;;
+    global_contract_fenced) global_contract='```text
+~/AGENTS.md
+```' ;;
+    global_contract_commented) global_contract='<!-- ~/AGENTS.md -->' ;;
+    contract_wrong_path) fleet_contract='docs/FLEET.md governs this repo.' ;;
+    contract_negated) fleet_contract='FLEET.md does not govern this repo.' ;;
+    contract_meta_negated) fleet_contract='Never say FLEET.md governs this repo.' ;;
+    contract_labeled_negated) fleet_contract='False. FLEET.md governs this repo.' ;;
+    contract_labeled_negated_clause) fleet_contract='Wrong; FLEET.md governs this repo.' ;;
+    contract_house_form) fleet_contract='`FLEET.md` governs where it and this summary differ.' ;;
+    contract_colon_example) fleet_contract='The following is an inert illustrative example of the house form: FLEET.md governs this repo.' ;;
+    contract_house_form_trailing) fleet_contract='`FLEET.md` governs where it and this summary differ — and it lives in this repo, so read it rather than this summary.' ;;
+    contract_fence_false_closer) fleet_contract='```text
+- ```
+FLEET.md governs this repo.
+- ```
+```' ;;
+    contract_list_fence_closed) fleet_contract='- ```text
+  FLEET.md
+  ```
+
+FLEET.md governs this repo.' ;;
+    contract_blockquoted) fleet_contract='> FLEET.md governs this repo.' ;;
+    contract_list_blockquoted) fleet_contract='- > FLEET.md governs this repo.' ;;
+    contract_lazy_blockquoted) fleet_contract='> This path is a quoted example:
+FLEET.md governs this repo.' ;;
+    contract_list_fenced) fleet_contract='- ```text
+  FLEET.md
+  ```' ;;
     waiver_prefixed) waiver='Note: Stack exception (owner-approved 2026-08-20): MongoDB required.' ;;
     waiver_blank) waiver='Stack exception (owner-approved 2026-08-20):   ' ;;
     waiver_future) waiver='Stack exception (owner-approved 2099-08-20): MongoDB required.' ;;
@@ -70,6 +133,7 @@ Stack exception (owner-approved 2026-08-20): MongoDB required.
   esac
   if [ "$MOCK_SCENARIO" = contract_fenced ]; then
     printf '%s\n' \
+      "$global_contract" \
       '```text' \
       'FLEET.md governs this repo.' \
       "$cycle" \
@@ -80,6 +144,7 @@ Stack exception (owner-approved 2026-08-20): MongoDB required.
   fi
   if [ "$MOCK_SCENARIO" = contract_commented ]; then
     printf '%s\n' \
+      "$global_contract" \
       '<!--' \
       'FLEET.md governs this repo.' \
       "$cycle" \
@@ -90,6 +155,7 @@ Stack exception (owner-approved 2026-08-20): MongoDB required.
   fi
   if [ "$MOCK_SCENARIO" = contract_indented ]; then
     printf '%s\n' \
+      "$global_contract" \
       '    FLEET.md governs this repo.' \
       "    $cycle" \
       '    Workflows: ci.yml, security.yml, claude-review.yml, dependabot-auto-merge.yml, all enforced.' \
@@ -97,7 +163,8 @@ Stack exception (owner-approved 2026-08-20): MongoDB required.
     return
   fi
   printf '%s\n' \
-    'FLEET.md governs this repo.' \
+    "$global_contract" \
+    "$fleet_contract" \
     "$cycle" \
     'Workflows: ci.yml, security.yml, claude-review.yml, dependabot-auto-merge.yml, all enforced.' \
     "$waiver"
@@ -1894,6 +1961,39 @@ run_case stack-waiver-valid-shape waiver_valid 0 'Fleet conformant'
 run_case fenced-contract-is-not-live contract_fenced 1 'converge-citation:absent|converge-cycle|gates-unenumerated'
 run_case commented-contract-is-not-live contract_commented 1 'converge-citation:absent|converge-cycle|gates-unenumerated'
 run_case indented-contract-is-not-live contract_indented 1 'converge-citation:absent|converge-cycle|gates-unenumerated'
+run_case global-contract-is-required global_contract_absent 1 'global-contract-citation:absent'
+run_case global-contract-path-is-exact global_contract_wrong_path 1 'global-contract-citation:absent'
+run_case global-contract-must-be-affirmative global_contract_negated 1 'global-contract-applicability:absent'
+run_case meta-negated-global-contract-is-not-affirmative global_contract_meta_negated 1 'global-contract-applicability:absent'
+run_case labeled-negation-cannot-lend-force-to-a-global-affirmation global_contract_labeled_negated 1 'global-contract-applicability:absent'
+run_case labeled-negation-clause-cannot-lend-force-to-a-global-affirmation global_contract_labeled_negated_clause 1 'global-contract-applicability:absent'
+run_case house-form-global-contract-is-affirmative global_contract_house_form 0 'Fleet conformant'
+run_case a-trailing-colon-does-not-end-the-global-claim global_contract_trailing_colon 0 'Fleet conformant'
+run_case list-prefixed-line-cannot-close-a-root-fence global_contract_fence_false_closer 1 'global-contract-citation:absent'
+run_case wrapped-global-contract-is-affirmative global_contract_wrapped 0 'Fleet conformant'
+run_case closed-comment-blockquote-is-inert global_contract_closed_comment_quote 0 'Fleet conformant'
+run_case invalid-fence-cannot-end-lazy-blockquote global_contract_invalid_fence_lazy 1 'global-contract-citation:absent'
+run_case blockquoted-global-contract-is-not-live global_contract_blockquoted 1 'global-contract-citation:absent'
+run_case list-blockquoted-global-contract-is-not-live global_contract_list_blockquoted 1 'global-contract-citation:absent'
+run_case lazy-blockquoted-global-contract-is-not-live global_contract_lazy_blockquoted 1 'global-contract-citation:absent'
+run_case heading-ends-lazy-blockquote blockquote_heading_interrupt 0 'Fleet conformant'
+run_case list-fenced-global-contract-is-not-live global_contract_list_fenced 1 'global-contract-citation:absent'
+run_case fenced-global-contract-is-not-live global_contract_fenced 1 'global-contract-citation:absent'
+run_case commented-global-contract-is-not-live global_contract_commented 1 'global-contract-citation:absent'
+run_case fleet-contract-path-is-exact contract_wrong_path 1 'converge-citation:absent'
+run_case fleet-contract-must-be-affirmative contract_negated 1 'converge-applicability:absent'
+run_case meta-negated-fleet-contract-is-not-affirmative contract_meta_negated 1 'converge-applicability:absent'
+run_case labeled-negation-cannot-lend-force-to-a-fleet-affirmation contract_labeled_negated 1 'converge-applicability:absent'
+run_case labeled-negation-clause-cannot-lend-force-to-a-fleet-affirmation contract_labeled_negated_clause 1 'converge-applicability:absent'
+run_case house-form-fleet-contract-is-affirmative contract_house_form 0 'Fleet conformant'
+run_case a-colon-introduced-example-is-not-an-affirmation contract_colon_example 1 'converge-applicability:absent'
+run_case house-form-fleet-contract-with-trailing-qualifier-is-affirmative contract_house_form_trailing 0 'Fleet conformant'
+run_case list-prefixed-line-cannot-close-a-root-fence-around-the-fleet-clause contract_fence_false_closer 1 'converge-citation:absent'
+run_case list-nested-fence-still-closes-at-its-indented-closer contract_list_fence_closed 0 'Fleet conformant'
+run_case blockquoted-fleet-contract-is-not-live contract_blockquoted 1 'converge-citation:absent'
+run_case list-blockquoted-fleet-contract-is-not-live contract_list_blockquoted 1 'converge-citation:absent'
+run_case lazy-blockquoted-fleet-contract-is-not-live contract_lazy_blockquoted 1 'converge-citation:absent'
+run_case list-fenced-fleet-contract-is-not-live contract_list_fenced 1 'converge-citation:absent'
 run_case pin-gate-must-be-live-use pin_commented 1 'security-yml:no-pin-gate'
 run_case pin-gate-cannot-be-run-text pin_run_text 1 'security-yml:no-pin-gate'
 run_case pin-gate-must-be-in-secret-scan pin_wrong_job 1 'security-yml:no-pin-gate'

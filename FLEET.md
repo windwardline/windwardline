@@ -463,9 +463,45 @@ never to commit SHAs a squash merge will orphan. Do not start work you cannot
 finish — stopping mid-implementation is a worse parking state than not starting.
 
 **Enforcement.** This standard is deterministically enforced.
-`scripts/fleet-conformance.sh` requires every repo's `AGENTS.md` to name
-`FLEET.md`, to carry the cycle's steps **in order**, and to keep `CLAUDE.md` equal
-to the exact 11-byte pointer `@AGENTS.md\n`. The cycle is checked against a chain
+`scripts/fleet-conformance.sh` requires every repo's `AGENTS.md` to affirm that
+the live global `~/AGENTS.md` applies and that `FLEET.md` governs, to carry the
+cycle's steps **in order**, and to keep `CLAUDE.md` equal to the exact 11-byte
+pointer `@AGENTS.md\n`. A path mention is not the contract. Fenced, commented,
+quoted, and indented examples are stripped before either clause is read, and a
+list-prefixed run of backticks is content inside a fence rather than its closer
+— parsing a closer with the opener's container-aware reader stripped that marker,
+closed the block early, and released the fenced citation after it as operative
+policy, so an example could satisfy the applicability it was only illustrating.
+
+What survives that strip is judged by an **accepted-clause rule**: the
+affirmation must begin an operative sentence or semicolon-delimited clause, and
+the clause immediately before it in the same block must be either absent — the
+affirmation opens the block — or a statement of at least four words. A
+forward-reading anchor alone was not enough. `Incorrect. The live global
+contract at ~/AGENTS.md applies.` begins an operative sentence and satisfied it,
+while the sentence in front withdrew the claim; `False; FLEET.md governs this
+repo.` did the same across a semicolon. A one- or two-word verdict is a label,
+not a statement, so a rebuttal cannot lend its own quoted text the force of an
+affirmation. No negation vocabulary is enumerated anywhere in the check — a word
+list is only ever as complete as the last spelling someone thought of — and the
+bar sits well below the fleet's own floor: the shortest clause standing in front
+of either affirmation across all seventeen contracts is eight words, and two
+repos open the block with the affirmation itself. A check that reddens a correct
+contract over a wording change gets weakened rather than obeyed.
+
+Stated so the check is not read as more than it examined: it does not adjudicate
+arbitrary contrary prose. A full sentence of contradiction followed by the
+affirmation is accepted, and a paragraph standing alone is read on its own terms
+whatever precedes it — blank lines, headings, and list items all open a new
+block. Beyond the forms named above the contract rests on review, not on this
+check. The rule has two implementations — the checker's shell and
+`scripts/bootstrap_config_validator.rb`, which holds a future repo to it before
+the repo exists — and they are built the same way, line-normalized in the same
+order, not merely tested against the same examples. They diverged once when one
+collapsed blank lines with a whole-body substitution and left the affirmation's
+clause carrying a trailing dot.
+
+The cycle is checked against a chain
 **derived from this document at run time**, never a literal copied into the
 script. The same derivation reads every bold delivery-rule label and checks
 the executable long form in `levelflow-cloud/docs/HANDOFF.md` §6b against both
@@ -527,8 +563,9 @@ the agent it governs.
 
 The closure path, and where each step stands:
 
-1. Every repo's `AGENTS.md` names `FLEET.md` and carries the cycle, so the standard reaches the
-   agent at the file it actually reads. (Closure condition 3.) Rolled out and
+1. Every repo's `AGENTS.md` affirmatively cites both the live global
+   `~/AGENTS.md` and `FLEET.md`, and carries the cycle, so the standard reaches
+   the agent at the file it actually reads. (Closure condition 3.) Rolled out and
    measured against every repo before the check became binding — the rule lands
    on a fleet that already satisfies it, which is the ordering constraint step 2
    was written to respect.
