@@ -101,9 +101,20 @@ enforces it now:
   origin and its probe therefore cannot
   shrink both the subject and its measurement to green: canonical header
   probes plus managed-edge probes must equal the independently derived
-  production population. `Headers live` is one 12-minute job with one step:
+  production population. `Headers live` is one 12-minute job with one step,
+  named exactly `Assert the seven security headers on production` and calling
   `windwardline/windwardline/actions/verify-live-headers@<current release SHA>`,
-  a literal `url:` equal to that origin, and no inline replacement. The shared
+  with a literal `url:` equal to that origin and no inline replacement. **The
+  step name is part of the shape, and this document did not say so until
+  2026-08-31.** The checker began requiring it, `templates/` and the new-repo
+  bootstrap were seeded with it, and the twelve repositories that already
+  existed never received it — so every production repo in the fleet reported
+  `headers-live-not-canonical` while its probe ran and passed. It survived
+  because the checker's own harness fixtures carry the name: the mocked suite
+  was green against a subject the fleet had never adopted, which is this
+  standard's own defect — a gate reporting on something other than what it
+  examined — reappearing inside the machinery built to catch it. A fixture is
+  not a population. The shared
   action waits for push deployment propagation, retries bounded GET probes,
   accepts only a final 200–399 response, and requires nonblank values for all
   seven headers. A redirect's headers cannot stand in for its final response.
@@ -261,6 +272,16 @@ enforces it now:
   and rejects callers pinned to any older one. The rule that blocks a merge is
   therefore the rule the fleet later measures against.
 
+  `templates/claude-review.yml` is that same caller, byte for byte — the source
+  every caller is seeded from and compared against — so the pin sweep exempts it
+  under identical structural conditions: same job scope, same `review` job id,
+  same exact ref. Nothing is widened by a character, and the file cannot drift
+  under the exemption because the checker independently refuses to run unless
+  that blob equals its reviewed behavior lock. Until 2026-08-31 this repository
+  was the fleet's only pin-drift row, for carrying the file it hands to the other
+  fourteen; a rule whose sole violator is the rule's own source is a population
+  error, not a finding.
+
   The gate is pinned by SHA, not `@main`, and that is not incidental. A
   step-level `@main` reference trips this fleet's own
   `github-actions-mutable-action-tag` Semgrep rule — verified on
@@ -304,7 +325,7 @@ control.
 
 | Repo | Approved | Managed origin | Required proof | Expiry |
 |---|---|---|---|---|
-| `grown-men-grow` | 2026-08-24 | `https://grownmengrow.com` on Ghost(Pro) | Exact `Ghost managed edge` one-step job on push + daily, calling `windwardline/windwardline/actions/verify-ghost-managed-edge@<current release SHA>` | Fails once all seven headers appear; remove this row and restore `Headers live` |
+| `grown-men-grow` | 2026-08-24 | `https://grownmengrow.com` on Ghost(Pro) | Exact 12-minute `Ghost managed edge` one-step job on push + daily, its step named exactly `Verify the managed Ghost production edge`, calling `windwardline/windwardline/actions/verify-ghost-managed-edge@<current release SHA>` | Fails once all seven headers appear; remove this row and restore `Headers live` |
 
 The shared probe has no caller-controlled subject and no secrets. It resolves
 the apex and `grown-men-grow.ghost.io` through the same public resolver and

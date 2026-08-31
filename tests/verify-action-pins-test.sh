@@ -73,7 +73,7 @@ record_result() {
 run_case() {
   local name=$1 expected_rc=$2 pattern=$3 source=$4 fixture="$TMP/$1" rc
   local workflow_path=${5:-.github/workflows/ci.yml}
-  mkdir -p "$fixture/.github/workflows"
+  mkdir -p "$fixture/$(dirname "$workflow_path")"
   printf '%s\n' "$source" >"$fixture/$workflow_path"
   PATH="$TMP/bin:/opt/homebrew/bin:/usr/bin:/bin" \
     HOME="$TMP/home" \
@@ -168,6 +168,45 @@ run_case reject-canonical-review-in-other-job 1 \
   "$(valid_pin_workflow)
   other:
     uses: windwardline/windwardline/.github/workflows/claude-review.yml@main"
+
+# The template is the caller, byte for byte — it is what every caller is seeded
+# from and compared against, and its bytes are locked separately by
+# fleet-conformance.sh against EXPECTED_REVIEW_CALLER_SHA. The three cases below
+# hold the exemption to exactly the same structural shape as the caller's: the
+# reject cases are also what proves the template path is scanned at all, so an
+# accept case cannot pass by the file going unread.
+run_case accept-canonical-review-template 0 \
+  'All action pin comments name the tag' \
+  "name: Claude review
+on: pull_request
+jobs:
+  review:
+    uses: windwardline/windwardline/.github/workflows/claude-review.yml@main
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@$PIN_SHA # v7.0.1" \
+  templates/claude-review.yml
+
+run_case reject-canonical-review-template-in-other-job 1 \
+  'pin-unpinned:windwardline/windwardline@main' \
+  "name: Claude review
+on: pull_request
+jobs:
+  other:
+    uses: windwardline/windwardline/.github/workflows/claude-review.yml@main" \
+  templates/claude-review.yml
+
+run_case reject-canonical-review-template-as-step 1 \
+  'pin-unpinned:windwardline/windwardline@main' \
+  "name: Claude review
+on: pull_request
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: windwardline/windwardline/.github/workflows/claude-review.yml@main" \
+  templates/claude-review.yml
 
 run_case audit-same-owner-sha 0 \
   'classified 1 third-party ref' \

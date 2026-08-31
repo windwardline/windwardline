@@ -273,8 +273,20 @@ EOF
     # @main so a central review update lands fleet-wide. The inspector supplies
     # the structural scope and job identity: the same spelling in a step or a
     # different job is not exempt. No owner-wide mutable escape remains.
+    #
+    # `templates/claude-review.yml` is that same caller, byte for byte — it is
+    # the source every caller is seeded from and compared against. This repo was
+    # the fleet's only pin-drift row for carrying the file it hands to the other
+    # fourteen, which is not a finding about pinning. Its bytes are locked
+    # independently: fleet-conformance.sh reads this exact blob and refuses to
+    # run unless it equals EXPECTED_REVIEW_CALLER_SHA, so the template cannot
+    # drift under the exemption without failing that lock first. The structural
+    # conditions below are unchanged and still apply to it — same job scope, same
+    # `review` job id, same exact ref — so the exemption is not widened by a
+    # character.
     case "$label" in
-      .github/workflows/claude-review.yml|*:.github/workflows/claude-review.yml)
+      .github/workflows/claude-review.yml|*:.github/workflows/claude-review.yml \
+        |templates/claude-review.yml|*:templates/claude-review.yml)
         canonical_review_file=1
         ;;
       *) canonical_review_file=0 ;;
