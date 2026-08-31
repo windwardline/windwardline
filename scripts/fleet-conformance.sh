@@ -275,9 +275,96 @@ exact_claude_pointer_blob() {
   [ "$encoded" = 'QEFHRU5UUy5tZAo=' ]
 }
 
+# The accepted-clause rule, shared by both applicability claims.
+#
+# An affirmation counts only where it BEGINS an operative sentence or
+# semicolon-delimited clause AND the clause immediately before it in the same
+# block is either absent — the affirmation opens the block — or a complete
+# statement of at least four words.
+#
+# The clause-start anchor alone reads only forward, and that was enough to be
+# fooled: `Incorrect. The live global contract at ~/AGENTS.md applies.` begins
+# an operative sentence, so it satisfied the anchor while the sentence before it
+# withdrew the claim. A rebuttal was lending its own quoted text the force of an
+# affirmation. `False; FLEET.md governs this repo.` did the same across a
+# semicolon.
+#
+# This is an accepted-clause rule and deliberately not a list of negation words:
+# no vocabulary is enumerated, and a fragment is refused whatever it says, so
+# there is no spelling of a verdict label to discover next. A contract's
+# operative prose does not put bare fragments in front of its central claims.
+#
+# Four words, and the bar sits below the fleet's own floor on purpose: the
+# shortest clause standing in front of either affirmation across all seventeen
+# live contracts is eight words ("Operating contract for AI work in this repo"),
+# and two repos open the block with the affirmation itself. A check that reddens
+# a correct contract over a wording change gets weakened rather than obeyed.
+# `scripts/bootstrap_config_validator.rb` holds a future repo to the identical
+# rule; the two are normalized line by line in the same order so they cannot
+# drift into agreeing only on the examples they happen to share.
+#
+# What it does NOT do, stated so the check is not read as more than it examined:
+# it does not adjudicate arbitrary contrary prose. A full sentence of
+# contradiction followed by the affirmation is accepted, and a paragraph that
+# stands alone is read on its own terms whatever precedes it — blank lines,
+# headings, and list items all open a new block — because a separate paragraph
+# asserting the contract applies is an affirmation however the previous
+# paragraph argued. Beyond those forms the contract's correctness rests on
+# review, not on this check.
+affirms_clause() {
+  awk -v affirm="$1" '
+    { lines[++n] = $0 }
+    END {
+      s = ""
+      for (i = 1; i <= n; i++) {
+        line = lines[i]
+        gsub(/[`*_]/, " ", line)
+        if (line ~ /^[[:space:]]*$/) { s = s " ."; continue }
+        if (line ~ /^ {0,3}[#]{1,6}([[:space:]]|$)/) { s = s " ."; continue }
+        # A list item is its own block, so an affirmation opening one opens a
+        # block. Strip the marker and mark the boundary: left in place, an
+        # ordered marker ends a clause on its own dot, and the claim would be
+        # judged against the bare numeral standing in front of it.
+        stripped = line; marked = 0
+        while (match(stripped, /^ {0,3}([-+]|[0-9]+[.)])[[:space:]]+/)) {
+          stripped = substr(stripped, RLENGTH + 1); marked = 1
+        }
+        if (marked) line = ". " stripped
+        s = s " " line
+      }
+      # A terminator only ends a clause when whitespace follows it, so the dot
+      # inside ~/AGENTS.md does not split the very clause being matched. A colon
+      # is deliberately NOT a terminator: it introduces what follows rather than
+      # closing what precedes, so "an inert example: FLEET.md governs this repo"
+      # is one clause that does not begin with the claim. A trailing colon on the
+      # claim itself is absorbed by the patterns below instead.
+      s = tolower(s) " "
+      m = split(s, seg, /[.!?;][[:space:]]/)
+      for (k = 1; k <= m; k++) {
+        t = seg[k]
+        gsub(/^[[:space:]]+/, "", t); gsub(/[[:space:]]+$/, "", t)
+        if (t !~ affirm) continue
+        p = (k == 1) ? "" : seg[k - 1]
+        gsub(/^[[:space:]]+/, "", p); gsub(/[[:space:]]+$/, "", p)
+        if (p == "") exit 0
+        if (split(p, w, /[[:space:]]+/) >= 4) exit 0
+      }
+      exit 1
+    }
+  '
+}
+
+affirms_global_contract() {
+  affirms_clause '^([-+][[:space:]]+)?(the[[:space:]]+(live[[:space:]]+)?global([[:space:]]+contract)?([[:space:]]+at)?[[:space:]]+)?~/agents[.]md[[:space:]]+(still[[:space:]]+)?applies(:.*)?$'
+}
+
+affirms_fleet_contract() {
+  affirms_clause '^([-+][[:space:]]+)?fleet[.]md[[:space:]]+governs([[:space:][:punct:]].*)?$'
+}
+
 live_markdown() {
-  # Emit only operative Markdown. Fenced examples and HTML comments are not
-  # policy, and therefore cannot satisfy a contract or waive a stack rule.
+  # Emit only operative Markdown. Fenced examples, block quotations, and HTML
+  # comments are not policy, so they cannot satisfy a contract or waive a rule.
   # CommonMark indented code is excluded too; accepting only fenced code would
   # let the same inert example become policy by changing its delimiter.
   # A fence closes only with the same marker and at least the opener's length;
@@ -298,9 +385,47 @@ live_markdown() {
         line=substr(line, start+4); in_comment=1
       }
     }
-    function parse_fence(line, candidate, i, ch) {
+    # Container prefixes an OPENER may sit behind, and how wide they were.
+    # container_width counts only prefixes that ended in a list marker: bare
+    # indentation belongs to the fence itself, not to a container, and the
+    # closer allowance is measured from the container content column.
+    function container_content(line, candidate, i, pad) {
       candidate=line
-      for (i=0; i<3 && substr(candidate,1,1)==" "; i++) candidate=substr(candidate,2)
+      container_width=0
+      while (1) {
+        pad=0
+        for (i=0; i<3 && substr(candidate,1,1)==" "; i++) { candidate=substr(candidate,2); pad++ }
+        if (match(candidate, /^[-+*][[:space:]]+/) \
+            || match(candidate, /^[0-9]+[.)][[:space:]]+/)) {
+          container_width += pad + RLENGTH
+          candidate=substr(candidate, RLENGTH+1)
+        } else {
+          return candidate
+        }
+      }
+    }
+    # A CLOSER is not container-aware, and that asymmetry is the whole point.
+    # Inside a fenced block every line is literal content, so a list marker
+    # cannot introduce anything: a list-prefixed run of backticks is text, not a
+    # closing fence. Reusing the opener parser here stripped that marker and
+    # closed the block early, releasing the fenced lines after it as operative
+    # policy — a fenced citation could then satisfy the applicability it was
+    # only illustrating. A closer may be indented and nothing else, by at most
+    # three columns past the container content column the fence opened at.
+    # Anything further is content, which leaves more text inert rather than
+    # less.
+    function fence_closer(line, candidate, i, run) {
+      candidate=line
+      for (i=0; i<fence_indent+3 && substr(candidate,1,1)==" "; i++) candidate=substr(candidate,2)
+      if (substr(candidate,1,1)==" ") return 0
+      if (substr(candidate,1,1)!=fence_char) return 0
+      run=0
+      while (substr(candidate,run+1,1)==fence_char) run++
+      if (run<fence_len) return 0
+      return substr(candidate,run+1) ~ /^[[:space:]]*$/
+    }
+    function parse_fence(line, candidate, i, ch) {
+      candidate=container_content(line)
       ch=substr(candidate,1,1)
       if (ch != "`" && ch != "~") return 0
       parsed_run=0
@@ -309,28 +434,45 @@ live_markdown() {
       parsed_char=ch; parsed_rest=substr(candidate,parsed_run+1)
       return 1
     }
+    function paragraph_interrupt(line, candidate) {
+      candidate=line
+      sub(/^ {0,3}/, "", candidate)
+      if (candidate ~ /^#{1,6}([[:space:]]|$)/) return 1
+      if (candidate ~ /^([-+*]|1[.)])[[:space:]]+/) return 1
+      if (candidate ~ /^([*][[:space:]]*){3,}$/ \
+          || candidate ~ /^(-[[:space:]]*){3,}$/ \
+          || candidate ~ /^(_[[:space:]]*){3,}$/) return 1
+      return valid_fence_opener(line)
+    }
+    function valid_fence_opener(line) {
+      if (!parse_fence(line)) return 0
+      return parsed_char != "`" || parsed_rest !~ /`/
+    }
     {
       line=$0
       if (in_fence) {
-        if (parse_fence(line) && parsed_char == fence_char && parsed_run >= fence_len \
-            && parsed_rest ~ /^[[:space:]]*$/) {
-          in_fence=0; fence_char=""; fence_len=0
-        }
+        if (fence_closer(line)) { in_fence=0; fence_char=""; fence_len=0; fence_indent=0 }
         print ""; next
       }
+      if (in_comment) line=strip_comments(line)
+      quote_candidate=container_content(line)
+      quoted=substr(quote_candidate,1,1)==">"
+      if (in_block_quote) {
+        if (line ~ /^[[:space:]]*$/) { in_block_quote=0; print ""; next }
+        if (!quoted && !paragraph_interrupt(line)) { print ""; next }
+        if (!quoted) in_block_quote=0
+      }
+      if (quoted) { in_block_quote=1; print ""; next }
       if (in_indented) {
         if (line ~ /^[[:space:]]*$/ || line ~ /^(    |\t)/) { print ""; next }
         in_indented=0
       }
       if (line ~ /^(    |\t)/) { in_indented=1; print ""; next }
       visible=strip_comments(line)
-      if (parse_fence(visible)) {
-        # Backtick info strings cannot contain another backtick. Treat such a
-        # line as prose rather than opening an ambiguous fence.
-        if (parsed_char != "`" || parsed_rest !~ /`/) {
-          in_fence=1; fence_char=parsed_char; fence_len=parsed_run
-          print ""; next
-        }
+      if (valid_fence_opener(visible)) {
+        in_fence=1; fence_char=parsed_char; fence_len=parsed_run
+        fence_indent=container_width
+        print ""; next
       }
       print visible
     }
@@ -1787,11 +1929,23 @@ for r in $ALL; do
     if ! live_agents=$(printf '%s\n' "$agents" | live_markdown); then
       die_incomplete "$r AGENTS.md contains an unclosed fenced block or HTML comment."
     fi
-    # Closure condition 3: the standard reaches the agent at the file it reads.
-    case "$live_agents" in
-      *"FLEET.md"*) ;;
-      *) rowdrift="$rowdrift converge-citation:absent" ;;
-    esac
+    # Closure condition 3: both layers of the standard reach the agent through
+    # the file it reads. Examples and comments were removed above, and token
+    # boundaries keep a similarly named path from impersonating either source.
+    if printf '%s\n' "$live_agents" \
+      | grep -qE '(^|[^A-Za-z0-9_./~-])~/AGENTS[.]md($|[^A-Za-z0-9_./~-]|[.]($|[[:space:]`),;:!?]))'; then
+      printf '%s\n' "$live_agents" | affirms_global_contract \
+        || rowdrift="$rowdrift global-contract-applicability:absent"
+    else
+      rowdrift="$rowdrift global-contract-citation:absent"
+    fi
+    if printf '%s\n' "$live_agents" \
+      | grep -qE '(^|[^A-Za-z0-9_./~-])FLEET[.]md($|[^A-Za-z0-9_./~-]|[.]($|[[:space:]`),;:!?]))'; then
+      printf '%s\n' "$live_agents" | affirms_fleet_contract \
+        || rowdrift="$rowdrift converge-applicability:absent"
+    else
+      rowdrift="$rowdrift converge-citation:absent"
+    fi
 
     # The cycle itself, IN ORDER, against the derivation above. The haystack is
     # consumed as each step matches, so a contract that lists the right steps

@@ -661,7 +661,19 @@ module BootstrapConfigValidator
   end
 
   def validate_agents!(path, ci_gates)
-    body = File.binread(path)
+    body = operative_markdown(File.binread(path), "AGENTS.md")
+    unless exact_policy_path?(body, "~/AGENTS.md")
+      raise ValidationError, "AGENTS.md must cite the live global contract ~/AGENTS.md"
+    end
+    unless affirms_global_contract?(body)
+      raise ValidationError, "AGENTS.md must affirm that ~/AGENTS.md applies"
+    end
+    unless exact_policy_path?(body, "FLEET.md")
+      raise ValidationError, "AGENTS.md must cite FLEET.md"
+    end
+    unless affirms_fleet_contract?(body)
+      raise ValidationError, "AGENTS.md must affirm that FLEET.md governs"
+    end
     BOOTSTRAP_WORKFLOWS.each do |workflow|
       unless body.match?(/(?<![A-Za-z0-9_.-])#{Regexp.escape(workflow)}(?![A-Za-z0-9_.-])/)
         raise ValidationError, "AGENTS.md must name bootstrap workflow #{workflow}"
@@ -683,6 +695,260 @@ module BootstrapConfigValidator
     unless gate_lines == ci_gates
       raise ValidationError, "AGENTS.md ordered CI gates must equal ci_gates: #{ci_gates.join(', ')}"
     end
+  end
+
+  def operative_markdown(body, label)
+    output = []
+    in_comment = false
+    in_indented = false
+    in_block_quote = false
+    fence = nil
+
+    body.each_line do |line|
+      if fence
+        fence = nil if fence_closer?(line, fence)
+        output << "\n"
+        next
+      end
+
+      line, in_comment = strip_html_comments(line, in_comment) if in_comment
+      blank = line.match?(/\A[[:space:]]*\z/)
+      quoted = markdown_container_content(line).first.start_with?(">")
+      if in_block_quote
+        if blank
+          in_block_quote = false
+          output << "\n"
+          next
+        end
+        unless quoted || markdown_paragraph_interrupt?(line)
+          output << "\n"
+          next
+        end
+        in_block_quote = false unless quoted
+      end
+
+      if quoted
+        in_block_quote = true
+        output << "\n"
+        next
+      end
+
+      indented = line.start_with?("    ", "\t")
+      if in_indented
+        if blank || indented
+          output << "\n"
+          next
+        end
+        in_indented = false
+      end
+      if indented
+        in_indented = true
+        output << "\n"
+        next
+      end
+
+      visible, in_comment = strip_html_comments(line, in_comment)
+      candidate = fence_descriptor(visible)
+      if candidate && valid_fence_opener?(candidate)
+        fence = candidate
+        output << "\n"
+        next
+      end
+      output << visible
+    end
+
+    if fence || in_comment
+      raise ValidationError, "#{label} contains an unclosed fenced block or HTML comment"
+    end
+
+    output.join
+  end
+
+  def strip_html_comments(line, in_comment)
+    output = +""
+    loop do
+      if in_comment
+        stop = line.index("-->")
+        return [output, true] unless stop
+
+        line = line[(stop + 3)..] || ""
+        in_comment = false
+        next
+      end
+
+      start = line.index("<!--")
+      return [output << line, false] unless start
+
+      output << line[0...start]
+      line = line[(start + 4)..] || ""
+      in_comment = true
+    end
+  end
+
+  def fence_descriptor(line)
+    candidate, indent = markdown_container_content(line)
+    character = candidate[0]
+    return nil unless ["`", "~"].include?(character)
+
+    length = candidate[/\A#{Regexp.escape(character)}+/].length
+    return nil if length < 3
+
+    {
+      character: character,
+      length: length,
+      rest: candidate[length..] || "",
+      indent: indent
+    }
+  end
+
+  # A CLOSER is not container-aware, and that asymmetry is the whole point.
+  # Inside a fenced block every line is literal content, so a list marker cannot
+  # introduce anything: a list-prefixed run of backticks is text, not a closing
+  # fence. Reusing the opener parser here stripped that marker and closed the
+  # block early, releasing the fenced lines after it as operative policy — a
+  # fenced citation could then satisfy the applicability it was only
+  # illustrating. A closer may be indented and nothing else, by at most three
+  # columns past the container content column the fence opened at; anything
+  # further is content, which leaves more text inert rather than less.
+  def fence_closer?(line, fence)
+    candidate = line.chomp
+    indent = candidate[/\A */].length
+    return false if indent > fence.fetch(:indent) + 3
+
+    candidate = candidate[indent..].to_s
+    character = fence.fetch(:character)
+    run = candidate[/\A#{Regexp.escape(character)}+/]
+    return false if run.nil? || run.length < fence.fetch(:length)
+
+    candidate[run.length..].to_s.match?(/\A[[:space:]]*\z/)
+  end
+
+  # Returns the content an OPENER may sit behind, and how wide the container
+  # prefix was. The width counts only prefixes that ended in a list marker: bare
+  # indentation belongs to the fence itself, not to a container, and the closer
+  # allowance is measured from the container content column.
+  def markdown_container_content(line)
+    candidate = line.dup
+    width = 0
+    loop do
+      pad = candidate[/\A {0,3}/].length
+      candidate = candidate[pad..].to_s
+      marker = candidate[/\A(?:[-+*]|[0-9]{1,9}[.)])[ \t]+/]
+      break if marker.nil?
+
+      width += pad + marker.length
+      candidate = candidate[marker.length..].to_s
+    end
+    [candidate, width]
+  end
+
+  def markdown_paragraph_interrupt?(line)
+    candidate = line.sub(/\A {0,3}/, "")
+    return true if candidate.match?(/\A\#{1,6}(?:[ \t]+|\z)/)
+    return true if candidate.match?(/\A(?:[-+*]|1[.)])[ \t]+/)
+    return true if candidate.rstrip.match?(/\A(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})\z/)
+
+    candidate = fence_descriptor(line)
+    !candidate.nil? && valid_fence_opener?(candidate)
+  end
+
+  def valid_fence_opener?(candidate)
+    candidate.fetch(:character) != "`" || !candidate.fetch(:rest).include?("`")
+  end
+
+  def exact_policy_path?(body, path)
+    body.match?(%r{(?<![A-Za-z0-9_./~-])#{Regexp.escape(path)}(?=\z|[^A-Za-z0-9_./~-]|[.](?=\z|[[:space:]`),;:!?]))})
+  end
+
+  AFFIRM_GLOBAL_CONTRACT =
+    %r{\A(?:[-+][[:space:]]+)?(?:the[[:space:]]+(?:live[[:space:]]+)?global(?:[[:space:]]+contract)?(?:[[:space:]]+at)?[[:space:]]+)?~/AGENTS[.]md[[:space:]]+(?:still[[:space:]]+)?applies(?::.*)?\z}i.freeze
+
+  AFFIRM_FLEET_CONTRACT =
+    %r{\A(?:[-+][[:space:]]+)?FLEET[.]md[[:space:]]+governs(?:[[:space:][:punct:]].*)?\z}i.freeze
+
+  # A clause is a statement rather than a label once it carries this many words.
+  # Every live fleet contract clears it with margin: the shortest clause standing
+  # in front of either affirmation across all seventeen is eight words
+  # ("Operating contract for AI work in this repo"), and two repos open the block
+  # with the affirmation itself. The bar is set below the fleet's own floor on
+  # purpose — a check that reddens a correct contract over a wording change gets
+  # weakened rather than obeyed.
+  AFFIRMATION_STATEMENT_WORDS = 4
+
+  def affirms_global_contract?(body)
+    affirms_clause?(body, AFFIRM_GLOBAL_CONTRACT)
+  end
+
+  def affirms_fleet_contract?(body)
+    affirms_clause?(body, AFFIRM_FLEET_CONTRACT)
+  end
+
+  # The accepted-clause rule, shared by both applicability claims and kept
+  # behaviourally identical to the conformance checker's shell implementation.
+  #
+  # An affirmation counts only where it BEGINS an operative sentence or
+  # semicolon-delimited clause AND the clause immediately before it in the same
+  # block is either absent — the affirmation opens the block — or a complete
+  # statement.
+  #
+  # The clause-start anchor alone reads only forward, and that was enough to be
+  # fooled: "Incorrect. The live global contract at ~/AGENTS.md applies." begins
+  # an operative sentence, so it satisfied the anchor while the sentence before
+  # it withdrew the claim. A rebuttal was lending its own quoted text the force
+  # of an affirmation. "False; FLEET.md governs this repo." did the same across a
+  # semicolon.
+  #
+  # This is an accepted-clause rule and deliberately not a list of negation
+  # words: no vocabulary is enumerated, and a fragment is refused whatever it
+  # says, so there is no spelling of a verdict label left to discover.
+  #
+  # What it does NOT do, stated so the check is not read as more than it
+  # examined: it does not adjudicate arbitrary contrary prose. A full sentence of
+  # contradiction followed by the affirmation is accepted, and a paragraph that
+  # stands alone is read on its own terms whatever precedes it — blank lines and
+  # headings both reset the preceding clause to absent, because a separate
+  # paragraph asserting the contract applies is an affirmation however the
+  # previous paragraph argued.
+  def affirms_clause?(body, affirmation)
+    # Normalized line by line, in the same order and with the same substitutions
+    # as the checker's shell implementation. Collapsing blank lines with one
+    # whole-body substitution instead diverged from it: a paragraph-ending period
+    # followed immediately by the inserted one left the affirmation's clause with
+    # a trailing dot, and the anchored pattern stopped matching. Two
+    # implementations of one rule have to be built the same way, not merely
+    # tested on the same examples.
+    normalized = body.gsub(/\r\n?/, "\n").each_line.map do |line|
+      line = line.chomp.gsub(/[`*_]/, " ")
+      next "." if line.match?(/\A[[:space:]]*\z/)
+      next "." if line.match?(/\A {0,3}\#{1,6}(?:[[:space:]]|\z)/)
+
+      # A list item is its own block, so an affirmation opening one opens a
+      # block. Strip the marker and mark the boundary: left in place, an ordered
+      # marker ends a clause on its own dot, and the claim would be judged
+      # against the bare numeral standing in front of it.
+      stripped = line
+      marked = false
+      while (marker = stripped[/\A {0,3}(?:[-+]|[0-9]+[.)])[[:space:]]+/])
+        stripped = stripped[marker.length..].to_s
+        marked = true
+      end
+      marked ? ". #{stripped}" : line
+    end.join(" ")
+    # A terminator only ends a clause when whitespace follows it, so the dot
+    # inside ~/AGENTS.md does not split the very clause being matched. A colon is
+    # deliberately NOT a terminator: it introduces what follows rather than
+    # closing what precedes, so "an inert example: FLEET.md governs this repo" is
+    # one clause that does not begin with the claim. A trailing colon on the
+    # claim itself is absorbed by the patterns above instead.
+    segments = "#{normalized} ".split(/[.!?;][[:space:]]/, -1)
+    segments.each_with_index do |segment, index|
+      next unless segment.strip.match?(affirmation)
+
+      previous = index.zero? ? "" : segments[index - 1].strip
+      return true if previous.empty?
+      return true if previous.split(/[[:space:]]+/).length >= AFFIRMATION_STATEMENT_WORDS
+    end
+    false
   end
 
   def validate_workflow_root!(root, label)
