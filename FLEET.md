@@ -835,17 +835,26 @@ drift, reported per repo and named for what it is.
    predicate is the PR author, not the person who initiated a rerun. This
    pathway is advisory; deterministic gates and contracts enforce.
 4. **The done-gate** (workspace Stop hook) blocks a local session from finishing
-   while any repo it edited fails that repo's package-script gates — `typecheck`
-   or `check`, `lint`, and `test` or `test:run` — or, for a static site,
-   `html-validate`, a `node --check` of its script, and a `vercel.json` parse.
-   **That is what it runs, and this line claimed otherwise until 2026-08-31.**
-   It said the hook held sessions to each repo's FULL declared gate set,
-   "enumerated from that repo's `AGENTS.md`". The hook has never read an
-   `AGENTS.md`. Every archived revision in the `ops` snapshot, back to the first
-   on 2026-08-04, mentions that path exactly once, in a comment on line 3. The
-   sentence was written on 2026-08-19 in the same change that corrected the older
-   "typecheck + lint + tests" wording, and it recorded an intention as though it
-   were a mechanism.
+   while any repo it edited fails a gate that repo's own `AGENTS.md` declares —
+   read from the `fleet-gates` block below, every `gate:` line, in order.
+   `release:` and `cadence:` are not run here; they are declared so the boundary
+   is stated rather than inferred from silence. A repo with no `AGENTS.md` is
+   skipped and said so; a repo with a contract but no block fails, because a
+   gate that examined nothing must not report success. Each command is bounded
+   by Ruby's `Timeout` around a process group rather than `timeout(1)`, which
+   macOS does not ship.
+
+   **That is true as of 2026-09-01, and this line claimed it while it was
+   false.** It ran `typecheck` or `check`, `lint`, and `test` or `test:run`
+   inferred from `package.json` — so a session editing `levelflow-cloud` was not
+   held to `check:migrations`, `check:bundle`, `build` or `npm audit`, one
+   editing `pathfinder` skipped its documentation validator, and `grown-men-grow`
+   and `ops` were not gated at all, having no root `package.json` to infer from.
+   The sentence was written on 2026-08-19 in the same change that corrected the
+   older "typecheck + lint + tests" wording, and it recorded an intention as
+   though it were a mechanism: every archived revision of the hook in the `ops`
+   snapshot, back to the first on 2026-08-04, mentioned `AGENTS.md` exactly
+   once, in a comment. It took until 2026-09-01 for anything to read it.
    A pathway that reports enforcement it does not perform is this standard's own
    defect in documentation form — a gate that examined nothing, reporting
    success — and it is the more dangerous form, because a reader takes coverage
