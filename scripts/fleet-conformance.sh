@@ -1053,7 +1053,7 @@ else
 # action deliberately — three action refs are pinned to the current release SHA,
 # so cutting a release for this would red fourteen repos until every pin was
 # chased, and a step needs no release to land.
-required_content "repos/$OWNER/windwardline/contents/templates/ci-declared-gates-step.yml?ref=$WINDWARDLINE_SHA" \
+required_content "repos/$OWNER/windwardline/contents/templates/steps/ci-declared-gates-step.yml?ref=$WINDWARDLINE_SHA" \
   "$OWNER/windwardline declared-gates CI step template at $WINDWARDLINE_SHA"
 CANONICAL_CI_GATES_STEP=$CONTENT
 [ -n "$CANONICAL_CI_GATES_STEP" ] \
