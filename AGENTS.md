@@ -10,3 +10,24 @@ Operating contract for AI work in this repo; the global `~/AGENTS.md` still appl
 - Every line of `README.md` is a manual claim about other repos. Verify test counts, the product count, and casing against the source repos before editing — nothing here catches drift.
 - Product names are spec-cased ("Levelflow Cloud"). The fleet table follows the launch registry: a launch or retirement lands here in the same change set as labs and the portfolio.
 - Contact here is mlp@windwardline.com while the apex site uses hello@ — confirm which is canonical before unifying either.
+
+## Declared gates
+
+The machine-readable gate set. `scripts/fleet-conformance.sh` requires this block
+and the workspace done-gate hook runs every `gate:` line before a session may
+finish, so what runs is what is written here rather than what a hook guessed from
+`package.json`. Each key states its own boundary: `gate:` runs at session end and
+must be local and quick; `release:` runs before a pull request and may be slow;
+`cadence:` is scheduled or needs the live machine and is run by neither.
+
+```fleet-gates
+gate: bash tests/bootstrap-repo-test.sh
+gate: ruby tests/actions-yaml-inspector-test.rb
+gate: ruby tests/github-app-key-verifier-test.rb
+gate: bash tests/verify-action-pins-test.sh
+gate: bash tests/verify-ghost-managed-edge-test.sh
+gate: bash tests/verify-live-headers-test.sh
+gate: git diff --check
+release: bash tests/fleet-conformance-test.sh
+cadence: bash scripts/fleet-conformance.sh
+```
