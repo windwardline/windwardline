@@ -1046,6 +1046,20 @@ else
     || die_incomplete "canonical scratch-clone template response had no SHA."
   is_sha "$CANONICAL_SCRATCH_SHA" || die_incomplete "canonical scratch-clone template SHA was malformed."
   echo "Scratch-clone template canonical SHA from $OWNER/windwardline at $WINDWARDLINE_SHA: $CANONICAL_SCRATCH_SHA"
+
+# The CI step that executes each repo's declared gates. Byte-identical fleet-wide
+# for the same reason as the auto-merge lane: it decides what a pull request
+# actually runs, so presence is not evidence. Held as a step rather than a shared
+# action deliberately — three action refs are pinned to the current release SHA,
+# so cutting a release for this would red fourteen repos until every pin was
+# chased, and a step needs no release to land.
+required_content "repos/$OWNER/windwardline/contents/templates/ci-declared-gates-step.yml?ref=$WINDWARDLINE_SHA" \
+  "$OWNER/windwardline declared-gates CI step template at $WINDWARDLINE_SHA"
+CANONICAL_CI_GATES_STEP=$CONTENT
+[ -n "$CANONICAL_CI_GATES_STEP" ] \
+  || die_incomplete "canonical declared-gates CI step template was empty."
+echo "Declared-gates CI step template read from $OWNER/windwardline at $WINDWARDLINE_SHA."
+echo
 fi
 echo
 
@@ -1287,6 +1301,17 @@ for r in $REPOS; do
       drift="$drift missing:$f"
     fi
   done
+
+  # A repo with CI must run the gates its contract declares. Without this the
+  # block is prose the checker shape-checks and nothing executes — the exact gap
+  # this step closes — and dropping the step would silently reopen it.
+  if optional_content "repos/$OWNER/$r/contents/.github/workflows/ci.yml?ref=$repo_sha" \
+    "$r ci.yml at $repo_sha"; then
+    case "$CONTENT" in
+      *"$CANONICAL_CI_GATES_STEP"*) ;;
+      *) drift="$drift ci-yml:declared-gates-step-absent-or-modified" ;;
+    esac
+  fi
   DEPLOYMENT_URL=""
   if [ -n "$security_doc" ]; then
     derive_production_url "$r SECURITY.md" <<EOF
