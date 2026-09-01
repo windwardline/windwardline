@@ -882,9 +882,30 @@ drift, reported per repo and named for what it is.
 
    The checker enforces shape, not truth: exactly one block, closed, at least one
    `gate:`, only the three keys, no repeated entry. It cannot prove a command is
-   real without running it, and says so rather than implying more. Every gate in
-   every contract was executed in its own repository before being written down —
-   which is the half a checker cannot do, done once by hand rather than claimed.
+   real without running it, and says so rather than implying more.
+
+   **CI closes that half, and closes it standing.** Every repo with `ci.yml`
+   carries one byte-identical `Run declared gates` step — canonical copy at
+   `templates/ci-declared-gates-step.yml`, compared by the checker — which reads
+   the block and runs each `gate:` line. The declaration is therefore the
+   executable thing rather than prose beside it: a command that is wrong,
+   renamed, or rotted fails the next pull request. The step fails when the block
+   is absent or declares no gate, so a repo cannot pass by having nothing to run,
+   and it prints how many gates it executed rather than only that it finished.
+   The individual gate steps were removed rather than kept beside it; two lists
+   that must agree, with nothing making them, is the drift this closes.
+
+   It is a step and not a shared action on purpose. Three action refs — the pin
+   gate, the header probe, the managed-edge probe — are held to the current
+   release SHA, so cutting a release to host this would red fourteen repos until
+   every pin was chased. A step needs no release. The cost is a copy in each
+   repo, which is why the checker compares it byte for byte, exactly as it does
+   the auto-merge lane.
+
+   The gates were still executed by hand in all seventeen repositories before
+   being written down. CI proves them from now on; nothing proved them at the
+   moment they were declared, and that gap was closed once, deliberately, rather
+   than assumed away.
 
    Two things this ordering protects. The blocks landed in all seventeen repos
    before the checker required them, so the rule met a fleet that already

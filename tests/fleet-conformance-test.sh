@@ -949,12 +949,27 @@ case "$endpoint" in
   repos/windwardline/windwardline/contents/templates/dependabot-auto-merge.yml*)
     emit 200 "{\"sha\":\"$canonical_sha\",\"content\":\"WA==\"}"
     ;;
+  repos/windwardline/windwardline/contents/templates/ci-declared-gates-step.yml*)
+    if [ "$MOCK_SCENARIO" = ci_step_template_refused ]; then
+      emit 403 '{"message":"Forbidden"}'
+    else
+      # "Z2F0ZXM=" is "gates"; the fixture ci.yml below embeds the same token.
+      emit 200 '{"sha":"cccccccccccccccccccccccccccccccccccccccc","content":"Z2F0ZXM="}'
+    fi
+    ;;
   repos/windwardline/windwardline/contents/templates/scratch-clone.sh*)
     if [ "$MOCK_SCENARIO" = scratch_canonical_refused ]; then
       emit 403 '{"message":"Forbidden"}'
     else
       emit 200 "{\"sha\":\"$canonical_scratch_sha\",\"content\":\"WA==\"}"
     fi
+    ;;
+  repos/windwardline/fixture/contents/.github/workflows/ci.yml*)
+    case "$MOCK_SCENARIO" in
+      ci_gates_step_absent)   emit 200 '{"sha":"dddddddddddddddddddddddddddddddddddddddd","content":"bm90aGluZw=="}' ;;
+      ci_gates_step_modified) emit 200 '{"sha":"dddddddddddddddddddddddddddddddddddddddd","content":"Z2F0ZQ=="}' ;;
+      *)                      emit 200 '{"sha":"dddddddddddddddddddddddddddddddddddddddd","content":"Z2F0ZXM="}' ;;
+    esac
     ;;
   repos/windwardline/fixture/contents/.github/workflows/dependabot-auto-merge.yml*)
     emit 200 "{\"sha\":\"$canonical_sha\",\"content\":\"WA==\"}"
@@ -2027,6 +2042,9 @@ run_case declared-gates-command-must-be-nonblank gates_empty_command 1 'declared
 run_case declared-gates-needs-at-least-one-gate gates_only_cadence 1 'declared-gates:no-gate-entry'
 run_case declared-gates-entries-are-unique gates_duplicate_entry 1 'declared-gates:duplicate-entry'
 run_case declared-gates-accepts-all-three-keys gates_all_three_keys 0 'Fleet conformant'
+run_case ci-must-run-the-declared-gates ci_gates_step_absent 1 'ci-yml:declared-gates-step-absent-or-modified'
+run_case ci-declared-gates-step-must-be-byte-identical ci_gates_step_modified 1 'ci-yml:declared-gates-step-absent-or-modified'
+run_case ci-step-template-refusal-is-incomplete ci_step_template_refused 2 'declared-gates CI step template|Forbidden|HTTP 403'
 run_case house-form-fleet-contract-with-trailing-qualifier-is-affirmative contract_house_form_trailing 0 'Fleet conformant'
 run_case list-prefixed-line-cannot-close-a-root-fence-around-the-fleet-clause contract_fence_false_closer 1 'converge-citation:absent'
 run_case list-nested-fence-still-closes-at-its-indented-closer contract_list_fence_closed 0 'Fleet conformant'
