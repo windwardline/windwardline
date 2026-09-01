@@ -949,7 +949,7 @@ case "$endpoint" in
   repos/windwardline/windwardline/contents/templates/dependabot-auto-merge.yml*)
     emit 200 "{\"sha\":\"$canonical_sha\",\"content\":\"WA==\"}"
     ;;
-  repos/windwardline/windwardline/contents/templates/ci-declared-gates-step.yml*)
+  repos/windwardline/windwardline/contents/templates/steps/ci-declared-gates-step.yml*)
     if [ "$MOCK_SCENARIO" = ci_step_template_refused ]; then
       emit 403 '{"message":"Forbidden"}'
     else
@@ -2152,6 +2152,39 @@ run_register_matches_document_case() {
     failures=$((failures + 1))
   fi
 }
+# Top-level templates/*.yml are audited as real workflows by
+# scripts/verify-action-pins.sh. A snippet placed there parses as no workflow
+# root, which aborts the whole pin audit at exit 2 and invalidates every drift
+# classification in the run — a fleet-wide outage from one misplaced file. That
+# happened on 2026-09-01 with the declared-gates CI step, and the mocked suite
+# could not see it: the harness serves its own template content, so only a live
+# run noticed. This reads the SHIPPED templates directory.
+run_templates_are_workflows_case() {
+  name=top-level-templates-parse-as-workflows
+  if [ -n "$CASE_FILTER" ]; then
+    case "$name" in *"$CASE_FILTER"*) ;; *) return ;; esac
+  fi
+  bad=""
+  checked=0
+  for f in "$ROOT"/templates/*.yml "$ROOT"/templates/*.yaml; do
+    [ -e "$f" ] || continue
+    checked=$((checked + 1))
+    ruby "$ROOT/scripts/actions_yaml_inspector.rb" security <"$f" >/dev/null 2>&1 \
+      || bad="$bad $(basename "$f")"
+  done
+  if [ "$checked" -eq 0 ]; then
+    printf 'not ok - %s (examined no template; the glob found nothing)\n' "$name"
+    failures=$((failures + 1))
+  elif [ -n "$bad" ]; then
+    printf 'not ok - %s (not workflow-shaped:%s)\n' "$name" "$bad"
+    failures=$((failures + 1))
+  else
+    printf 'ok - %s\n' "$name"
+    passes=$((passes + 1))
+  fi
+}
+run_templates_are_workflows_case
+
 run_register_matches_document_case
 
 run_locale_independence_case

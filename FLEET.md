@@ -886,7 +886,7 @@ drift, reported per repo and named for what it is.
 
    **CI closes that half, and closes it standing.** Every repo with `ci.yml`
    carries one byte-identical `Run declared gates` step — canonical copy at
-   `templates/ci-declared-gates-step.yml`, compared by the checker — which reads
+   `templates/steps/ci-declared-gates-step.yml`, compared by the checker — which reads
    the block and runs each `gate:` line. The declaration is therefore the
    executable thing rather than prose beside it: a command that is wrong,
    renamed, or rotted fails the next pull request. The step fails when the block
