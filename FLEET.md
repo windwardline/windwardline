@@ -834,12 +834,29 @@ drift, reported per repo and named for what it is.
    fetch from the no-egress sandbox. Fork or missing-secret events skip. The
    predicate is the PR author, not the person who initiated a rerun. This
    pathway is advisory; deterministic gates and contracts enforce.
-4. **The done-gate** (workspace Stop hook) holds local sessions to each
-   repo's FULL declared gate set before they may finish — enumerated from
-   that repo's `AGENTS.md`, not the three this line used to name. It read
-   "typecheck + lint + tests" until 2026-08-19, which is the count-not-a-
-   checklist defect the CONVERGE section above forbids, written into the
-   pathway meant to enforce it.
+4. **The done-gate** (workspace Stop hook) blocks a local session from finishing
+   while any repo it edited fails that repo's package-script gates — `typecheck`
+   or `check`, `lint`, and `test` or `test:run` — or, for a static site,
+   `html-validate`, a `node --check` of its script, and a `vercel.json` parse.
+   **That is what it runs, and this line claimed otherwise until 2026-08-31.**
+   It said the hook held sessions to each repo's FULL declared gate set,
+   "enumerated from that repo's `AGENTS.md`". The hook has never read an
+   `AGENTS.md`. Every archived revision in the `ops` snapshot, back to the first
+   on 2026-08-04, mentions that path exactly once, in a comment on line 3. The
+   sentence was written on 2026-08-19 in the same change that corrected the older
+   "typecheck + lint + tests" wording, and it recorded an intention as though it
+   were a mechanism.
+   A pathway that reports enforcement it does not perform is this standard's own
+   defect in documentation form — a gate that examined nothing, reporting
+   success — and it is the more dangerous form, because a reader takes coverage
+   on trust and stops looking.
+   **The obligation is unchanged, and correcting the description does not soften
+   it:** a session runs the full gate set its repo's contract declares and
+   reports each one by name. What is no longer claimed is that a hook enforces
+   it. Closing the gap needs those gates declared machine-readably rather than in
+   prose — a hook cannot safely execute commands parsed out of a document, and
+   among the commands so declared is a dev server that never exits — so it is a
+   fleet-wide change and an owner decision, not a silent edit here.
 5. **The new-repo bootstrap** is the creation pathway, not a checklist. From a
    clean, GitHub-current `windwardline/windwardline@main`, run
    `scripts/bootstrap-repo.sh --dry-run --manifest <absolute JSON path>`, then
