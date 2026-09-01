@@ -46,7 +46,38 @@ agents_body() {
   global_contract='The live global contract at ~/AGENTS.md applies.'
   fleet_contract='FLEET.md governs this repo.'
   waiver=''
+  gates='```fleet-gates
+gate: true
+```'
   case "$MOCK_SCENARIO" in
+    gates_absent) gates='No declared gate block here.' ;;
+    gates_unclosed) gates='```fleet-gates
+gate: true' ;;
+    gates_duplicate_block) gates='```fleet-gates
+gate: true
+```
+```fleet-gates
+gate: false
+```' ;;
+    gates_unknown_key) gates='```fleet-gates
+gate: true
+smoke: true
+```' ;;
+    gates_empty_command) gates='```fleet-gates
+gate:
+```' ;;
+    gates_only_cadence) gates='```fleet-gates
+cadence: true
+```' ;;
+    gates_duplicate_entry) gates='```fleet-gates
+gate: true
+gate: true
+```' ;;
+    gates_all_three_keys) gates='```fleet-gates
+gate: true
+release: true
+cadence: true
+```' ;;
     global_contract_absent) global_contract='The global contract applies.' ;;
     global_contract_wrong_path) global_contract='The live global contract is ~/AGENTS.md/archive.' ;;
     global_contract_negated) global_contract='The live global contract at ~/AGENTS.md does not apply.' ;;
@@ -167,7 +198,8 @@ Stack exception (owner-approved 2026-08-20): MongoDB required.
     "$fleet_contract" \
     "$cycle" \
     'Workflows: ci.yml, security.yml, claude-review.yml, dependabot-auto-merge.yml, all enforced.' \
-    "$waiver"
+    "$waiver" \
+    "$gates"
 }
 
 package_body() {
@@ -1987,6 +2019,14 @@ run_case labeled-negation-cannot-lend-force-to-a-fleet-affirmation contract_labe
 run_case labeled-negation-clause-cannot-lend-force-to-a-fleet-affirmation contract_labeled_negated_clause 1 'converge-applicability:absent'
 run_case house-form-fleet-contract-is-affirmative contract_house_form 0 'Fleet conformant'
 run_case a-colon-introduced-example-is-not-an-affirmation contract_colon_example 1 'converge-applicability:absent'
+run_case declared-gates-block-is-required gates_absent 1 'declared-gates:absent'
+run_case declared-gates-block-must-close gates_unclosed 2 'unclosed fenced block'
+run_case declared-gates-block-must-be-singular gates_duplicate_block 1 'declared-gates:duplicate-block'
+run_case declared-gates-key-set-is-closed gates_unknown_key 1 'declared-gates:malformed-line'
+run_case declared-gates-command-must-be-nonblank gates_empty_command 1 'declared-gates:malformed-line'
+run_case declared-gates-needs-at-least-one-gate gates_only_cadence 1 'declared-gates:no-gate-entry'
+run_case declared-gates-entries-are-unique gates_duplicate_entry 1 'declared-gates:duplicate-entry'
+run_case declared-gates-accepts-all-three-keys gates_all_three_keys 0 'Fleet conformant'
 run_case house-form-fleet-contract-with-trailing-qualifier-is-affirmative contract_house_form_trailing 0 'Fleet conformant'
 run_case list-prefixed-line-cannot-close-a-root-fence-around-the-fleet-clause contract_fence_false_closer 1 'converge-citation:absent'
 run_case list-nested-fence-still-closes-at-its-indented-closer contract_list_fence_closed 0 'Fleet conformant'

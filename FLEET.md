@@ -850,13 +850,40 @@ drift, reported per repo and named for what it is.
    defect in documentation form — a gate that examined nothing, reporting
    success — and it is the more dangerous form, because a reader takes coverage
    on trust and stops looking.
-   **The obligation is unchanged, and correcting the description does not soften
+   **The obligation is unchanged, and correcting the description did not soften
    it:** a session runs the full gate set its repo's contract declares and
-   reports each one by name. What is no longer claimed is that a hook enforces
-   it. Closing the gap needs those gates declared machine-readably rather than in
-   prose — a hook cannot safely execute commands parsed out of a document, and
-   among the commands so declared is a dev server that never exits — so it is a
-   fleet-wide change and an owner decision, not a silent edit here.
+   reports each one by name.
+
+   **Closed 2026-09-01.** Every contract now carries exactly one fenced
+   ```` ```fleet-gates ```` block, and `scripts/fleet-conformance.sh` requires
+   it. Three keys, each stating its own boundary so nothing is silently omitted:
+   `gate:` runs at session end and must be local and quick, `release:` runs
+   before a pull request and may be slow, `cadence:` is scheduled or needs the
+   live machine and is run by neither. The tiering is not a loophole — it is
+   where the slow-gate decision belongs. A long suite behind `release:` is the
+   contract's own call, stated explicitly, rather than a hook silently running a
+   subset and reporting completeness.
+
+   The block is read from the raw document rather than through `live_markdown`,
+   which strips fences. That is deliberate and not a contradiction: fences are
+   stripped so an *example* can never satisfy a contract *clause*; this block is
+   data, read structurally, the same split already made for the Levelflow
+   handoff's fenced §6b prompt. It contributes no operative line, so it can
+   neither satisfy nor disturb an applicability clause.
+
+   The checker enforces shape, not truth: exactly one block, closed, at least one
+   `gate:`, only the three keys, no repeated entry. It cannot prove a command is
+   real without running it, and says so rather than implying more. Every gate in
+   every contract was executed in its own repository before being written down —
+   which is the half a checker cannot do, done once by hand rather than claimed.
+
+   Two things this ordering protects. The blocks landed in all seventeen repos
+   before the checker required them, so the rule met a fleet that already
+   satisfied it. And the runner is bounded with Ruby's `Timeout` around a
+   process group, not `timeout(1)`: **macOS ships no `timeout`**, and the first
+   verification harness that used it reported every gate in every repo as
+   failing — a harness failure reading as the subject refusing, which is the one
+   thing this standard forbids above the rest.
 5. **The new-repo bootstrap** is the creation pathway, not a checklist. From a
    clean, GitHub-current `windwardline/windwardline@main`, run
    `scripts/bootstrap-repo.sh --dry-run --manifest <absolute JSON path>`, then

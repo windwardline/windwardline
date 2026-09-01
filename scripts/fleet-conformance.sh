@@ -362,6 +362,38 @@ affirms_fleet_contract() {
   affirms_clause '^([-+][[:space:]]+)?fleet[.]md[[:space:]]+governs([[:space:][:punct:]].*)?$'
 }
 
+# The declared gate set: exactly one ```fleet-gates fenced block per contract.
+#
+# Read from the RAW document, not from live_markdown, and that is deliberate.
+# live_markdown strips fences because a fenced example must never satisfy a
+# contract clause; this block is not a clause, it is data, and it is read
+# structurally — the same split the checker already makes for the levelflow
+# HANDOFF §6b prompt.
+#
+# It exists because FLEET.md claimed the done-gate enumerated each repo's gates
+# from its AGENTS.md. Nothing did, and nothing could: the commands were prose,
+# quoted amid narration, and one of them is a dev server that never exits. This
+# is the form that claim needed.
+#
+# Shape only. The checker cannot prove a command is real without running it, so
+# it proves the block exists, parses, carries at least one gate, uses only the
+# three declared keys, and repeats nothing. A repo that quietly drops its gates
+# fails here rather than going unnoticed until someone reads the file.
+declared_gates() {
+  awk '
+    /^[[:space:]]*```fleet-gates[[:space:]]*$/ {
+      if (seen++) { print "ERROR duplicate-block"; exit }
+      open=1; next
+    }
+    open && /^[[:space:]]*```[[:space:]]*$/ { open=0; next }
+    open { print "LINE " $0 }
+    END {
+      if (!seen) { print "ERROR absent"; exit }
+      if (open) { print "ERROR unclosed" }
+    }
+  '
+}
+
 live_markdown() {
   # Emit only operative Markdown. Fenced examples, block quotations, and HTML
   # comments are not policy, so they cannot satisfy a contract or waive a rule.
@@ -1946,6 +1978,32 @@ for r in $ALL; do
     else
       rowdrift="$rowdrift converge-citation:absent"
     fi
+
+    # The declared gate set. Shape is enforced; the commands are the contract's.
+    gates_raw=$(printf '%s\n' "$agents" | declared_gates)
+    case "$gates_raw" in
+      *"ERROR absent"*)          rowdrift="$rowdrift declared-gates:absent" ;;
+      *"ERROR duplicate-block"*) rowdrift="$rowdrift declared-gates:duplicate-block" ;;
+      # Defence in depth only: an unclosed fence already aborts the run at
+      # exit 2 in live_markdown above, before this is reached. Kept so a future
+      # change to that parser cannot silently turn an unterminated block into a
+      # pass, and named here rather than left to look like a live gate.
+      *"ERROR unclosed"*)        rowdrift="$rowdrift declared-gates:unclosed" ;;
+      *)
+        gate_lines=$(printf '%s\n' "$gates_raw" | sed -n 's/^LINE //p')
+        gate_bad=$(printf '%s\n' "$gate_lines" | grep -v '^$' \
+          | grep -vE '^(gate|release|cadence): *[^[:space:]].*$' | head -1)
+        gate_count=$(printf '%s\n' "$gate_lines" | grep -cE '^gate: *[^[:space:]]' || true)
+        gate_dupes=$(printf '%s\n' "$gate_lines" | grep -v '^$' | LC_ALL=C sort | uniq -d | head -1)
+        if [ -n "$gate_bad" ]; then
+          rowdrift="$rowdrift declared-gates:malformed-line"
+        elif [ "$gate_count" -lt 1 ]; then
+          rowdrift="$rowdrift declared-gates:no-gate-entry"
+        elif [ -n "$gate_dupes" ]; then
+          rowdrift="$rowdrift declared-gates:duplicate-entry"
+        fi
+        ;;
+    esac
 
     # The cycle itself, IN ORDER, against the derivation above. The haystack is
     # consumed as each step matches, so a contract that lists the right steps
