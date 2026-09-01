@@ -35,7 +35,7 @@ enforces it now:
 | Security scan mechanics (Semgrep, gitleaks, OSV) | pathfinder `security.yml` | `security.yml` in every repo; scan jobs are required checks |
 | Live posture verification (prod headers) | levelflow `deploy.yml` polling | Exact `Headers live` or registered managed-edge job on post-merge push + daily cron in every prod-facing repo; never a PR-required check |
 | Test-enforced design contracts | craft (palette/contrast tests) | Each repo's own suite; pattern replicated in header contract tests |
-| TDD law and run-capture evidence | timeshift | Repo operating contracts |
+| TDD law and run-capture evidence | fleet-wide | Repo operating contracts |
 | Spec governance (§-law amendments) | levelflow | Repo operating contracts |
 | Dependency quarantine and trust policy | pathfinder `pnpm-workspace.yaml` | Repo-local policy files; Dependabot fleet-wide |
 | Deliberate minimalism (no-live-fetch CI, strict CSP) | portfolio, proper-form | Repo operating contracts |
@@ -311,7 +311,7 @@ enforcing the header set. An app that collects any user data serves a
 retention, deletion contact — linked from the surface where collection
 happens (enforced by repo contracts and deterministic gates; the semantic
 review may report omissions but is not enforcement; precedents: pathfinder
-`/privacy`, levelflow's legal panel, timeshift `/privacy`).
+`/privacy`, levelflow's legal panel).
 
 ## Managed-edge header exception
 
