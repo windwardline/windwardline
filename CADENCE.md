@@ -127,7 +127,7 @@ owner-decision items last. Its eight steps are the complete pathway named by
    separately: production errors are the primary finding; preview errors
    are still findings — lower severity, own table row, never dropped and
    never mixed in. Both are swept because a production-only reading is
-   exactly how the breakage run four found on timeshift stayed invisible —
+   exactly how the breakage run four found stayed invisible —
    every preview deployment 500ed on `/` (missing Preview-scope env vars)
    while builds reported Ready and production read clean. A green build is not a
    rendering page, and "N projects clean" claimed off a mixed or
