@@ -633,11 +633,35 @@ never silent adoption.
 |---|---|---|
 | Database / backend | Supabase (org "Windward Line") | Neon via the Vercel Marketplace where it fits (precedent: pathfinder) |
 | Hosting | Vercel | — |
-| DNS / edge | Cloudflare (Windward Line account) | — |
+| DNS / edge | Cloudflare (Windward Line account), **Workers Paid** since 2026-09-01 | — |
+| Object storage | **Cloudflare R2** (`windwardline-backups`), R2 Paid since 2026-09-01 | — |
 | Source | GitHub `windwardline` | — |
 | AI inference | Groq (the `openai` SDK pointed at Groq is the house client) | Better-fit provider with owner approval |
 | Email | Resend on `windwardline.com` | — |
 | Automation | Zapier | — |
+
+**Cloudflare subscriptions, and the ones deliberately declined (2026-09-01).**
+Active: **Workers Paid** ($5/mo + usage), **R2 Paid** (10 GB storage, 1M Class A
+and 10M Class B operations free per month, then $0.015/GB), and **Images Stream
+Basic**. Workers Paid raises Workers off the free tier's limits and is the
+prerequisite for Durable Objects, Queues and Cron beyond the free allowance —
+so a fleet project may now reach for those without a new purchase. R2 exists
+because the Levelflow minute bank needed an off-box copy; it is general-purpose
+and any repo may use the same bucket under its own `<repo>/<dataset>/` prefix.
+
+Declined, with the reason recorded so they are not re-proposed:
+
+| Offered | Price | Why not |
+|---|---|---|
+| Workers for Platforms | $25/mo | Lets *your users* deploy their own Workers. No fleet project is multi-tenant in that sense. |
+| Smart Shield Advanced | $50/mo | Argo Smart Routing, Tiered Cache and Cache Reserve accelerate traffic Cloudflare *proxies to an origin*. Applications launch on Vercel and Cloudflare is DNS — there is almost no such traffic to accelerate. |
+| Zaraz | free, then $5 | Injects third-party tags. The fleet ships `script-src 'self'` with no `unsafe-inline` on purpose; this works against that posture rather than within it. |
+| Log Explorer | free, then $1 | Queries HTTP request logs in-dashboard. Useful only for traffic Cloudflare serves, which for a Vercel-hosted fleet is the DNS layer alone. |
+| Zero Trust Free | free | Nothing internal is exposed that needs it today. Free and reversible, so it is the first to revisit if an internal-only surface ever ships. |
+
+*Unexplained and worth an owner look*: **Images Stream Basic** is active and was
+not part of the 2026-09-01 purchase. If nothing uses it, it is a recurring
+charge for an unused product.
 
 Client access is a separate machine baseline, not an application-stack choice.
 Each of the six supported client surfaces exposes exactly Zapier, Stripe, FMP,
