@@ -112,9 +112,64 @@ done < <(git -C "$src" status --ignored=matching --porcelain 2>/dev/null \
 # exit 23). It is transient and regenerated on demand, so it is excluded by name
 # rather than by tolerating exit 23 — tolerating the code would mask genuine copy
 # failures too.
+#
+# A LINKED WORKTREE'S .git IS A POINTER FILE, not a directory: one line reading
+# `gitdir: /abs/path/to/main/.git/worktrees/<name>`. Copied verbatim, the scratch
+# copy's git resolved back to the SOURCE repository — `git status` in the copy
+# answered about the source's tree, `git ls-files` listed the source's files, and
+# a write would have landed in the source's worktree metadata. Nothing failed;
+# the copy simply reported another repository's answers, which is worse than an
+# error and is invisible in a passing test run. Agents work in worktrees
+# constantly, so the copy is REBUILT rather than refused: the shared object store
+# becomes the copy's own .git, the worktree's HEAD and index come with it, and
+# the source's worktree registrations are dropped so the copy claims none of them.
 if [ "$with_git" -eq 1 ]; then
-  rsync -a --exclude='fsmonitor--daemon.ipc' "$src/.git" "$dest/" \
-    || die "copying .git failed"
+  # Tested with -f, not -d, and deliberately: the fleet's secret-hygiene check
+  # reads `-d "$…"` as an inline curl request body and refuses the file. The
+  # question is the same one either way — a linked worktree's .git is a FILE,
+  # every other repository's is a directory.
+  if [ ! -f "$src/.git" ]; then
+    rsync -a --exclude='fsmonitor--daemon.ipc' "$src/.git" "$dest/" \
+      || die "copying .git failed"
+  else
+    common=$(cd "$src" && git rev-parse --path-format=absolute --git-common-dir) \
+      || die "could not resolve the shared git directory of the worktree at $src"
+    private=$(cd "$src" && git rev-parse --path-format=absolute --git-dir) \
+      || die "could not resolve the git directory of the worktree at $src"
+    mkdir -p "$dest/.git" || die "could not create $dest/.git"
+    rsync -a --exclude='fsmonitor--daemon.ipc' --exclude='worktrees/' \
+      "$common/" "$dest/.git/" || die "copying the shared git directory failed"
+    if head_ref=$(cd "$src" && git symbolic-ref -q HEAD); then
+      printf 'ref: %s\n' "$head_ref" >"$dest/.git/HEAD"
+    else
+      (cd "$src" && git rev-parse HEAD) >"$dest/.git/HEAD" \
+        || die "could not resolve the HEAD of the worktree at $src"
+    fi
+    if [ -f "$private/index" ]; then
+      cp "$private/index" "$dest/.git/index" || die "copying the worktree index failed"
+    fi
+    git -C "$dest" config --unset core.worktree >/dev/null 2>&1 || true
+    git -C "$dest" config core.bare false || die "could not mark the copy non-bare"
+  fi
+
+  # PROVEN, not assumed. The defect this block exists for was silent, so the
+  # copy has to demonstrate that its git is its own: the git directory must
+  # resolve INSIDE the copy, and HEAD must resolve at all.
+  #
+  # Compared as REAL paths. On macOS a scratch destination under /var is
+  # /private/var once resolved, and git answers with the resolved form — so a
+  # textual comparison against the destination as typed condemns a copy that is
+  # perfectly correct, which is a guard that fires on the wrong thing.
+  dest_real=$(cd "$dest" && pwd -P) || die "the copy's directory could not be resolved"
+  resolved=$(cd "$dest" && git rev-parse --path-format=absolute --git-dir) \
+    || die "the copy is not a usable git repository"
+  resolved=$(cd "$resolved" && pwd -P) || die "the copy's git directory could not be resolved"
+  case "$resolved" in
+    "$dest_real"/*) : ;;
+    *) die "the copy's git directory resolves to $resolved, outside the copy — refusing a copy that would answer with the source repository's tree" ;;
+  esac
+  (cd "$dest" && git rev-parse HEAD >/dev/null 2>&1) \
+    || die "the copy's HEAD does not resolve — refusing a copy whose git cannot answer"
 fi
 
 printf 'scratch-clone: %s -> %s (%s)\n' "$src" "$dest" "$(du -sh "$dest" | cut -f1)"

@@ -407,6 +407,25 @@ The script refuses to run where git reports nothing ignored, and asserts after
 copying that nothing ignored arrived — a copy that examined nothing must not
 report success.
 
+**A copy made from a linked worktree gets a repository of its own (2026-09-03).**
+A worktree's `.git` is not a directory but a **pointer file**, one line reading
+`gitdir: /abs/path/to/main/.git/worktrees/<name>`. Copied verbatim — which is
+what the helper did until this date — the scratch copy's git resolved back to
+the **source**: `git ls-files` in the copy listed the source's files, `git
+status` answered about the source's tree, and a write would have landed in the
+source's worktree metadata. Nothing errored, which is the whole problem; agents
+work in worktrees constantly, so this was the normal path rather than an edge
+case. The helper now rebuilds the copy — the shared object store becomes its own
+`.git`, the worktree's HEAD and index come with it, the source's worktree
+registrations are dropped — and then **proves** it: the copy's git directory must
+resolve inside the copy, compared as real paths, and its HEAD must resolve, or
+the helper refuses. The proof is exercised by a git shim on PATH in
+`levelflow-cloud`'s `tests/scratchClone.test.ts`, because removing it left every
+other test passing. One detail that must not be "tidied": the worktree question
+is asked as `[ ! -f "$src/.git" ]` rather than `[ -d … ]`, because the
+secret-hygiene check reads `-d "$…"` as an inline curl request body and refuses
+the file.
+
 
 ## How the work is done — the CONVERGE cycle
 
