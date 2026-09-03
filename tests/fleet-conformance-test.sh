@@ -12,6 +12,7 @@ cp "$ROOT/scripts/fleet-conformance.sh" "$TMP/subject/scripts/fleet-conformance.
 cp "$ROOT/scripts/actions_yaml_inspector.rb" "$TMP/subject/scripts/actions_yaml_inspector.rb"
 cp "$ROOT/templates/dependabot-auto-merge.yml" "$TMP/subject/templates/dependabot-auto-merge.yml"
 cp "$ROOT/templates/scratch-clone.sh" "$TMP/subject/templates/scratch-clone.sh"
+cp "$ROOT/templates/neon-branch-cleanup.yml" "$TMP/subject/templates/neon-branch-cleanup.yml"
 cat >"$TMP/subject/scripts/verify-action-pins.sh" <<'PIN_AUDITOR'
 #!/bin/bash
 [ "${1:-}" = --latest-release ] && { printf 'v1.0.0\taaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n'; exit 0; }
@@ -910,6 +911,10 @@ local_sha=$(git hash-object "$MOCK_SUBJECT/templates/dependabot-auto-merge.yml")
 canonical_sha=$local_sha
 [ "$MOCK_SCENARIO" = remote_template ] && canonical_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 local_scratch_sha=$(git hash-object "$MOCK_SUBJECT/templates/scratch-clone.sh")
+local_neon_sha=$(git hash-object "$MOCK_SUBJECT/templates/neon-branch-cleanup.yml")
+canonical_neon_sha=$local_neon_sha
+repository_neon_sha=$canonical_neon_sha
+[ "$MOCK_SCENARIO" = neon_reaper_drift ] && repository_neon_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 canonical_scratch_sha=$local_scratch_sha
 [ "$MOCK_SCENARIO" = scratch_copy_drift ] && repository_scratch_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 repository_scratch_sha=${repository_scratch_sha:-$canonical_scratch_sha}
@@ -949,6 +954,13 @@ case "$endpoint" in
   repos/windwardline/windwardline/contents/templates/dependabot-auto-merge.yml*)
     emit 200 "{\"sha\":\"$canonical_sha\",\"content\":\"WA==\"}"
     ;;
+  repos/windwardline/windwardline/contents/templates/neon-branch-cleanup.yml*)
+    if [ "$MOCK_SCENARIO" = neon_canonical_refused ]; then
+      emit 403 '{"message":"Forbidden"}'
+    else
+      emit 200 "{\"sha\":\"$canonical_neon_sha\",\"content\":\"WA==\"}"
+    fi
+    ;;
   repos/windwardline/windwardline/contents/templates/steps/ci-declared-gates-step.yml*)
     if [ "$MOCK_SCENARIO" = ci_step_template_refused ]; then
       emit 403 '{"message":"Forbidden"}'
@@ -973,6 +985,21 @@ case "$endpoint" in
     ;;
   repos/windwardline/fixture/contents/.github/workflows/dependabot-auto-merge.yml*)
     emit 200 "{\"sha\":\"$canonical_sha\",\"content\":\"WA==\"}"
+    ;;
+  repos/windwardline/fixture/contents/.github/workflows/neon-branch-cleanup.yml*)
+    case "$MOCK_SCENARIO" in
+      neon_configured_without_reaper) emit 404 '{"message":"Not Found"}' ;;
+      neon_var_without_key|neon_reaper_drift|neon_ok)
+        emit 200 "{\"sha\":\"$repository_neon_sha\",\"content\":\"WA==\"}" ;;
+      *) emit 404 '{"message":"Not Found"}' ;;
+    esac
+    ;;
+  repos/windwardline/fixture/actions/variables*)
+    case "$MOCK_SCENARIO" in
+      neon_configured_without_reaper|neon_var_without_key|neon_reaper_drift|neon_ok)
+        emit 200 '{"total_count":1,"variables":[{"name":"NEON_PROJECT_ID"}]}' ;;
+      *) emit 200 '{"total_count":0,"variables":[]}' ;;
+    esac
     ;;
   repos/windwardline/fixture/contents/scripts/scratch-clone.sh*)
     if [ "$MOCK_SCENARIO" = scratch_copy_missing ]; then
@@ -1143,6 +1170,8 @@ extra' ;;
     if [ "$MOCK_SCENARIO" = actions_secret_repeated_page ]; then
       page_body=$(jq -nc '[range(1;101) | {name:(if . == 1 then "CLAUDE_CODE_OAUTH_TOKEN" else ("SECRET_" + tostring) end)}] | {total_count:200,secrets:.}')
       emit 200 "$page_body"
+    elif [ "$MOCK_SCENARIO" = neon_key_without_var ] || [ "$MOCK_SCENARIO" = neon_reaper_drift ] || [ "$MOCK_SCENARIO" = neon_ok ]; then
+      emit 200 '{"total_count":2,"secrets":[{"name":"CLAUDE_CODE_OAUTH_TOKEN"},{"name":"NEON_API_KEY"}]}'
     else
       emit 200 '{"total_count":1,"secrets":[{"name":"CLAUDE_CODE_OAUTH_TOKEN"}]}'
     fi
@@ -1951,6 +1980,18 @@ run_case scratch-copy-must-exist scratch_copy_missing 1 'missing:scratch-clone.s
 run_case scratch-copy-must-match-template scratch_copy_drift 1 'scratch-clone:differs-from-template'
 run_case scratch-copy-refusal-is-incomplete scratch_copy_refused 2 'scratch-clone.sh.*HTTP 403|refused'
 run_case scratch-template-refusal-is-incomplete scratch_canonical_refused 2 'scratch-clone template.*HTTP 403|refused'
+
+# Neon preview-branch reaper. Each half of the NEON_PROJECT_ID / NEON_API_KEY
+# pair is worse alone than neither: a variable without a key reaps nothing while
+# reporting healthy, and a key without a variable is a live credential with no
+# consumer. Byte-identity is checked wherever the file exists because a seeded
+# copy edited into a no-op is the failure the workflow exists to prevent.
+run_case neon-configured-repo-must-carry-reaper neon_configured_without_reaper 1 'neon:configured-without-reaper'
+run_case neon-project-id-without-api-key neon_var_without_key 1 'neon:project-id-without-api-key'
+run_case neon-api-key-without-project-id neon_key_without_var 1 'neon:api-key-without-project-id'
+run_case neon-reaper-must-match-template neon_reaper_drift 1 'neon-reaper:differs-from-template'
+run_case neon-template-refusal-is-incomplete neon_canonical_refused 2 'neon reaper template.*HTTP 403|refused'
+run_case neon-fully-configured-is-clean neon_ok 0 'Fleet conformant'
 run_case failed-job-must-be-required failed_unrequired 1 'unrequired-job:Ungated_failed'
 run_case cancelled-job-must-be-required cancelled_unrequired 1 'unrequired-job:Ungated_cancelled'
 run_case empty-required-check-sample-aborts empty_sample 2 'required-check.*empty|sample.*empty|no PR-triggered'

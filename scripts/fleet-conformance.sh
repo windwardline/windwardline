@@ -1032,6 +1032,23 @@ else
 fi
 echo
 
+# The Neon preview-branch reaper is resolved the same way and for the same
+# reason: the fleet is measured against the governing blob on main, never
+# against this checkout.
+if [ -n "${NEON_REAPER_TEMPLATE_SHA_OVERRIDE:-}" ]; then
+  CANONICAL_NEON_REAPER_SHA=$NEON_REAPER_TEMPLATE_SHA_OVERRIDE
+  is_sha "$CANONICAL_NEON_REAPER_SHA" || die_incomplete "NEON_REAPER_TEMPLATE_SHA_OVERRIDE is not a 40-hex blob SHA."
+  echo "Neon reaper template canonical SHA from TEST OVERRIDE: $CANONICAL_NEON_REAPER_SHA"
+else
+  required_json "repos/$OWNER/windwardline/contents/templates/neon-branch-cleanup.yml?ref=$WINDWARDLINE_SHA" \
+    "$OWNER/windwardline neon reaper template at $WINDWARDLINE_SHA"
+  CANONICAL_NEON_REAPER_SHA=$(printf '%s' "$JSON" | jq -er '.sha | select(type == "string")' 2>/dev/null) \
+    || die_incomplete "canonical neon reaper template response had no SHA."
+  is_sha "$CANONICAL_NEON_REAPER_SHA" || die_incomplete "canonical neon reaper template SHA was malformed."
+  echo "Neon reaper template canonical SHA from $OWNER/windwardline at $WINDWARDLINE_SHA: $CANONICAL_NEON_REAPER_SHA"
+fi
+echo
+
 # The scratch-copy helper is a second byte-identity control. Resolve its
 # canonical blob from the same captured governing commit as every other fleet
 # template; a dirty or stale local checkout cannot redefine the safe copy path.
@@ -1830,6 +1847,47 @@ EOF
   [ "$sec" -ge 1 ] || drift="$drift secret:CLAUDE_CODE_OAUTH_TOKEN"
   stale=$(printf '%s\n' "$LISTED_NAMES" | awk '$0 == "ANTHROPIC_API_KEY" { n++ } END { print n+0 }')
   [ "$stale" -eq 0 ] || drift="$drift secret:stale-ANTHROPIC_API_KEY"
+
+  # Neon preview-branch reaper. Neon's Vercel integration deletes a
+  # `preview/<git-branch>` database only when the Vercel DEPLOYMENT is removed —
+  # six months by default — so merging a pull request and deleting the git
+  # branch leaves the database billing at ~$1.50/month indefinitely. pathfinder
+  # reached 93 branches and $79.60 of an $81.78 invoice that way (2026-09-03),
+  # against $2.18 of real compute and storage.
+  #
+  # Scoped to repos that actually use Neon, derived from the NEON_PROJECT_ID
+  # variable rather than a curated list. Requiring the workflow in every repo
+  # would redden the whole fleet the day this lands and teach nothing; requiring
+  # it exactly where Neon is configured is the standard. fleet-template seeds
+  # the file, so a project that later adopts Neon is already carrying it.
+  #
+  # Both pairings are drift. A variable without a key reaps nothing while
+  # looking healthy — the state that hid this bug for two months — and a key
+  # without a variable is a live credential with no consumer.
+  neon_key=$(printf '%s\n' "$LISTED_NAMES" | awk '$0 == "NEON_API_KEY" { n++ } END { print n+0 }')
+  list_named_resources "repos/$OWNER/$r/actions/variables" "$r Actions variable listing" variables
+  neon_var=$(printf '%s\n' "$LISTED_NAMES" | awk '$0 == "NEON_PROJECT_ID" { n++ } END { print n+0 }')
+
+  if optional_json "repos/$OWNER/$r/contents/.github/workflows/neon-branch-cleanup.yml?ref=$repo_sha" \
+    "$r neon-branch-cleanup.yml"; then
+    neon_wf=$(printf '%s' "$JSON" | jq -er '.sha | select(type == "string")' 2>/dev/null) \
+      || die_incomplete "$r neon-branch-cleanup.yml response had no SHA."
+    is_sha "$neon_wf" || die_incomplete "$r neon-branch-cleanup.yml SHA was malformed."
+  else
+    neon_wf=""
+  fi
+
+  if [ "$neon_var" -ge 1 ]; then
+    [ -n "$neon_wf" ] || drift="$drift neon:configured-without-reaper"
+    [ "$neon_key" -ge 1 ] || drift="$drift neon:project-id-without-api-key"
+  elif [ "$neon_key" -ge 1 ]; then
+    drift="$drift neon:api-key-without-project-id"
+  fi
+  # Byte-identity wherever the file exists, configured or not: a seeded copy
+  # edited into a no-op is exactly the failure this check exists to catch.
+  if [ -n "$neon_wf" ] && [ "$neon_wf" != "$CANONICAL_NEON_REAPER_SHA" ]; then
+    drift="$drift neon-reaper:differs-from-template"
+  fi
 
   # The unattended merge lane runs on Dependabot-triggered pull requests, where
   # Actions secrets are deliberately unavailable. Its App credentials therefore
