@@ -313,6 +313,44 @@ happens (enforced by repo contracts and deterministic gates; the semantic
 review may report omissions but is not enforcement; precedents: pathfinder
 `/privacy`, levelflow's legal panel).
 
+### Preview databases expire on the pull request's clock (owner-ruled 2026-09-03)
+
+Any repo whose project uses Neon carries `.github/workflows/neon-branch-cleanup.yml`,
+byte-identical to `templates/neon-branch-cleanup.yml`, plus the `NEON_PROJECT_ID`
+repository variable and the `NEON_API_KEY` repository secret. The workflow is seeded
+into `fleet-template`, so a project that later adopts Neon is already carrying it
+rather than acquiring it after its own first surprise invoice.
+
+The rule exists because the provider's lifecycle is coupled to the wrong clock. Neon's
+Vercel integration creates a `preview/<git-branch>` database per preview deployment and
+deletes it only when the **Vercel deployment** is removed — six months by default.
+Merging a pull request and deleting the git branch does nothing to the database. Every
+cleanup discipline the fleet already had operated on the branch, so nothing noticed.
+pathfinder reached 93 branches and $79.60 of an $81.78 invoice against $2.18 of real
+compute and storage, with 89 merged pull requests and one remote branch. The cost grew
+about $1.50 per merged pull request per month and never came back down.
+
+The checker enforces both directions of the pairing, because each half alone is worse
+than neither: `NEON_PROJECT_ID` without `NEON_API_KEY` reaps nothing while looking
+healthy, and `NEON_API_KEY` without `NEON_PROJECT_ID` is a live credential with no
+consumer. It also compares the workflow blob wherever the file exists, configured or
+not, since a seeded copy quietly edited into a no-op is the failure this is for.
+
+A spending limit is a tripwire, not this control. Neon's org limit only emails at 80%
+and 100% — it does not suspend — so it records that the reaper failed rather than
+preventing the cost. Do not accept one in place of the workflow.
+
+Migrating providers is not a substitute either. Supabase deletes preview branches on
+pull request close by default, but its branches bill at roughly $10/branch-month and
+its docs place branches **outside** the Spend Cap. The same 93 stuck branches would
+have cost about $930 with the hard cap not applying.
+
+The general rule this instances: **any provider resource created per pull request,
+per deployment, or on a schedule must have a deletion mechanism owned by this fleet,
+not by the provider's default retention.** Backup buckets get lifecycle expiry, preview
+databases get a reaper, and anything else that accumulates gets named here with its
+expiry before it ships.
+
 ## Managed-edge header exception
 
 The owner approved one capability-specific exception on 2026-08-24. Ghost(Pro)

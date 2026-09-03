@@ -1,0 +1,127 @@
+name: Neon branch cleanup
+
+# Seeded into every repo so a project that later adopts Neon is born with the
+# reaper rather than acquiring it after the first surprise invoice.
+#
+# Neon's Vercel integration creates a `preview/<git-branch>` database per preview
+# deployment and deletes it only when the Vercel *deployment* is removed — six
+# months later by default. Merging a PR and deleting the git branch does nothing.
+# Each surplus branch past the plan allowance bills at ~$1.50/month, so the cost
+# grows by one branch per pull request and never comes back down. pathfinder
+# reached 93 branches and $79.60 of an $81.78 invoice that way (2026-09-03).
+#
+# Three states, deliberately distinguished:
+#   no NEON_PROJECT_ID          -> not a Neon repo; skip, green, silent.
+#   NEON_PROJECT_ID, no API key -> half-configured; FAIL loudly. This is the
+#                                  dangerous state, because it is the one that
+#                                  looks fine while nothing is being reaped.
+#   both present                -> reap.
+#
+# `pull_request_target`, not `pull_request`, is deliberate. A Dependabot-authored
+# `pull_request` run reads only *Dependabot* secrets, so an Actions NEON_API_KEY
+# would arrive empty and the reap would quietly no-op on a large share of PRs.
+# `pull_request_target` runs in base-repo context and sees Actions secrets for
+# every author. It is safe here because this workflow never checks out or
+# executes pull request code: the head ref reaches the shell only through `env:`,
+# then only via `--data-urlencode` and `jq --arg`.
+
+on:
+  pull_request_target:
+    types: [closed]
+  schedule:
+    - cron: "23 8 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: neon-cleanup-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  applicable:
+    name: Is this a Neon project?
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      neon: ${{ steps.detect.outputs.neon }}
+    steps:
+      - id: detect
+        env:
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          HAS_KEY: ${{ secrets.NEON_API_KEY != '' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NEON_PROJECT_ID:-}" ]; then
+            echo "No NEON_PROJECT_ID variable — not a Neon project. Nothing to do."
+            echo "neon=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "${HAS_KEY}" != "true" ]; then
+            echo "::error::NEON_PROJECT_ID is set but the NEON_API_KEY secret is missing."
+            echo "::error::A half-configured reaper deletes nothing while appearing healthy."
+            exit 78
+          fi
+          echo "neon=true" >> "$GITHUB_OUTPUT"
+
+  reap:
+    name: Reap this PR's preview branch
+    needs: applicable
+    if: needs.applicable.outputs.neon == 'true' && github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Delete the Neon preview branch
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          branch="preview/${HEAD_REF}"
+          echo "Target branch: ${branch}"
+
+          id="$(curl -sS --fail-with-body --get \
+                 --data-urlencode "search=${branch}" \
+                 -H "Authorization: Bearer ${NEON_API_KEY}" \
+                 "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches" \
+               | jq -r --arg n "${branch}" \
+                 '.branches[] | select(.name == $n and .default != true and .protected != true) | .id' \
+               | head -n1)"
+
+          if [ -z "${id}" ] || [ "${id}" = "null" ]; then
+            echo "No deletable branch named ${branch}. Nothing to do."
+            exit 0
+          fi
+
+          echo "Deleting ${id} (${branch})"
+          code="$(curl -sS -o /tmp/neon-del.json -w '%{http_code}' -X DELETE \
+                    -H "Authorization: Bearer ${NEON_API_KEY}" \
+                    "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${id}")"
+          case "${code}" in
+            2*)      echo "Deleted ${branch}." ;;
+            404|410) echo "Already gone (HTTP ${code})." ;;
+            *)       echo "::error::Delete failed with HTTP ${code}"; cat /tmp/neon-del.json; exit 1 ;;
+          esac
+
+  sweep:
+    name: Weekly sweep of orphaned preview branches
+    needs: applicable
+    if: needs.applicable.outputs.neon == 'true' && github.event_name != 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Reap preview branches with no open pull request
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 scripts/neon_branches.py \
+            --repo "${GITHUB_REPOSITORY}" \
+            --min-age-hours 24 \
+            --execute
