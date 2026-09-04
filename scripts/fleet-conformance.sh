@@ -868,7 +868,7 @@ register_rows() {
       gsub(/^[[:space:]]+|[[:space:]]+$/,"",cell)
       split(cell, words, /[[:space:]]+/)
       name=words[1]
-      if (name == "Repo" || name ~ /^-+$/ || name !~ /^[A-Za-z0-9._-]+$/) next
+      if (name == "Repo" || name == "Provider" || name ~ /^-+$/ || name !~ /^[A-Za-z0-9._-]+$/) next
       print name
     }
     END { if (sections != 1) exit 3 }
@@ -1269,6 +1269,71 @@ EOF
 }
 
 fail=0
+
+# Ephemeral resource register — the durable answer to "what deletes what a NEW
+# vendor creates on its own".
+#
+# The population is DERIVED, not listed here, because a curated list cannot
+# notice a provider nobody added it to. The chain is closed at both ends: a new
+# vendor needs a credential, a credential needs a row in ops/credentials.tsv,
+# ops/credentials-check.sh already holds that manifest to exact bidirectional
+# agreement with the live Keychain, and this requires every provider in it to
+# answer FLEET.md's register — does it create anything on its own, and what
+# reaps it. A provider cannot be adopted quietly.
+#
+# Neon is why this exists. Its integration deletes a preview database on
+# Vercel's six-month deployment-retention clock rather than the pull request's,
+# and it accumulated 93 branches over two months with no rule that would have
+# named it. GCP held projects here until 2026-09-01; the next vendor will be one
+# nobody has thought of yet, and this is the check that will be waiting for it.
+doc_ephemeral=$(register_rows '## Ephemeral resource register') \
+  || die_incomplete "FLEET.md Ephemeral resource register was missing or duplicated."
+# Pinned to ops's captured snapshot, like every other contents read here. An
+# unpinned read follows a branch that can move mid-audit, so two checks in one
+# run could disagree about what the manifest said. ops is already snapshotted
+# above through the private-by-design register, so this costs no extra call.
+capture_repo_snapshot ops
+eph_manifest_sha=$SNAPSHOT_SHA
+required_content "repos/$OWNER/ops/contents/credentials.tsv?ref=$eph_manifest_sha" \
+  "$OWNER/ops credential manifest at $eph_manifest_sha"
+code_ephemeral=$(printf '%s\n' "$CONTENT" | awk -F '\t' '
+  NR == 1 { next }
+  NF < 2 { next }
+  $2 ~ /^[A-Za-z0-9._-]+$/ { print $2 }' | LC_ALL=C sort -u)
+
+# A comparison against an empty derived side would pass for the wrong reason:
+# it would prove the manifest could not be read, not that the register is right.
+[ -n "$code_ephemeral" ] \
+  || die_incomplete "ops/credentials.tsv yielded no providers; a register compared against nothing cannot pass."
+[ -n "$doc_ephemeral" ] \
+  || die_incomplete "FLEET.md Ephemeral resource register yielded no rows."
+
+# The have-list travels through the environment, not through `awk -v`: -v does
+# not accept embedded newlines, and awk answers "newline in string" on stderr
+# while returning an EMPTY difference — which reads exactly like agreement. The
+# first version of this check passed a fleet with an unregistered provider in it.
+eph_diff='BEGIN { n = split(ENVIRON["EPH_HAVE"], h, "\n"); for (i = 1; i <= n; i++) if (h[i] != "") seen[h[i]] = 1 }
+  $0 != "" && !($0 in seen) { print }'
+eph_unregistered=$(printf '%s\n' "$code_ephemeral" | EPH_HAVE="$doc_ephemeral" awk "$eph_diff")
+eph_stale=$(printf '%s\n' "$doc_ephemeral" | EPH_HAVE="$code_ephemeral" awk "$eph_diff")
+
+if [ -n "$eph_unregistered" ]; then
+  for provider in $eph_unregistered; do
+    printf '%-22s %s\n' "$provider" "provider holds a credential but has no Ephemeral resource register row — state what it creates on its own and what reaps it"
+  done
+  fail=1
+fi
+if [ -n "$eph_stale" ]; then
+  for provider in $eph_stale; do
+    printf '%-22s %s\n' "$provider" "Ephemeral resource register row has no credential behind it — the provider left, so the row is stale"
+  done
+  fail=1
+fi
+if [ -z "$eph_unregistered" ] && [ -z "$eph_stale" ]; then
+  eph_count=$(printf '%s\n' "$code_ephemeral" | awk 'NF' | wc -l | tr -d ' ')
+  echo "Ephemeral resource register covers every credentialled provider ($eph_count), derived from ops/credentials.tsv."
+fi
+echo
 production_seen=0
 header_probe_seen=0
 managed_edge_probe_seen=0

@@ -954,6 +954,21 @@ case "$endpoint" in
   repos/windwardline/windwardline/contents/templates/dependabot-auto-merge.yml*)
     emit 200 "{\"sha\":\"$canonical_sha\",\"content\":\"WA==\"}"
     ;;
+  repos/windwardline/ops/contents/credentials.tsv*)
+    # $'...' so the tabs are REAL tabs. With printf '%s' they stay literal
+    # backslash-t, awk -F'\t' splits nothing, and every scenario collapses to
+    # "no providers" — which would have made the empty-manifest case pass for
+    # the wrong reason while hiding the two that matter.
+    case "$MOCK_SCENARIO" in
+      eph_manifest_unreadable) emit 403 '{"message":"Forbidden"}' ;;
+      eph_manifest_empty)
+        emit 200 "$(content_json $'service\tprovider\tclass\n')" ;;
+      eph_unregistered)
+        emit 200 "$(content_json $'service\tprovider\tclass\nneon-api-key\tneon\tuser-managed\nsupabase-access-token\tsupabase\tuser-managed\nnewvendor-api-key\tnewvendor\tuser-managed\n')" ;;
+      *)
+        emit 200 "$(content_json $'service\tprovider\tclass\nneon-api-key\tneon\tuser-managed\nsupabase-access-token\tsupabase\tuser-managed\n')" ;;
+    esac
+    ;;
   repos/windwardline/windwardline/contents/templates/neon-branch-cleanup.yml*)
     if [ "$MOCK_SCENARIO" = neon_canonical_refused ]; then
       emit 403 '{"message":"Forbidden"}'
@@ -1469,9 +1484,23 @@ MD
 | `windwardline` | No CI |
 | `venture` | Outside fleet |
 MD
+  # The Exceptions register's conditional row must close BEFORE the next heading
+  # opens, or it lands in the wrong section and every register comparison fails.
   if [ "$1" != register_mismatch ]; then
     cat <<'MD'
 | `ops` | No CI |
+MD
+  fi
+  cat <<'MD'
+## Ephemeral resource register
+| Provider | Creates on its own | Reaped by |
+|---|---|---|
+| `neon` | preview database per deployment | neon-branch-cleanup.yml |
+| `supabase` | preview and persistent branches | required before branching is enabled |
+MD
+  if [ "$1" = eph_stale ]; then
+    cat <<'MD'
+| `goneaway` | nothing any more | the provider left |
 MD
   fi
 }
@@ -1992,6 +2021,17 @@ run_case neon-api-key-without-project-id neon_key_without_var 1 'neon:api-key-wi
 run_case neon-reaper-must-match-template neon_reaper_drift 1 'neon-reaper:differs-from-template'
 run_case neon-template-refusal-is-incomplete neon_canonical_refused 2 'neon reaper template.*HTTP 403|refused'
 run_case neon-fully-configured-is-clean neon_ok 0 'Fleet conformant'
+
+# Ephemeral resource register. The population is derived from ops/credentials.tsv,
+# so a provider adopted without a register row fails, a row whose provider left
+# fails, and a manifest that cannot be read is INCOMPLETE rather than a pass —
+# a register compared against nothing would otherwise be green for the wrong
+# reason. This is the check that will be waiting for a vendor nobody has thought
+# of yet.
+run_case ephemeral-new-vendor-needs-a-register-row eph_unregistered 1 'newvendor.*no Ephemeral resource register row'
+run_case ephemeral-departed-provider-row-is-stale eph_stale 1 'goneaway.*no credential behind it'
+run_case ephemeral-empty-manifest-is-incomplete eph_manifest_empty 2 'yielded no providers|credential manifest'
+run_case ephemeral-unreadable-manifest-is-incomplete eph_manifest_unreadable 2 'credential manifest.*403|refused|could not be read'
 run_case failed-job-must-be-required failed_unrequired 1 'unrequired-job:Ungated_failed'
 run_case cancelled-job-must-be-required cancelled_unrequired 1 'unrequired-job:Ungated_cancelled'
 run_case empty-required-check-sample-aborts empty_sample 2 'required-check.*empty|sample.*empty|no PR-triggered'
