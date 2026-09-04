@@ -378,6 +378,43 @@ and proves the catch-all is load-bearing by deleting it.
 Unlike an accumulating resource, this cost is proportional to activity and cannot compound
 while nobody is looking. It is an optimisation, not a defect, and is ranked accordingly.
 
+## Ephemeral resource register
+
+Every provider this fleet holds a credential for, and what deletes the things it
+creates on its own. A provider that creates a resource per pull request, per
+deployment, or on a schedule needs a reaper **this fleet owns**; the vendor's default
+retention is not one, because it answers to the vendor's clock rather than the pull
+request's. Neon proved the difference: its integration deletes a preview database only
+when the Vercel deployment is removed, six months later by default, which reached 93
+branches and $79.60 of an $81.78 invoice on 2026-09-03.
+
+The population is **derived, not curated**: `scripts/fleet-conformance.sh` reads the
+provider column of `ops/credentials.tsv` — itself held to exact bidirectional agreement
+with the Keychain by `ops/credentials-check.sh` — and requires exact agreement with the
+rows below. A new vendor needs a credential, a credential needs a manifest row, and that
+row then has no register entry until someone answers this table's question. That is the
+durable check for a provider nobody has thought of yet: it cannot be adopted quietly.
+
+"None" is a claim, not a default. It means someone checked that the provider creates
+nothing that accumulates, and it is as reviewable as any other row.
+
+| Provider | Creates on its own | Reaped by |
+|---|---|---|
+| `anthropic` | none — API and OAuth credentials only | — |
+| `bluesky` | none — posts are content, not provisioned resources | — |
+| `buffer` | none — scheduling queue held by the vendor | — |
+| `cloudflare` | **yes** — R2 backup objects, written on a schedule | `windwardline-backups` lifecycle rule, 365-day expiry (set 2026-09-03). Workers, Durable Objects, Queues and Cron are paid-tier reachable but zero are deployed; a first Worker needs this row revisited |
+| `fmp` | none — request quota, nothing provisioned | — |
+| `ghost` | none — managed-edge content | — |
+| `github` | **yes** — Actions artifacts and logs | GitHub's own retention, 90 days by default. Free on public repos, which every CI-running repo here is; the two private repos run no workflows. A private repo that gains CI needs this row revisited |
+| `groq` | none — per-token inference, nothing provisioned | — |
+| `levelflow` | none — an application token | — |
+| `local` | none — a local Jupyter token | — |
+| `neon` | **yes** — a `preview/<git-branch>` database per preview deployment | `.github/workflows/neon-branch-cleanup.yml`, byte-identical to `templates/neon-branch-cleanup.yml`, enforced per repo above |
+| `resend` | none — sends are events, not provisioned resources | — |
+| `stripe` | none — read-only key against vendor-held records | — |
+| `supabase` | **yes, once branching is enabled** — preview branches per pull request, and persistent branches that survive merge and close by design | **Nothing yet, and nothing needs one yet: zero branches exist and no project has branching configured.** A reaper is required *before* the first project enables it. Preview branches bill ~$0.01344/hour (~$10/branch-month) and, per Supabase's own docs, branches sit **outside the Spend Cap** — so the cap that makes Supabase look safe does not cover this failure. Do not rely on its delete-on-PR-close default: that is vendor retention, and it does not apply to persistent branches at all |
+
 ## Managed-edge header exception
 
 The owner approved one capability-specific exception on 2026-08-24. Ghost(Pro)
