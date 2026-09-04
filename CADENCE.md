@@ -189,6 +189,21 @@ owner-decision items last. Its eight steps are the complete pathway named by
      stores it exists to protect. Exit 1 invariant, 2 drift. It also runs daily
      from `windwardline-toolchain-update`, so detection does not depend on this
      cadence being executed.
+   - Deferred ephemeral triggers: `ephemeral-trigger-check.sh` in
+     `windwardline/ops` (private) exits 0, run as
+     `wl-secret supabase-access-token=SUPABASE_ACCESS_TOKEN -- ./ephemeral-trigger-check.sh`.
+     FLEET.md's Ephemeral resource register carries rows whose reaper is
+     deferred — the provider creates nothing today and a reaper is required
+     before the thing that would create it is switched on. The register records
+     that obligation but cannot notice the switch being flipped: the row still
+     reads "nothing yet" the day after, and `fleet-conformance.sh` still passes,
+     because the credential and the row both still exist. The conformance
+     checker catches a NEW vendor being adopted; this catches an ADOPTED vendor
+     starting to create things. One deferred row exists today — Supabase
+     branching, whose branches bill about $10 per branch-month, seven times
+     Neon's, and sit outside the Spend Cap. Exit 1 means a trigger fired: write
+     the reaper, then move the register row off deferred. Exit 2 is missing or
+     unreadable evidence; an empty project list is 2, never a pass.
    - Exact service baseline: `service-baseline-check.py` in `windwardline/ops`
      (private) exits 0. It verifies that all six supported client surfaces
      expose exactly Zapier, Stripe, FMP, Vercel, GitHub, Supabase, Neon through
