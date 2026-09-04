@@ -351,6 +351,33 @@ not by the provider's default retention.** Backup buckets get lifecycle expiry, 
 databases get a reaper, and anything else that accumulates gets named here with its
 expiry before it ships.
 
+### Deploy count is the build bill, not build duration (2026-09-03)
+
+Vercel bills Build CPU Minutes per deployment, and the charge is dominated by fixed
+per-deploy overhead — container provision, install, artifact upload — rather than by the
+build step. Measured across the fleet on 2026-09-03: no project has a slow build
+(pathfinder 21-31s, levelflow 8-15s), yet Aug 3 - Sep 2 billed 8,444 CPU-minutes over
+roughly a thousand deploys, about 8 CPU-minutes each. Optimising a fast build saves almost
+nothing. Not deploying a commit that changes nothing deployable saves the whole deploy.
+
+The lever is a Vercel `ignoreCommand` that exits 0 to skip and 1 to build. Its predicate
+must be one-sided: skip only when EVERY changed path is provably non-deployable, and build
+on a deployable path, an unreadable diff, a missing parent commit, a non-git checkout, and
+an empty file list. An empty diff is equally consistent with a diff that failed to compute,
+so it must never read as "nothing changed". A wrong skip ships stale code and is invisible;
+a wrong build costs a fraction of a cent.
+
+**This is deliberately not seeded into fleet-template.** The non-deployable path set is
+project-specific — a documentation site has `docs/` as its deployable content — and a
+template guessing wrong would ship silent stale deploys to every repo created from it. A
+repo adopting the lever writes its own path set and its own mutation test. Reference
+implementation: pathfinder `scripts/vercel-ignore-build.sh` with
+`scripts/vercel-ignore-build-test.sh`, which runs its cases against real git repositories
+and proves the catch-all is load-bearing by deleting it.
+
+Unlike an accumulating resource, this cost is proportional to activity and cannot compound
+while nobody is looking. It is an optimisation, not a defect, and is ranked accordingly.
+
 ## Managed-edge header exception
 
 The owner approved one capability-specific exception on 2026-08-24. Ghost(Pro)
