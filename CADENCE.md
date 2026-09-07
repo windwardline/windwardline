@@ -276,6 +276,7 @@ move on — do not re-investigate from scratch each week.
 - Owner dashboard reminders (checks only the owner can see): Anthropic Console
   spend and limits; Supabase backup posture; domain and certificate expiries;
   the UI-managed clients hold the frontier model — ChatGPT's default set to
-  the frontier (not Auto) and Gemini Code Assist's model confirmed in-app,
-  especially after client updates. (Claude and Codex are file-checked in
-  step 5 weekly; these cannot be.)
+  the frontier (not Auto), per surface: the desktop app's Chat mode and the web
+  session keep separate model and effort settings, so setting one does not set
+  the other. Check after client updates especially. (Claude and Codex are
+  file-checked in step 5 weekly; these cannot be.)

@@ -11,7 +11,7 @@ applies, and now also cites this document — three texts an agent may hold at
 once. They rank, and they do not compete:
 
 - The global `~/AGENTS.md` is the cross-tool contract every client on the
-  machine reads (Claude, Claude Code, Codex, Gemini — one file, four symlinked
+  machine reads (Claude, Claude Code, Codex — one file, three symlinked
   paths). Its machine-level laws — credential handling, where repos may live,
   what may never be published — bind everywhere and are not overridable by a
   repo or by this document.
