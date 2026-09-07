@@ -193,6 +193,16 @@ enforces it now:
   `dependabot.yml` above: a release sits on the registry a week before a PR
   exists. `--auto` merges only on green required checks and bypasses no gate;
   security updates are exempt from cooldown by design and gate identically.
+  When a repo's checks finish before the lane reaches its arming line, GitHub
+  refuses to arm a pull request that is already mergeable, and the lane
+  completes its own decision with a direct merge instead — under the same
+  ruleset, which with zero bypass actors refuses that call outright while any
+  required check is unmet. That refusal fails the job rather than being
+  swallowed, and `tests/dependabot-auto-merge-test.sh` pins both halves. Before
+  2026-09-07 the refusal simply failed the step, and because the lane's own
+  failed check then held the pull request unstable a re-run met the identical
+  refusal — mimic#70 latched a green patch bump open permanently, on the one
+  repo fast enough to lose the race.
   `on: pull_request`, never `pull_request_target` — the permissions key has
   been honored on Dependabot-triggered runs since 2021-10-11, so the latter
   buys nothing while handing a write token to a mutated manifest. Without this

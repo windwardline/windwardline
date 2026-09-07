@@ -2,10 +2,16 @@ name: Dependabot auto-merge
 
 # Byte-identical in every fleet repo that takes it. See FLEET.md.
 #
-# This workflow merges nothing. It arms GitHub's native auto-merge, so the
-# repo's `main-requires-green-ci` ruleset — zero bypass actors — stays the only
-# thing that decides whether a merge happens. A bug here cannot merge red CI;
-# it can only fail to arm, or arm something already green.
+# The repo's `main-requires-green-ci` ruleset — zero bypass actors — is the only
+# thing that decides whether a merge happens. A bug here cannot merge red CI:
+# every merge path below goes through GitHub, which refuses outright while any
+# required check is unmet, and nothing in this file can waive that.
+#
+# It normally merges nothing itself, arming GitHub's native auto-merge instead.
+# The exception is narrow and is the whole reason the fallback below exists:
+# GitHub will not ARM a pull request that is already mergeable, so on a repo
+# whose checks finish faster than this job runs, arming fails and the lane must
+# complete its own decision by merging. That call is gated identically.
 #
 # The credential upgrades itself. If FLEET_AUTOMERGE_APP_ID and
 # FLEET_AUTOMERGE_PRIVATE_KEY are present as DEPENDABOT secrets, the lane mints
@@ -127,10 +133,13 @@ jobs:
 
           # `gh pr merge --auto` degrades to an IMMEDIATE merge when the repo
           # setting is off or nothing is pending, so the gate is asserted rather
-          # than assumed. A repo with no gate is a HOLD, not an error: fleet-template
-          # deliberately carries no ruleset and no auto-merge, and erroring there
-          # would make its every Dependabot PR show a hard-failed check for a
-          # condition that is correct by design.
+          # than assumed. A repo with no gate is a HOLD, not an error, so that a
+          # repo which legitimately has none shows a held PR rather than a
+          # hard-failed check. No fleet repo is in that state today —
+          # fleet-template was the standing example until 2026-08-16, when it
+          # took the full standard and gained both a ruleset and auto-merge — so
+          # this branch is defence for a repo that does not yet exist, not a
+          # description of one that does.
           am=$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.allow_auto_merge')
           gates=$(gh api "repos/${GITHUB_REPOSITORY}/rules/branches/${BASE}" \
             --jq '[.[] | select(.type=="required_status_checks")
@@ -186,13 +195,68 @@ jobs:
               ;;
           esac
 
-          gh pr merge --squash --auto --delete-branch "$PR"
+          # Arming can be REFUSED for a reason that is not a failure. GitHub
+          # will not enable auto-merge on a pull request that is already
+          # mergeable, because there is nothing left to wait for.
+          #
+          # mimic#70 (2026-09-07) hit exactly that: four required checks
+          # finished in about 75 seconds, inside the time this job needs to
+          # reach this line, and `enablePullRequestAutoMerge` answered
+          # "Pull request is in unstable status". The step exited 1 — and that
+          # failed check then kept the PR unstable, so a re-run met the
+          # identical refusal. The lane latched a green, policy-approved patch
+          # bump open permanently. Only repos fast enough to lose the race
+          # carry the defect, which is why 58 clean lane runs preceded the
+          # first sighting.
+          #
+          # The recovery reads the pull request's STATE and never the error
+          # text. An error string is a trigger to look, not a fact to act on:
+          # the sibling defect closed the same day (levelflow's FMP breaker)
+          # was a vendor sentence shared by two conditions that wanted opposite
+          # responses.
+          if ! arm_err=$(gh pr merge --squash --auto --delete-branch "$PR" 2>&1); then
+            # Mergeability is computed asynchronously, so UNKNOWN right after a
+            # refusal means "not decided yet", not "not mergeable". Treating it
+            # as the latter would hard-fail the very race this handles.
+            state=""
+            for _ in 1 2 3 4 5 6; do
+              state=$(gh pr view "$PR" --json state,mergeable \
+                --jq '"\(.state) \(.mergeable)"')
+              case "$state" in *UNKNOWN) sleep 5 ;; *) break ;; esac
+            done
+
+            case "$state" in
+              MERGED*)
+                merge_note="already merged before this job could arm it"
+                ;;
+              "OPEN MERGEABLE")
+                # Merge for real. The ruleset still decides: with zero bypass
+                # actors GitHub refuses this call outright while any required
+                # check is unmet, so this cannot land red CI. If it is refused,
+                # the command fails and errexit takes the job down with it.
+                gh pr merge --squash --delete-branch "$PR"
+                merge_note="required checks were already green, so auto-merge could not be armed — merged directly, under the same ruleset"
+                ;;
+              *)
+                echo "::error::auto-merge could not be armed and the pull request is not mergeable ($state). GitHub said: ${arm_err}"
+                exit 1
+                ;;
+            esac
+          fi
           {
-            echo "### Dependabot auto-merge: armed"
+            if [ -n "${merge_note:-}" ]; then
+              echo "### Dependabot auto-merge: merged"
+            else
+              echo "### Dependabot auto-merge: armed"
+            fi
             echo
             echo "- dependencies: ${DEP_NAMES:-unknown}"
             echo "- update type: \`${UPDATE_TYPE}\`"
-            echo "- merges when the required checks are green; the ruleset remains the gate."
+            if [ -n "${merge_note:-}" ]; then
+              echo "- ${merge_note}."
+            else
+              echo "- merges when the required checks are green; the ruleset remains the gate."
+            fi
             if [ -n "${APP_ID:-}" ]; then
               echo "- credential: fleet auto-merge App — the merge will fire push workflows."
             else
