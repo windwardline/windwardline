@@ -213,8 +213,11 @@ owner-decision items last. Its eight steps are the complete pathway named by
      UI-only client inventories require complete attestations no older than 14
      days. Exit 1 is an invariant violation; 2 is missing or stale evidence.
      The checker never launches an MCP server, starts OAuth, or reads a secret.
-   - The four AGENTS.md paths resolve to one inode (`ls -laiL`); restore the
-     symlinks if not.
+   - The three AGENTS.md paths resolve to one inode (`ls -laiL`); restore the
+     symlinks if not. It was four until 2026-09-01, when Gemini Code Assist was
+     removed and `~/.gemini/GEMINI.md` went with it; the canonical table in
+     `~/AGENTS.md` is what sets the count, and a path leaves it only when its
+     client leaves the machine.
    - `gh auth status` healthy.
 6. **Stray-repo sweep** — `.git` directories under `$HOME` outside
    `~/Projects` and client-internal zones; propose a safe move for any found.
