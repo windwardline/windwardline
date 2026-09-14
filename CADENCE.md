@@ -82,6 +82,23 @@ owner-decision items last. Its eight steps are the complete pathway named by
    health `CONNECT_TIMEOUT` was an error-table entry whose last occurrence
    predated the merged `HEALTH_RETRY_DELAY_MS` retry, with the next 8
    scheduled `Production health` runs green — resolved in state.
+   **A daily check now backstops this step, and it exists because this step is
+   weekly.** Run ten found three repos whose daily `Security analysis` had been
+   red for five consecutive days on two live High advisories — js-yaml and
+   sharp, both fixable, both unfixed. The gates were never wrong: they went red
+   and said so on every run. Nothing read them, and **a weekly review cannot
+   catch a five-day fault, because its interval is the fault's whole lifetime**.
+   An alert issue does not close it either — pathfinder#15 was opened by a
+   working alert lane and sat unread sixteen days; anything reviewed weekly
+   inherits the weekly blind spot. `fleet-red-check.sh` in `windwardline/ops`
+   (private) now runs from the daily LaunchAgent, reports the latest non-PR run
+   per workflow job with the same job-identity grouping this step uses, and
+   writes `~/.claude/hooks/.state/fleet-status`, which the SessionStart hook
+   surfaces. So a red repo reaches a person within a day. This step stays the
+   authority — it reasons about supersession, resolution-in-state and holds,
+   which a status line cannot — but it should now rarely be the *first* to know.
+   If this sweep finds a red the daily check did not report, that is itself the
+   finding: the daily check is broken or blind, and it is fixed before the red.
 3. **Open-issue and open-PR sweep** — enumerate open issues across every
    non-archived repository under the account, templates and checker exceptions
    included. Automated alert issues
