@@ -204,6 +204,25 @@ owner-decision items last. Its eight steps are the complete pathway named by
      Neon's, and sit outside the Spend Cap. Exit 1 means a trigger fired: write
      the reaper, then move the register row off deferred. Exit 2 is missing or
      unreadable evidence; an empty project list is 2, never a pass.
+   - Cost ceilings: `cost-ceiling-check.sh` in `windwardline/ops` (private)
+     exits 0, run as
+     `wl-secret neon-api-key=NEON_API_KEY -- ./cost-ceiling-check.sh`.
+     A reaper bounds how MANY billable things exist; nothing bounded what each
+     one is free to cost. The Neon reaper works — 93 orphaned preview branches
+     and $79.60 became 4 branches and $0 — yet every surviving branch carried an
+     endpoint free to autoscale to 8 CU, about $27/day each, against a Neon
+     spending limit that only emails. Measured usage has never left the 0.25 CU
+     floor. Capped to 2 CU on 2026-09-14; this asserts the cap is still there,
+     because a fix with no assertion decays silently. It reads three things: the
+     project's `default_endpoint_settings`, which the Vercel integration stamps
+     onto every preview endpoint it creates; every existing endpoint, because
+     defaults are not retroactive; and the branch count, because a reaper that
+     stopped running looks exactly like a reaper with nothing to do. Tunables
+     are FLAGS — `wl-secret` execs through `env -i`, so an env-var tunable reads
+     as accepted and does nothing here. Exit 1 a ceiling is breached; 2 the
+     check could not complete — a missing field, an empty population and a
+     non-numeric limit all land there, because "I could not find a number above
+     the ceiling" is not "every number is below it".
    - Exact service baseline: `service-baseline-check.py` in `windwardline/ops`
      (private) exits 0. It verifies that all six supported client surfaces
      expose exactly Zapier, Stripe, FMP, Vercel, GitHub, Supabase, Neon through

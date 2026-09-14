@@ -405,6 +405,12 @@ rows below. A new vendor needs a credential, a credential needs a manifest row, 
 row then has no register entry until someone answers this table's question. That is the
 durable check for a provider nobody has thought of yet: it cannot be adopted quietly.
 
+A reaper answers "how many". It does not answer "how much each", and the two
+are separate failures: Neon's reaper held the branch count at four while every
+one of those four sat under an 8 CU ceiling nobody had looked at. A row here
+that names a reaper is therefore only half an answer until someone has also
+asked what the thing it spares is free to cost.
+
 "None" is a claim, not a default. It means someone checked that the provider creates
 nothing that accumulates, and it is as reviewable as any other row.
 
@@ -420,7 +426,7 @@ nothing that accumulates, and it is as reviewable as any other row.
 | `groq` | none — per-token inference, nothing provisioned | — |
 | `levelflow` | none — an application token | — |
 | `local` | none — a local Jupyter token | — |
-| `neon` | **yes** — a `preview/<git-branch>` database per preview deployment | `.github/workflows/neon-branch-cleanup.yml`, byte-identical to `templates/neon-branch-cleanup.yml`, enforced per repo above |
+| `neon` | **yes** — a `preview/<git-branch>` database per preview deployment, each with an endpoint that autoscales | `.github/workflows/neon-branch-cleanup.yml`, byte-identical to `templates/neon-branch-cleanup.yml`, enforced per repo above, bounds the COUNT. It does not bound the per-unit price: every branch's endpoint shipped free to autoscale to 8 CU (~$27/day each) against a spending limit that only emails. Capped to 2 CU on 2026-09-14 on both the project's `default_endpoint_settings` and every live endpoint, since defaults are not retroactive; `ops/cost-ceiling-check.sh` asserts both still hold, weekly at CADENCE step 5 |
 | `resend` | none — sends are events, not provisioned resources | — |
 | `stripe` | none — read-only key against vendor-held records | — |
 | `supabase` | **yes, once branching is enabled** — preview branches per pull request, and persistent branches that survive merge and close by design | **Nothing yet, and nothing needs one yet: zero branches exist and no project has branching configured.** A reaper is required *before* the first project enables it. Preview branches bill ~$0.01344/hour (~$10/branch-month) and, per Supabase's own docs, branches sit **outside the Spend Cap** — so the cap that makes Supabase look safe does not cover this failure. Do not rely on its delete-on-PR-close default: that is vendor retention, and it does not apply to persistent branches at all |
