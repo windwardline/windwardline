@@ -224,7 +224,8 @@ enforces it now:
   names in every repo; an Actions-secret listing cannot prove the opaque values.
   The daily canary proves this repo's separate Actions-secret copies can mint an
   installation token, not that each repo's Dependabot-secret values are valid.
-- Repository settings: auto-merge enabled; `main-requires-green-ci` ruleset
+- Repository settings: auto-merge enabled; **branch deletion on merge enabled**;
+  `main-requires-green-ci` ruleset
   active against `~DEFAULT_BRANCH` only, requiring every completed,
   non-skipped PR-running CI and scan job by name; strict up-to-date checking
   off; linear history; blocked force pushes through GitHub's separate
@@ -754,6 +755,27 @@ The closure path, and where each step stands:
    landed with this paragraph under the change-together law.
 3. `fleet-template` seeds the citation so every future repo starts conformant.
    (Closure condition 4.)
+
+### Branch deletion on merge (standing, 2026-09-14)
+
+Every non-archived repository deletes the head branch on merge, the exceptions
+register included. A repo with no CI still merges pull requests and still
+accumulates branches, so this is one of the rules that reaches the exempt repos
+for the same reason the CONVERGE and visibility audits do.
+
+It exists because the standing flow does not achieve it. `gh pr merge --squash
+--auto --delete-branch` deletes the branch only when a person runs that command;
+with `--auto` the merge itself happens later, when CI goes green, with no client
+present to honour the flag. The branch survives every automatic merge. **178
+stale branches had accumulated fleet-wide by 2026-09-09**, and the only thing
+that deletes a branch merged by automation is the repository setting.
+
+GitHub defaults it off and a template repository does not carry it, so
+`scripts/bootstrap-repo.sh` sets it at creation (`--delete-branch-on-merge`)
+and asserts it in the final settings verification alongside `allow_auto_merge`.
+`scripts/fleet-conformance.sh` re-derives it per repo from the single-repo
+endpoint — the listing endpoint returns `null` for this field and would read as
+"off" everywhere — and fails on any repo that has it off.
 
 ## Preferred stack
 

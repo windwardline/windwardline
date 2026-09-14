@@ -2455,6 +2455,59 @@ EOF
   fi
 fi
 
+# Branch deletion on merge, across the whole account. Deliberately outside the
+# main loop and alongside visibility: it covers the exempted repos too, because
+# the no-CI repos merge by hand and accumulate branches exactly like the rest.
+#
+# This is a real gap, not tidiness. The standing flow is
+# `gh pr merge --squash --auto --delete-branch`, but `--delete-branch` only acts
+# when a person runs that command. Auto-merge completes the merge on CI going
+# green, hours later and with no client involved, so the flag never fires and
+# the branch survives. 178 stale branches had accumulated fleet-wide by
+# 2026-09-09. Only the repository setting deletes a branch merged by automation.
+#
+# GitHub defaults it off, a template repository does not carry it, and
+# bootstrap-repo.sh did not set it until 2026-09-14 — so every repo created
+# before then started life drifting and nothing looked. The single-repo endpoint
+# is the only one that populates the field; the listing endpoint returns null
+# for it, which would read as "not true" for every repo and is why this cannot
+# reuse the visibility population.
+echo
+del_rows=$VIS_ROWS
+if [ -z "${del_rows// /}" ]; then
+  die_incomplete "branch-deletion population is empty."
+else
+  del_fail=0
+  del_checked=0
+  # Non-vacuity is asserted against the population this audit was handed, not
+  # against a floor. A fixed minimum encodes an assumption about fleet size that
+  # is false in the test harness (one fixture repo) and would go stale in the
+  # fleet; "I read every row I was given" is the property actually wanted, and it
+  # holds at any N.
+  del_expected=$(printf '%s\n' "$del_rows" | grep -c . || true)
+  while read -r name _vis _rest; do
+    [ -n "$name" ] || continue
+    required_json "repos/$OWNER/$name" "$name repository settings for branch deletion"
+    json_shape "$name branch-deletion setting" '.delete_branch_on_merge | type == "boolean"'
+    dbom=$(printf '%s' "$JSON" | jq -r '.delete_branch_on_merge')
+    del_checked=$((del_checked + 1))
+    if [ "$dbom" != "true" ]; then
+      printf '%-22s %s\n' "$name" "delete-branch-on-merge:off (auto-merge leaves the branch behind)"
+      del_fail=1
+    fi
+  done <<EOF
+$del_rows
+EOF
+  if [ "$del_checked" -eq 0 ] || [ "$del_checked" -ne "$del_expected" ]; then
+    die_incomplete "branch-deletion audit examined $del_checked of $del_expected repo(s)."
+  fi
+  if [ "$del_fail" -eq 0 ]; then
+    echo "Branch deletion conformant — $del_checked repo(s) delete the head branch on merge."
+  else
+    fail=1
+  fi
+fi
+
 # Exemption premises, re-verified every run. An exemption is a claim about a
 # repo ("no CI"), and a blanket skip list can never notice when that claim stops
 # being true — the skip is exactly what stops anyone looking. fleet-template was
