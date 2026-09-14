@@ -406,6 +406,14 @@ rows below. A new vendor needs a credential, a credential needs a manifest row, 
 row then has no register entry until someone answers this table's question. That is the
 durable check for a provider nobody has thought of yet: it cannot be adopted quietly.
 
+A backup is the mirror image of a reaper and fails the same way. A reaper that
+stops looks like a reaper with nothing to do; a backup that stops producing
+usable archives looks like a backup with nothing to report. Both are answered
+by asserting the OUTCOME rather than the mechanism — which for a backup means
+restoring it, not checking that the job exited 0. Every dataset in this fleet
+whose loss would be unrecoverable needs a restore proof on a schedule, not a
+backup job on a schedule.
+
 A reaper answers "how many". It does not answer "how much each", and the two
 are separate failures: Neon's reaper held the branch count at four while every
 one of those four sat under an 8 CU ceiling nobody had looked at. A row here
@@ -420,7 +428,7 @@ nothing that accumulates, and it is as reviewable as any other row.
 | `anthropic` | none — API and OAuth credentials only | — |
 | `bluesky` | none — posts are content, not provisioned resources | — |
 | `buffer` | none — scheduling queue held by the vendor | — |
-| `cloudflare` | **yes** — R2 backup objects, written on a schedule | `windwardline-backups` lifecycle rule, 365-day expiry (set 2026-09-03). Workers, Durable Objects, Queues and Cron are paid-tier reachable but zero are deployed; a first Worker needs this row revisited |
+| `cloudflare` | **yes** — R2 backup objects, written on a schedule, now for TWO datasets | `windwardline-backups` lifecycle rule, 365-day expiry (set 2026-09-03), plus each writer's own remote prune: minute-bank keeps 60, postgres keeps 60. The Postgres archive joined on 2026-09-14 under the same `<repo>/<dataset>/<YYYY>/<MM>/` contract rather than a second tree — 13.4 MB a day against a 10 GB free tier. Workers, Durable Objects, Queues and Cron are paid-tier reachable but zero are deployed; a first Worker needs this row revisited |
 | `fmp` | none — request quota, nothing provisioned | — |
 | `ghost` | none — managed-edge content | — |
 | `github` | **yes** — Actions artifacts and logs | GitHub's own retention, 90 days by default. Free on public repos, which every CI-running repo here is; the two private repos run no workflows. A private repo that gains CI needs this row revisited |
