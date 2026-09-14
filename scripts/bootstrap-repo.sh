@@ -727,7 +727,13 @@ printf '%s' "$checks_json" | jq -e \
   ' >/dev/null \
   || die "the live GitHub Actions check population contains an undeclared gate"
 
-gh repo edit "$full_repository" --enable-auto-merge
+# Auto-merge, and branch deletion on merge. The second is not cosmetic: the
+# standing merge flow is `--squash --auto --delete-branch`, but that flag only
+# deletes a branch when a human runs the command. Auto-merge completes the merge
+# itself, so without the repository setting every automatically merged branch
+# survives. 178 had accumulated fleet-wide by 2026-09-09. Set at creation
+# because GitHub defaults it off and a template does not carry it.
+gh repo edit "$full_repository" --enable-auto-merge --delete-branch-on-merge
 
 ruleset_count=$(gh api --paginate --slurp "repos/$full_repository/rulesets?per_page=100" \
   --jq '[.[][] | select(.name == "main-requires-green-ci")] | length') \
@@ -814,7 +820,7 @@ repo_state=$(gh api "repos/$full_repository") || die "final repository settings 
 printf '%s' "$repo_state" | jq -e \
   --arg visibility "$visibility" \
   '.archived == false and .default_branch == "main" and .allow_auto_merge == true and
-   .visibility == $visibility' >/dev/null \
+   .delete_branch_on_merge == true and .visibility == $visibility' >/dev/null \
   || die "final repository settings do not match the bootstrap plan"
 
 ruleset_state=$(gh api "repos/$full_repository/rulesets/$ruleset_id") \

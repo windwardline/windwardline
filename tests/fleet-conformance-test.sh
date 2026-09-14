@@ -1215,7 +1215,8 @@ extra' ;;
       transport_error) exit 1 ;;
       empty_required) emit 200 '' ;;
       malformed_json) emit 200 '{' ;;
-      *) emit 200 '{"allow_auto_merge":true}' ;;
+      branch_deletion_off) emit 200 '{"allow_auto_merge":true,"delete_branch_on_merge":false}' ;;
+      *) emit 200 '{"allow_auto_merge":true,"delete_branch_on_merge":true}' ;;
     esac
     ;;
   repos/windwardline/windwardline/contents/FLEET.md*)
@@ -1985,6 +1986,7 @@ run_pin_auditor_git_tree_case() {
 run_case valid-fixture valid 0 'Fleet conformant'
 run_case template-repo-included template_repo 0 'fixture[[:space:]]+✓'
 run_case internal-visibility-cannot-pass internal_visibility 1 'visibility:.*internal|visibility.*INTERNAL'
+run_case branch-deletion-off-cannot-pass branch_deletion_off 1 'delete-branch-on-merge:off'
 run_case required-refusal-aborts refused_required 2 'HTTP 403|refused'
 run_case rate-limit-aborts rate_limited 2 'HTTP 429|refused'
 run_case server-error-aborts server_error 2 'HTTP 500|refused'

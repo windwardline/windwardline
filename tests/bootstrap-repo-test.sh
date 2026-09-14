@@ -284,7 +284,7 @@ case "$1 ${2:-}" in
       endpoint_owner=${endpoint%%/*}
       endpoint_repo=${endpoint#*/}
       endpoint_repo=${endpoint_repo%%/*}
-      printf '{"full_name":"%s/%s","archived":false,"default_branch":"main","allow_auto_merge":true,"visibility":"public"}\n' \
+      printf '{"full_name":"%s/%s","archived":false,"default_branch":"main","allow_auto_merge":true,"delete_branch_on_merge":true,"visibility":"public"}\n' \
         "$endpoint_owner" "$endpoint_repo"
     fi
     ;;
@@ -1900,6 +1900,18 @@ else
   cat "$TMP/production.out" >&2
   cat "$TMP/gh.log" >&2
   cat "$TMP/git.log" >&2
+fi
+
+# Asserted against the recorded gh invocation, not against the settings fixture.
+# The fixture is what the stub reports back, so updating it alone would let a
+# future edit drop the flag while the verification still read `true` — the
+# fixture would be agreeing with itself. This reads what bootstrap actually
+# asked GitHub to do.
+if grep -q 'repo edit windwardline/fixture-production --enable-auto-merge --delete-branch-on-merge' "$TMP/gh.log"; then
+  ok 'bootstrap enables branch deletion on merge at creation'
+else
+  not_ok 'bootstrap enables branch deletion on merge at creation'
+  grep 'repo edit' "$TMP/gh.log" >&2 || printf 'no repo edit call was recorded\n' >&2
 fi
 
 make_manifest "$TMP/partial.json" public fixture-partial
