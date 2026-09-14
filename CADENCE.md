@@ -240,6 +240,23 @@ owner-decision items last. Its eight steps are the complete pathway named by
      check could not complete — a missing field, an empty population and a
      non-numeric limit all land there, because "I could not find a number above
      the ceiling" is not "every number is below it".
+   - Off-box restore proof: `verify-postgres-restore.sh` in
+     `windwardline/levelflow-cloud` exits 0, run as
+     `wl-secret supabase-db-levelflow=PGPASSWORD cloudflare-r2-backup=R2_TOKEN -- scripts/ops/verify-postgres-restore.sh`.
+     The daily job proves an archive EXISTS, is structurally readable, accounts
+     for every table the server names, and matches its remote checksum. None of
+     that is recoverability — an archive can satisfy all four and restore to an
+     empty database. This pulls the newest archive back out of R2, restores it
+     into a throwaway cluster on port 55432 and counts rows against live, then
+     destroys the cluster. **Run it here, weekly**; the daily job deliberately
+     does not, because the restore costs minutes rather than seconds. A backup
+     nobody has restored from is a hope. First proof 2026-09-14: 21 populated
+     tables recovered, plus three extension-owned tables asserted present in
+     the archive but unrestorable into a bare cluster (pg_cron needs
+     shared_preload_libraries; supabase_vault is not distributed) — those are
+     checked for archive presence rather than skipped, so the data silently
+     ceasing to be dumped still fires. Exit 1 the archive does not recover;
+     2 it could not be checked, and an empty bucket is the finding, not a pass.
    - Exact service baseline: `service-baseline-check.py` in `windwardline/ops`
      (private) exits 0. It verifies that all six supported client surfaces
      expose exactly Zapier, Stripe, FMP, Vercel, GitHub, Supabase, Neon through
