@@ -249,6 +249,23 @@ owner-decision items last. Its eight steps are the complete pathway named by
      UI-only client inventories require complete attestations no older than 14
      days. Exit 1 is an invariant violation; 2 is missing or stale evidence.
      The checker never launches an MCP server, starts OAuth, or reads a secret.
+   - Email deliverability: `wl-secret resend-api-key=RESEND_API_KEY --
+     ./resend-health.py` in `windwardline/ops` (private) exits 0. Resend is the
+     fleet's only outbound provider and the baseline step above asks one thing
+     of it — does the credential resolve. A reachable key is not a delivered
+     email. This reads the live domain, suppression and delivery populations.
+     **Any suppression is exit 1**: Resend accepts a send to a suppressed
+     address, marks it `suppressed`, delivers nothing and returns success, so
+     the application reports a link sent and the reader waits for mail that
+     cannot arrive — one address sat that way from 2026-07-28 to 2026-09-15 and
+     was found by someone reading a dashboard. An unverified domain and a
+     bounce or complaint rate over ceiling fail the same way. Exit 2 is
+     incomplete: an unreachable endpoint, a missing `data` key (a shape change
+     is not an empty list), an empty domain population, or a metrics window the
+     API silently narrowed — it answers 200 with a shorter range past the
+     30-day retention, and grading a window you did not receive is the defect
+     the check exists to prevent. Clear a suppression only after the address is
+     understood; removing one puts the address back in the send path.
    - The three AGENTS.md paths resolve to one inode (`ls -laiL`); restore the
      symlinks if not. It was four until 2026-09-01, when Gemini Code Assist was
      removed and `~/.gemini/GEMINI.md` went with it; the canonical table in
