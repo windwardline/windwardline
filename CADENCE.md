@@ -204,7 +204,17 @@ owner-decision items last. Its eight steps are the complete pathway named by
      is its own label, not ORPHAN: the program exists and the job runs, it is
      the wrong version. A job invoked through `wl-repo-script` reports PINNED,
      resolved from `origin/<default-branch>`, and is still checked that origin
-     carries the file. **This detects rather than prevents** — the three older
+     carries the file. It follows NESTED
+     invocations too, not just the plist's first hop: the toolchain updater
+     lives in `~/.local/bin`, outside any repository, and invokes
+     `agent-exit-status.sh`, `mcp-health.sh` and `fleet-red-check.sh` by
+     absolute path from inside itself — three scripts with the full exposure
+     that a plist-only check could not see, one of them this checker itself.
+     Only paths under `~/Projects` are followed, depth is capped, and cycles
+     terminate. A reference built from a variable cannot be resolved without
+     running the script and is REPORTED as not followable rather than skipped;
+     `levelflow-minute-bank-backup` carries exactly one.
+     **This detects rather than prevents** — the three older
      LevelFlow jobs still resolve from the working tree and must NOT be naively
      rewired, because `backup-minute-bank.sh` derives its repo root from
      `BASH_SOURCE` and would resolve it to a temp directory, find no bank, and
