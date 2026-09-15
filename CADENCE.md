@@ -192,6 +192,23 @@ owner-decision items last. Its eight steps are the complete pathway named by
      job is failing, 2 orphans or staleness only. It runs daily from
      `windwardline-toolchain-update` and writes the status line the SessionStart
      hook surfaces; this is the weekly backstop.
+     Since 2026-09-14 it also reports **which version of each scheduled script
+     would run**. An exit code says whether a job ran, never which code ran, and
+     every scheduled job here points into a shared `~/Projects` checkout that
+     concurrent agents move onto feature branches. A new script absent on an old
+     branch exits 127 and was already visible; an OLD script present but STALE
+     runs a superseded version and exits 0, and nothing saw that — a backup in
+     that state produces archives built by code someone already replaced. The
+     orphan section could see neither for these jobs, because it reads
+     `ProgramArguments:0` and every LevelFlow job spells that `/bin/zsh`. STALE
+     is its own label, not ORPHAN: the program exists and the job runs, it is
+     the wrong version. A job invoked through `wl-repo-script` reports PINNED,
+     resolved from `origin/<default-branch>`, and is still checked that origin
+     carries the file. **This detects rather than prevents** — the three older
+     LevelFlow jobs still resolve from the working tree and must NOT be naively
+     rewired, because `backup-minute-bank.sh` derives its repo root from
+     `BASH_SOURCE` and would resolve it to a temp directory, find no bank, and
+     exit 0 having backed up nothing. Migrate each the next time it is edited.
    - MCP health: `mcp-health.sh` in `windwardline/ops` (private) exits 0. It
      asserts that MCP **works**, where drift detection only asserts it is
      unchanged — a config that is broken and stable passes a sameness check
