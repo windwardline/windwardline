@@ -804,7 +804,7 @@ never silent adoption.
 | Object storage | **Cloudflare R2** (`windwardline-backups`), R2 Paid since 2026-09-01 | — |
 | Source | GitHub `windwardline` | — |
 | AI inference | Groq (the `openai` SDK pointed at Groq is the house client) | Better-fit provider with owner approval |
-| Email | Resend on `windwardline.com` | — |
+| Email | **Resend — the only outbound provider**, transactional, auth and relay alike | — |
 | Automation | Zapier | — |
 
 **Cloudflare subscriptions, and the ones deliberately declined (2026-09-01).**
@@ -853,6 +853,99 @@ reports semantic findings on eligible same-repo PR events whose
 reruns — is not `dependabot[bot]` and whose base is the repository's dynamic
 default branch. Fork or missing-secret events skip;
 deterministic gates and repo contracts still bind them.
+
+## Email
+
+**Resend carries every outbound path the fleet has** — transactional, auth, and
+personal relay alike, every repo existing and future (owner-ruled 2026-09-15).
+A second provider is a stack deviation and takes the protocol above: an
+owner-approved `Stack exception` line in that repo's `AGENTS.md`, before
+adoption.
+
+Free tier, as of 2026-09-02: 3,000 emails a month, **100 a day account-wide**,
+three verified domains, 30-day data retention, and SMTP relay on every plan
+(`smtp.resend.com`, user `resend`, password an API key, 465 SSL or 587
+STARTTLS). The daily cap is shared, so one project's spike delays another's
+sign-in mail; that is a real coupling at scale, not a formality.
+
+**A key that leaves this machine is scoped or it is wrong.** Anything pasted
+into a third party's configuration — a Gmail send-as, a Zapier connection, a
+vendor dashboard — is held by that third party, so it is a `sending_access` key
+bound to one `domain_id`, never the master key. Scope **cannot be read back**:
+`/api-keys` omits `permission` and `domain_id`. Prove it by behaviour instead —
+a correctly scoped key answers `403 This API key is not authorized to send
+emails from <other domain>`. A security property you cannot read is
+demonstrated or it is assumed. Every such key carries a Keychain item and a row
+in `ops/credentials.tsv`, because a local copy of a remote secret is what makes
+the remote secret governable.
+
+### Suppression is a named failure class
+
+A send to a suppressed address is **accepted**. Resend takes the POST, records
+the email as `suppressed`, delivers nothing, and returns 2xx with an id. Every
+status-code branch downstream therefore reads "sent", the user is told to check
+an inbox nothing will reach, and no error exists anywhere in the system. The
+address stays blocked until a human removes it.
+
+- A repo that **owns its own send** checks `GET /suppressions/:email` before
+  claiming delivery and names the cause to the user rather than offering a
+  retry that can never work. 200 is suppressed, 404 is clear, and **nothing
+  else means either** — a lookup that did not complete is not evidence the
+  address is fine.
+- That lookup **fails open**. If it cannot complete the send proceeds, with a
+  distinct warning emitted. Failing closed would convert a transient provider
+  fault into a total sign-in outage, which is worse than the defect being
+  closed: this makes an invisible failure visible, it is not an authorization
+  gate.
+- A repo sending **through a provider's mailer** (Supabase GoTrue, Ghost) cannot
+  see suppression at the request path. The account-wide sweep is its mechanism.
+
+### The fleet mechanism is the account sweep, not a code rule
+
+`ops/resend-health.py` reads the live domain, suppression and delivery
+populations and fails on a suppressed recipient, an unverified domain, or a
+bounce or complaint rate over ceiling. It runs in the weekly fleet-health
+cadence.
+
+It is deliberately **not** a check that repo source contains the right strings.
+A code-presence rule inherits the blind spots of the scan that wrote it and can
+be satisfied by a repo that greps clean and still sends nothing — the
+curated-population defect this file warns about throughout. The suppression list
+is derived from the provider, so it covers every repo that has ever sent,
+including ones that do not exist yet, and it catches the failure itself rather
+than a proxy for it.
+
+Two traps that ordinary code walks into, both held by that script:
+
+- **`/emails/metrics` silently narrows its window.** Past the 30-day retention
+  it answers HTTP 200 with a shorter range and no warning — asked from
+  2026-06-01, it answered from 2026-08-17. Compare the echoed `start_date`
+  against what was requested; a script that prints the number it got back
+  reports a month and calls it a quarter.
+- **`urllib`'s default User-Agent is refused.** `Python-urllib/3.x` is answered
+  403 on every path, which is indistinguishable from a dead key at the caller,
+  while `curl` on the same credential returns 200. Send an explicit one.
+
+### Worked example: a premise that died quietly
+
+Grown Men Grow ran on SMTP2GO from 2026-08-13 to 2026-09-15 under one
+justification — Resend's free tier allowed a single verified domain and
+`windwardline.com` held it. Resend moved that tier to three domains on
+2026-09-02 and the exception outlived its reason by thirteen days.
+
+Nothing could have caught it. SMTP2GO left no trace in any file, dependency or
+manifest; it was Gmail configuration and three DNS records, so no checker could
+exist for it. Two failures followed from the same invisibility: the prescribed
+Keychain item was never created, so a live sending credential sat for a month
+where nothing could enumerate or rotate it — and the bidirectional
+Keychain/manifest check **passed vacuously on two empty sides** — and
+`~/AGENTS.md` asserted a DNS check that was never written.
+
+Three rules close on it. **An exception whose premise lives outside the
+repository states the fact it depends on**, so a later reader can check it.
+**A standard that describes a mechanism names the file that implements it.**
+And **a bidirectional check between two stores proves nothing until the third
+population — what the provider actually holds — is consulted.**
 
 ## Repository visibility
 
