@@ -155,8 +155,8 @@ owner-decision items last. Its eight steps are the complete pathway named by
    at least one live app, in the environment being cleared — or "no errors"
    and "no telemetry" read alike.
    Runtime-log retention is one day on Pro; the errors table holds seven.
-5. **Guardrail drift** — every check below. One with no script names the read
-   it makes instead.
+5. **Guardrail drift** — every check below. A check with no script names the
+   read it makes instead.
    - Permission surface: `scripts/permission-audit.sh` (this repo) exits
      clean — no interpreter or task-runner wildcards on standing allow,
      credential reads ask-gated, no fence-defeating local wildcards, no
@@ -294,22 +294,43 @@ owner-decision items last. Its eight steps are the complete pathway named by
      checked for archive presence rather than skipped, so the data silently
      ceasing to be dumped still fires. Exit 1 the archive does not recover;
      2 it could not be checked, and an empty bucket is the finding, not a pass.
-   - R2 retention rules: no script. Read both buckets through the Cloudflare
-     MCP (`cloudflare-api` `execute`) on account
-     `c8da9a44c29c435205b2ec133ee05f20`, GET only:
+   - R2 retention rules, then the archive objects: no script. Read both
+     buckets through the Cloudflare MCP (`cloudflare-api` `execute`) on
+     account `c8da9a44c29c435205b2ec133ee05f20`, GET only:
      `/accounts/{account_id}/r2/buckets/{bucket}/lifecycle` and `.../lock`.
-     `windwardline-backups` carries exactly `expire-backups-after-365-days`
-     (prefix `""`, age 31536000 s) and the default multipart-abort rule.
+     Each answers `result.rules`. An absent `rules`, or `success: false`, is
+     incomplete, not clean; an empty list is a real answer and backups must
+     give exactly that from `/lock`.
+     **Read `enabled` on every rule.** A rule switched off keeps its id,
+     prefix and condition and enforces nothing, so a disabled rule is a
+     removed rule — the likeliest silent way the archives stop being
+     write-once, and the case this check exists for.
+     `windwardline-backups` carries `expire-backups-after-365-days`,
+     `enabled: true`, age 31536000 s, over every object — its
+     `conditions.prefix` reads empty or absent, and both mean all objects —
+     plus the default multipart-abort rule, and no lock rule.
      `windwardline-archives` carries no rule that expires or transitions an
-     object, only the default multipart abort, and an indefinite lock rule with
-     prefix `""`. Any other rule set fails the week. A lifecycle rule that
-     changes deletes data with nothing to say so: a shorter age, or any expiry
-     on the archive bucket, removes objects on R2's clock, and the restore proof
-     above reads only the newest dump. A removed backups rule fails too; it is
-     the backstop for a writer whose prune stops. A removed lock lets a delete
-     or an overwrite through. A read that returns no rules list is incomplete,
-     not clean. The `cloudflare` row of FLEET.md's Ephemeral resource register
-     says why the buckets differ.
+     object, only that multipart abort, and one lock rule: `enabled: true`,
+     `condition.type` `Indefinite`, no prefix, the API omitting `prefix` for
+     an all-object rule rather than storing `""`. The first run records the
+     multipart rule's id and age in this bullet, so "the default" becomes a
+     name later runs can check.
+     Then the objects, because rules are not objects: list
+     `windwardline-archives` and match every key and byte size against
+     levelflow-cloud `docs/offbox-archives.md`. A lock dropped, an object
+     deleted and the lock restored inside seven days reads clean on the rules
+     alone. The monthly section streams each archive back for its md5.
+     Any other rule set, or a missing or resized archive, fails the week.
+     A lifecycle rule that changes deletes data with nothing to say so: a
+     shorter age removes objects on R2's clock, and the restore proof above
+     reads only the newest dump. An expiry rule on the archive bucket
+     is drift even while the lock stands, because it deletes the moment the
+     lock lapses. A removed backups rule fails too; it is the backstop for a
+     writer whose prune stops. A removed lock lets a delete or an overwrite
+     through, and the read is detection — any account-scoped R2 credential
+     can drop that lock. The `cloudflare` row of FLEET.md's Ephemeral
+     resource register says why the buckets differ; if a prefix-scoped lock
+     turns out to outrank a catch-all lifecycle rule, record it there.
    - Exact service baseline: `service-baseline-check.py` in `windwardline/ops`
      (private) exits 0. It verifies that all six supported client surfaces
      expose exactly Zapier, Stripe, FMP, Vercel, GitHub, Supabase, Neon through
@@ -397,6 +418,14 @@ move on — do not re-investigate from scratch each week.
 
 ## First cadence of each month, additionally
 
+- Off-box archive re-proof: stream every object in `windwardline-archives`
+  back and match its md5 against levelflow-cloud `docs/offbox-archives.md`,
+  then stamp that register's restore-proven date. Use the restore recipe in
+  that document; R2 egress is free and no extraction is needed for the hash.
+  The weekly read matches key and size, which a truncated or re-uploaded
+  object can survive — only the md5 answers the bytes. These archives exist
+  so their sources can be deleted, and an archive nobody reads back is a
+  backup that reports nothing.
 - Dependabot alert counts per fleet repo (`gh api`), open items reported.
   Code-scanning has no data by design — the security workflows set
   `upload: never` — so don't query it.
