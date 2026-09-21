@@ -311,10 +311,11 @@ owner-decision items last. Its eight steps are the complete pathway named by
      plus the default multipart-abort rule, and no lock rule.
      `windwardline-archives` carries no rule that expires or transitions an
      object, only that multipart abort, and one lock rule: `enabled: true`,
-     `condition.type` `Indefinite`, no prefix, the API omitting `prefix` for
-     an all-object rule rather than storing `""`. The first run records the
-     multipart rule's id and age in this bullet, so "the default" becomes a
-     name later runs can check.
+     `condition.type` `Indefinite`, and no prefix — `wrangler r2 bucket lock
+     add` omits the key entirely for an all-object rule rather than sending
+     `""`, so absent and empty both read as all objects here too. The first
+     run records the multipart rule's id and age in this bullet, so "the
+     default" becomes a name later runs can check.
      Then the objects, because rules are not objects: list
      `windwardline-archives` and match every key and byte size against
      levelflow-cloud `docs/offbox-archives.md`. A lock dropped, an object
@@ -323,9 +324,9 @@ owner-decision items last. Its eight steps are the complete pathway named by
      Any other rule set, or a missing or resized archive, fails the week.
      A lifecycle rule that changes deletes data with nothing to say so: a
      shorter age removes objects on R2's clock, and the restore proof above
-     reads only the newest dump. An expiry rule on the archive bucket
-     is drift even while the lock stands, because it deletes the moment the
-     lock lapses. A removed backups rule fails too; it is the backstop for a
+     reads only the newest dump. An expiry rule on the archive bucket is
+     drift even while the lock stands, because it deletes the moment the lock
+     lapses. A removed backups rule fails too; it is the backstop for a
      writer whose prune stops. A removed lock lets a delete or an overwrite
      through, and the read is detection — any account-scoped R2 credential
      can drop that lock. The `cloudflare` row of FLEET.md's Ephemeral
