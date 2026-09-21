@@ -250,8 +250,10 @@ owner-decision items last. Its eight steps are the complete pathway named by
      unreadable evidence; an empty project list is 2, never a pass.
    - Cost ceilings: `cost-ceiling-check.sh` in `windwardline/ops` (private)
      exits 0, run as
-     `wl-secret neon-api-key=NEON_API_KEY -- ./cost-ceiling-check.sh`.
-     A reaper bounds how MANY billable things exist; nothing bounded what each
+     `wl-secret neon-api-key=NEON_API_KEY supabase-access-token=SUPABASE_ACCESS_TOKEN cloudflare-r2-backup=R2_TOKEN -- ./cost-ceiling-check.sh`.
+     Since ops#125 it also reads Supabase add-ons, R2 storage and Vercel spend;
+     given the Neon key alone it exits 2, which run twelve first read as a
+     finding. A reaper bounds how MANY billable things exist; nothing bounded what each
      one is free to cost. The Neon reaper works — 93 orphaned preview branches
      and $79.60 became 4 branches and $0 — yet every surviving branch carried an
      endpoint free to autoscale to 8 CU, about $27/day each, against a Neon
