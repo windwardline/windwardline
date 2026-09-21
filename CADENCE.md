@@ -155,7 +155,8 @@ owner-decision items last. Its eight steps are the complete pathway named by
    at least one live app, in the environment being cleared — or "no errors"
    and "no telemetry" read alike.
    Runtime-log retention is one day on Pro; the errors table holds seven.
-5. **Guardrail drift** — five scripts, then two checks with no script.
+5. **Guardrail drift** — every check below. One with no script names the read
+   it makes instead.
    - Permission surface: `scripts/permission-audit.sh` (this repo) exits
      clean — no interpreter or task-runner wildcards on standing allow,
      credential reads ask-gated, no fence-defeating local wildcards, no
@@ -293,6 +294,22 @@ owner-decision items last. Its eight steps are the complete pathway named by
      checked for archive presence rather than skipped, so the data silently
      ceasing to be dumped still fires. Exit 1 the archive does not recover;
      2 it could not be checked, and an empty bucket is the finding, not a pass.
+   - R2 retention rules: no script. Read both buckets through the Cloudflare
+     MCP (`cloudflare-api` `execute`) on account
+     `c8da9a44c29c435205b2ec133ee05f20`, GET only:
+     `/accounts/{account_id}/r2/buckets/{bucket}/lifecycle` and `.../lock`.
+     `windwardline-backups` carries exactly `expire-backups-after-365-days`
+     (prefix `""`, age 31536000 s) and the default multipart-abort rule.
+     `windwardline-archives` carries no rule that expires or transitions an
+     object, only the default multipart abort, and an indefinite lock rule with
+     prefix `""`. Any other rule set fails the week. A lifecycle rule that
+     changes deletes data with nothing to say so: a shorter age, or any expiry
+     on the archive bucket, removes objects on R2's clock, and the restore proof
+     above reads only the newest dump. A removed backups rule fails too; it is
+     the backstop for a writer whose prune stops. A removed lock lets a delete
+     or an overwrite through. A read that returns no rules list is incomplete,
+     not clean. The `cloudflare` row of FLEET.md's Ephemeral resource register
+     says why the buckets differ.
    - Exact service baseline: `service-baseline-check.py` in `windwardline/ops`
      (private) exits 0. It verifies that all six supported client surfaces
      expose exactly Zapier, Stripe, FMP, Vercel, GitHub, Supabase, Neon through

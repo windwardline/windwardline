@@ -434,7 +434,7 @@ nothing that accumulates, and it is as reviewable as any other row.
 | `anthropic` | none — API and OAuth credentials only | — |
 | `bluesky` | none — posts are content, not provisioned resources | — |
 | `buffer` | none — scheduling queue held by the vendor | — |
-| `cloudflare` | **yes** — R2 backup objects, written on a schedule, now for TWO datasets | `windwardline-backups` lifecycle rule, 365-day expiry (set 2026-09-03), plus each writer's own remote prune: minute-bank keeps 60, postgres keeps 60. The Postgres archive joined on 2026-09-14 under the same `<repo>/<dataset>/<YYYY>/<MM>/` contract rather than a second tree — 13.4 MB a day against a 10 GB free tier. Workers, Durable Objects, Queues and Cron are paid-tier reachable but zero are deployed; a first Worker needs this row revisited |
+| `cloudflare` | **yes** — R2 objects, in two buckets. `windwardline-backups` holds scheduled daily copies under `<repo>/<dataset>/<YYYY>/<MM>/`: levelflow-cloud's minute bank and, since 2026-09-14, its Postgres dump at 13.4 MB a day. `windwardline-archives` (created 2026-09-21) holds permanent, write-once archives under `<repo>/<dataset>/`, uploaded by hand and never on a schedule | `windwardline-backups`: each writer's own remote prune (minute-bank keeps 60, postgres keeps 60), then the bucket's `expire-backups-after-365-days` lifecycle rule over every object (prefix `""`, set 2026-09-03). `windwardline-archives`: nothing, by design. It has no lifecycle expiry and an indefinite bucket lock rule, and nothing prunes it. Each archive is proven by a full restore at upload and listed in the owning repo's register (levelflow-cloud: `docs/offbox-archives.md`). The second bucket exists because a lifecycle rule can target a prefix but cannot exclude one, so a permanent object cannot live beside a catch-all reaper: the minute bank's `minute-bank-20260823.tar.zst`, spared by name from its writer's prune, still expires from `windwardline-backups` around 2027-09-02. Nothing bounds the archive bucket's size but the uploads, and `ops/cost-ceiling-check.sh` sizes `windwardline-backups` only. CADENCE step 5 asserts both buckets' rules weekly. Workers, Durable Objects, Queues and Cron are paid-tier reachable but zero are deployed; a first Worker needs this row revisited |
 | `fmp` | none — request quota, nothing provisioned | — |
 | `ghost` | none — managed-edge content | — |
 | `github` | **yes** — Actions artifacts and logs | GitHub's own retention, 90 days by default. Free on public repos, which every CI-running repo here is; the two private repos run no workflows. A private repo that gains CI needs this row revisited |
@@ -807,7 +807,7 @@ never silent adoption.
 | Database / backend | Supabase (org "Windward Line") | Neon via the Vercel Marketplace where it fits (precedent: pathfinder) |
 | Hosting | Vercel | — |
 | DNS / edge | Cloudflare (Windward Line account), **Workers Paid** since 2026-09-01 | — |
-| Object storage | **Cloudflare R2** (`windwardline-backups`), R2 Paid since 2026-09-01 | — |
+| Object storage | **Cloudflare R2** (`windwardline-backups`, `windwardline-archives`), R2 Paid since 2026-09-01 | — |
 | Source | GitHub `windwardline` | — |
 | AI inference | Groq (the `openai` SDK pointed at Groq is the house client) | Better-fit provider with owner approval |
 | Email | **Resend — the only outbound provider**, transactional, auth and relay alike | — |
@@ -819,8 +819,10 @@ and 10M Class B operations free per month, then $0.015/GB), and **Images Stream
 Basic**. Workers Paid raises Workers off the free tier's limits and is the
 prerequisite for Durable Objects, Queues and Cron beyond the free allowance —
 so a fleet project may now reach for those without a new purchase. R2 exists
-because the Levelflow minute bank needed an off-box copy; it is general-purpose
-and any repo may use the same bucket under its own `<repo>/<dataset>/` prefix.
+because the Levelflow minute bank needed an off-box copy. Any repo may use it
+under its own `<repo>/<dataset>/` prefix: scheduled copies in
+`windwardline-backups`, which expire, and write-once archives in
+`windwardline-archives`, which never do.
 
 Declined, with the reason recorded so they are not re-proposed:
 
