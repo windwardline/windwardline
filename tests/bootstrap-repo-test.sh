@@ -1506,6 +1506,9 @@ updates:
     directories: [/, /apps/web]
     schedule: { interval: weekly }
     cooldown: { default-days: 7 }
+    groups:
+      npm-dependencies: { patterns: ["*"], update-types: [minor, patch] }
+      npm-security: { applies-to: security-updates, patterns: ["*"] }
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
@@ -1565,6 +1568,23 @@ if ! run_bootstrap --dry-run --manifest "$TMP/missing-ecosystem.json" \
 else
   not_ok 'Dependabot ecosystems and directories are derived from the supplied lockfiles'
   cat "$TMP/missing-ecosystem.out" >&2
+fi
+
+sed -e 's/npm-dependencies: { patterns: \["\*"\], update-types: \[minor, patch\] }/production-dependencies: { dependency-type: production }/' \
+  "$TMP/dependabot-multi.yml" >"$TMP/dependabot-split.yml"
+grep -q 'dependency-type: production' "$TMP/dependabot-split.yml" || { echo 'split fixture not built' >&2; exit 1; }
+jq --arg dependabot "$TMP/dependabot-split.yml" \
+  '.files[".github/dependabot.yml"] = $dependabot' \
+  "$TMP/multi-lockfile-complete.json" >"$TMP/split-groups.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/split-groups.json" \
+     >"$TMP/split-groups.out" 2>&1 &&
+   grep -q 'one version group and one security group' "$TMP/split-groups.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'split npm Dependabot groups are refused before the repository exists'
+else
+  not_ok 'split npm Dependabot groups are refused before the repository exists'
+  cat "$TMP/split-groups.out" >&2
 fi
 
 mkdir -p "$TMP/undeclared-lock"

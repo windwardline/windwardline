@@ -225,6 +225,13 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: /
+    groups:
+      npm-dependencies:
+        patterns: ["*"]
+        update-types: [minor, patch]
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
     schedule:
       interval: weekly
     cooldown:
@@ -254,10 +261,40 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: /theme
+    groups:
+      npm-dependencies:
+        patterns: ["*"]
+        update-types: [minor, patch]
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
     schedule:
       interval: weekly
     cooldown:
       default-days: 7
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+YAML
+      ;;
+    split_groups)
+      cat <<'YAML'
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -275,6 +312,13 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: /
+    groups:
+      npm-dependencies:
+        patterns: ["*"]
+        update-types: [minor, patch]
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
     schedule:
       interval: weekly
     open-pull-requests-limit: 0
@@ -288,6 +332,13 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: /
+    groups:
+      npm-dependencies:
+        patterns: ["*"]
+        update-types: [minor, patch]
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
     schedule:
       interval: weekly
     labels:
@@ -306,6 +357,13 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: /
+    groups:
+      npm-dependencies:
+        patterns: ["*"]
+        update-types: [minor, patch]
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
     schedule:
       interval: weekly
     cooldown:
@@ -2074,6 +2132,7 @@ run_case cooldown-is-per-lane cooldown_split 1 'cooldown:.*lane|cooldown.*github
 run_case cooldown-value-must-be-nested cooldown_misplaced 1 'cooldown:.*lane|cooldown.*npm.*missing'
 run_case zero-update-lanes-aborts zero_lanes 2 'at least one live lane|no live update lanes|could not be parsed structurally'
 run_case disabled-dependabot-lane-is-drift dependabot_lane_disabled 1 'dependabot:lane1-npm-disabled'
+run_case split-lockfile-groups-are-drift split_groups 1 'dependabot:lane1-npm-split-groups'
 run_case exact-claude-pointer bad_claude 1 'claude-pointer|CLAUDE.md:not-exact'
 run_case claude-pointer-requires-one-lf claude_no_lf 1 'claude-pointer|CLAUDE.md:not-exact'
 run_case claude-pointer-rejects-two-lfs claude_two_lf 1 'claude-pointer|CLAUDE.md:not-exact'

@@ -62,7 +62,13 @@ enforces it now:
   value stand in for another lane's missing one. `version: 2`, lane identity,
   schedule interval, and cron shape are structural. A valid
   `open-pull-requests-limit: 0` is drift because it disables that lane; syntax
-  that parses is not proof that updates can run.
+  that parses is not proof that updates can run. Every npm or bun lane carries
+  exactly one version-updates group and one security-updates group, each
+  `patterns: ["*"]` with no `dependency-type` split (majors may be left out of
+  the version group by `update-types`). Split groups open two PRs that rewrite
+  one lockfile from one base; strict up-to-date is off and merge queues need
+  an organisation account, so both auto-merge, and on 2026-09-21 git's text
+  merge of pathfinder#111 and #112 left duplicate keys that broke main.
 - `vercel.json` carrying the house seven-header set explicitly on exactly one
   catch-all `/(.*)` route
   (Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options,

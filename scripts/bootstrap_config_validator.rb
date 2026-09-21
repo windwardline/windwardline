@@ -641,6 +641,16 @@ module BootstrapConfigValidator
       raise ValidationError, "every Dependabot lane must be enabled with cooldown.default-days of at least seven"
     end
 
+    split = lanes.find do |lane|
+      %w[npm bun].include?(lane.fetch("ecosystem")) &&
+        !(lane.fetch("single_version_group") && lane.fetch("single_security_group"))
+    end
+    if split
+      raise ValidationError,
+            "every npm or bun Dependabot lane must carry one version group and one security group, " \
+            "each patterns [\"*\"] (FLEET.md): split groups rewrite one lockfile in two PRs"
+    end
+
     expected_pairs = [["github-actions", "/"]]
     lockfiles.each do |lockfile|
       ecosystem = LOCKFILE_ECOSYSTEMS.fetch(File.basename(lockfile))

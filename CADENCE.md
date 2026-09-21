@@ -189,7 +189,14 @@ owner-decision items last. Its eight steps are the complete pathway named by
      3.3 GB. It separates FAILING (ran, exited non-zero) from ORPHAN (a plist
      whose program does not exist, which cannot run and therefore never looks
      broken), and checks scheduled-job freshness and the updater lock. Exit 1 a
-     job is failing, 2 orphans or staleness only. It runs daily from
+     job is failing, 2 orphans or staleness only. Since 2026-09-21 two more
+     things are FAILING: a **live** lock holder older than the updater's
+     two-hour maximum, and a logged-out `claude` CLI. A hung fleet-red call
+     held the lock alive for 47 hours from 2026-09-19 while this line read
+     "ok", and the CLI had been logged out since 2026-09-14 while every
+     `.remember` rollup failed. The updater now terminates a wedged run of its
+     own (never a reused PID) and runs each daily check under a time limit;
+     a timeout logs `FAIL(142)`. It runs daily from
      `windwardline-toolchain-update` and writes the status line the SessionStart
      hook surfaces; this is the weekly backstop.
      Since 2026-09-14 it also reports **which version of each scheduled script
@@ -289,8 +296,12 @@ owner-decision items last. Its eight steps are the complete pathway named by
    - Exact service baseline: `service-baseline-check.py` in `windwardline/ops`
      (private) exits 0. It verifies that all six supported client surfaces
      expose exactly Zapier, Stripe, FMP, Vercel, GitHub, Supabase, Neon through
-     Vercel, Cloudflare, Aviationstack, Groq, and Resend: no missing route,
-     duplicate route, or extra business integration. Static registries,
+     Vercel, Cloudflare, Groq, and Resend: no missing route, duplicate route,
+     or extra business integration. Plugin registration surface — every
+     `plugin.json`, `.mcp.json` and, since 2026-09-21, `hooks.json` — is
+     pinned: stripe 0.8.2 added session hooks that a re-pin accepted as
+     version metadata while hooks sat outside the surface. Plugin telemetry
+     opt-outs in `~/.claude/settings.json` env are asserted. Static registries,
      read-only CLI status, and Keychain attribute checks are collected live;
      UI-only client inventories require complete attestations no older than 14
      days. Exit 1 is an invariant violation; 2 is missing or stale evidence.
