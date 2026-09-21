@@ -441,6 +441,12 @@ module ActionsYamlInspector
         raise ParseError, "cooldown.default-days in update lane #{index + 1} must be a scalar"
       end
 
+      groups = lane["groups"]
+      unless groups.nil? || groups.is_a?(Hash)
+        raise ParseError, "groups in update lane #{index + 1} must be a mapping"
+      end
+      groups ||= {}
+
       {
         "index" => index + 1,
         "ecosystem" => ecosystem,
@@ -448,11 +454,27 @@ module ActionsYamlInspector
         "enabled" => limit.to_i.positive?,
         "interval" => interval,
         "default_days_present" => present,
-        "default_days" => days.to_s
+        "default_days" => days.to_s,
+        "single_version_group" => single_whole_group?(groups, "version-updates"),
+        "single_security_group" => single_whole_group?(groups, "security-updates")
       }
     end
 
     { "lanes" => lanes }
+  end
+
+  # True when exactly one group applies to this kind of update and it takes
+  # every package (patterns ["*"], no dependency-type or exclude-patterns). A
+  # split group means two PRs that each rewrite the lockfile from one base.
+  def single_whole_group?(groups, kind)
+    applying = groups.values.select do |group|
+      group.is_a?(Hash) && group.fetch("applies-to", "version-updates") == kind
+    end
+    return false unless applying.length == 1
+
+    group = applying.first
+    group["patterns"] == ["*"] &&
+      (group.keys - %w[applies-to patterns update-types]).empty?
   end
 
   def validate_dependabot_path(path, label)

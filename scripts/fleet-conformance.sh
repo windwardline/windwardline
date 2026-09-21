@@ -1512,7 +1512,9 @@ EOF
         and (.interval | type == "string" and length > 0)
         and (.paths | type == "array") and all(.paths[]; type == "string" and startswith("/"))
         and (.default_days_present | type == "boolean")
-        and (.default_days | type == "string"))
+        and (.default_days | type == "string")
+        and (.single_version_group | type == "boolean")
+        and (.single_security_group | type == "boolean"))
     ' >/dev/null 2>&1 \
       || die_incomplete "$r dependabot.yml inspector returned an unexpected response shape."
     lanes=$(printf '%s' "$db_analysis" | jq -r '.lanes | length') \
@@ -1548,6 +1550,19 @@ EOF
       if [ "$enabled" != true ]; then
         drift="$drift dependabot:lane${lane}-${ecosystem}-disabled"
       fi
+      # One lockfile PR per run per kind. Split groups (production vs
+      # development) open two PRs that each rewrite the lockfile from one base;
+      # with strict up-to-date off, both auto-merge and git's text merge can
+      # corrupt the file — pathfinder#111/#112 broke main on 2026-09-21.
+      case "$ecosystem" in
+        npm|bun)
+          single_version=$(printf '%s' "$lane_json" | jq -r '.single_version_group')
+          single_security=$(printf '%s' "$lane_json" | jq -r '.single_security_group')
+          if [ "$single_version" != true ] || [ "$single_security" != true ]; then
+            drift="$drift dependabot:lane${lane}-${ecosystem}-split-groups"
+          fi
+          ;;
+      esac
       if [ "$present" != true ]; then
         drift="$drift cooldown:lane${lane}-${ecosystem}-missing"
         continue

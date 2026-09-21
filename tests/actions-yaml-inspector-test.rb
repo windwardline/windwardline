@@ -1127,6 +1127,43 @@ class ActionsYamlInspectorTest < Minitest::Test
     refute lanes.last.fetch("default_days_present")
   end
 
+  # 2026-09-21: pathfinder's production and development groups opened two
+  # lockfile PRs from one base; both auto-merged 78 seconds apart and git's
+  # text merge broke pnpm-lock.yaml on main. One version group and one security
+  # group per lane means one lockfile PR per run per kind.
+  def test_dependabot_reports_whether_each_lane_has_one_whole_group_per_kind
+    parsed = parse(<<~YAML)
+      version: 2
+      updates:
+        - package-ecosystem: npm
+          directory: /
+          schedule: { interval: weekly }
+          groups:
+            npm-dependencies:
+              patterns: ["*"]
+              update-types: [minor, patch]
+            npm-security:
+              applies-to: security-updates
+              patterns: ["*"]
+        - package-ecosystem: npm
+          directory: /web
+          schedule: { interval: weekly }
+          groups:
+            production-dependencies: { dependency-type: production }
+            development-dependencies: { dependency-type: development }
+        - package-ecosystem: npm
+          directory: /theme
+          schedule: { interval: weekly }
+    YAML
+
+    lanes = ActionsYamlInspector.dependabot_analysis(parsed).fetch("lanes")
+    assert lanes[0].fetch("single_version_group")
+    assert lanes[0].fetch("single_security_group")
+    refute lanes[1].fetch("single_version_group")
+    refute lanes[1].fetch("single_security_group")
+    refute lanes[2].fetch("single_version_group")
+  end
+
   def test_dependabot_requires_a_real_lane_sequence
     parsed = parse("version: 2\nupdates: {}\n")
 
