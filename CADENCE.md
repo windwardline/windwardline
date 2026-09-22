@@ -421,7 +421,7 @@ move on — do not re-investigate from scratch each week.
 
 - Off-box archive re-proof: stream every object in `windwardline-archives`
   back and match its md5 against levelflow-cloud `docs/offbox-archives.md`,
-  then stamp that register's restore-proven date. Use the restore recipe in
+  then stamp that register's Last proven date. Use the restore recipe in
   that document; R2 egress is free and no extraction is needed for the hash.
   The weekly read matches key and size, which a truncated or re-uploaded
   object can survive — only the md5 answers the bytes. These archives exist
