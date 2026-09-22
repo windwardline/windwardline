@@ -368,6 +368,16 @@ not by the provider's default retention.** Backup buckets get lifecycle expiry, 
 databases get a reaper, and anything else that accumulates gets named here with its
 expiry before it ships.
 
+One exception is sanctioned, and it buys its way out. A **permanent archive bucket**
+carries no expiry: what it holds is kept because it cannot be re-made. It pays with a
+bucket lock, a full restore proved before upload, a register row per object naming that
+object's md5 and size, a weekly read of the rules and the objects, and a monthly
+stream-back that matches each object's md5 — the scheduled restore proof this fleet
+requires of every unrecoverable dataset, since no expiry means nothing else would
+ever read these bytes again.
+`windwardline-archives` is the only one. Nothing else may claim it, and no bucket that
+takes scheduled writes may claim it at all.
+
 ### Deploy count is the build bill, not build duration (2026-09-03)
 
 Vercel bills Build CPU Minutes per deployment, and the charge is dominated by fixed
@@ -434,7 +444,7 @@ nothing that accumulates, and it is as reviewable as any other row.
 | `anthropic` | none — API and OAuth credentials only | — |
 | `bluesky` | none — posts are content, not provisioned resources | — |
 | `buffer` | none — scheduling queue held by the vendor | — |
-| `cloudflare` | **yes** — R2 backup objects, written on a schedule, now for TWO datasets | `windwardline-backups` lifecycle rule, 365-day expiry (set 2026-09-03), plus each writer's own remote prune: minute-bank keeps 60, postgres keeps 60. The Postgres archive joined on 2026-09-14 under the same `<repo>/<dataset>/<YYYY>/<MM>/` contract rather than a second tree — 13.4 MB a day against a 10 GB free tier. Workers, Durable Objects, Queues and Cron are paid-tier reachable but zero are deployed; a first Worker needs this row revisited |
+| `cloudflare` | **yes** — R2 objects, in two buckets. `windwardline-backups` holds scheduled daily copies under `<repo>/<dataset>/<YYYY>/<MM>/`: levelflow-cloud's minute bank and, since 2026-09-14, its Postgres dump at 13.4 MB a day. `windwardline-archives` (created 2026-09-21) holds permanent, write-once archives under `<repo>/<dataset>/`, uploaded by hand and never on a schedule | `windwardline-backups`: each writer's own remote prune (minute-bank keeps 60, postgres keeps 60), then the bucket's `expire-backups-after-365-days` lifecycle rule over every object (prefix `""`, set 2026-09-03). `windwardline-archives`: nothing, by design — no lifecycle expiry, an indefinite bucket lock, and no script that deletes from it. Each archive is proven before it is written by levelflow-cloud's `scripts/ops/push-archive-offbox.sh` — extracted in staging and `diff -rq` against the source, then uploaded with `copyto --ignore-existing` under a per-key lock, then streamed back to match md5, because under the lock a proof that failed after the upload would spend the key. Not `--immutable`: rclone checks it only when walking a directory, and `copyto` of one file replaced a different object with exit 0 (v1.75.1, 2026-09-22) — and gets a row in that repo's `docs/offbox-archives.md`. Why two buckets: `windwardline-backups` expires every object at 365 days, so the minute bank's `minute-bank-20260823.tar.zst`, spared by name from its writer's prune, still expires around 2027-09-02. One bucket, one uniform rule set — the weekly assertion is then total, and no permanent exception lives inside a bucket whose job is deletion. Whether a prefix-scoped lock rule outranks a catch-all lifecycle rule is **unverified**; the first cadence run answers it, and either answer keeps the split. The lock detects, it does not prevent: `cloudflare-r2-backup` is account-scoped R2 Storage Write and both daily writers hold it, so an account-scoped credential can drop the lock and then delete — the weekly read finds that up to seven days later. Object-scoped keys per bucket would prevent it; owner call, not taken. Nothing bounds the archive bucket's size but the uploads, and `ops/cost-ceiling-check.sh` sizes `windwardline-backups` against 8 GB alone, so account storage can pass R2's 10 GB free allowance with that check green. CADENCE step 5 asserts both buckets' rules and the archive objects weekly, and the monthly cadence streams each archive back for its md5. Workers, Durable Objects, Queues and Cron are paid-tier reachable but zero are deployed; a first Worker needs this row revisited |
 | `fmp` | none — request quota, nothing provisioned | — |
 | `ghost` | none — managed-edge content | — |
 | `github` | **yes** — Actions artifacts and logs | GitHub's own retention, 90 days by default. Free on public repos, which every CI-running repo here is; the two private repos run no workflows. A private repo that gains CI needs this row revisited |
@@ -807,7 +817,7 @@ never silent adoption.
 | Database / backend | Supabase (org "Windward Line") | Neon via the Vercel Marketplace where it fits (precedent: pathfinder) |
 | Hosting | Vercel | — |
 | DNS / edge | Cloudflare (Windward Line account), **Workers Paid** since 2026-09-01 | — |
-| Object storage | **Cloudflare R2** (`windwardline-backups`), R2 Paid since 2026-09-01 | — |
+| Object storage | **Cloudflare R2** (`windwardline-backups`, `windwardline-archives`), R2 Paid since 2026-09-01 | — |
 | Source | GitHub `windwardline` | — |
 | AI inference | Groq (the `openai` SDK pointed at Groq is the house client) | Better-fit provider with owner approval |
 | Email | **Resend — the only outbound provider**, transactional, auth and relay alike | — |
@@ -819,8 +829,10 @@ and 10M Class B operations free per month, then $0.015/GB), and **Images Stream
 Basic**. Workers Paid raises Workers off the free tier's limits and is the
 prerequisite for Durable Objects, Queues and Cron beyond the free allowance —
 so a fleet project may now reach for those without a new purchase. R2 exists
-because the Levelflow minute bank needed an off-box copy; it is general-purpose
-and any repo may use the same bucket under its own `<repo>/<dataset>/` prefix.
+because the Levelflow minute bank needed an off-box copy. Any repo may use it
+under its own `<repo>/<dataset>/` prefix: scheduled copies in
+`windwardline-backups`, which expire, and write-once archives in
+`windwardline-archives`, which never do.
 
 Declined, with the reason recorded so they are not re-proposed:
 
