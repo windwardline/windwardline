@@ -294,6 +294,18 @@ owner-decision items last. Its eight steps are the complete pathway named by
      checked for archive presence rather than skipped, so the data silently
      ceasing to be dumped still fires. Exit 1 the archive does not recover;
      2 it could not be checked, and an empty bucket is the finding, not a pass.
+   - Minute-bank restore proof: `verify-minute-bank-restore.sh` in
+     `windwardline/levelflow-cloud` exits 0, run from that checkout as
+     `wl-secret cloudflare-r2-backup=R2_TOKEN -- bash scripts/ops/verify-minute-bank-restore.sh`.
+     The daily push matches the remote md5 and the parity check matches names;
+     neither unpacks anything. This pulls the newest `minute-bank-<YYYYMMDD>`
+     archive out of R2, tests and extracts it, and requires every restored
+     data file to be the head of the live one, every sidecar's count to match
+     its lines, and every live symbol the archive lacks to have started after
+     the snapshot. An archive stamped more than three days before today fails:
+     the daily push has stopped. First proof 2026-09-22: `minute-bank-20260922`,
+     100 data files, 3,516,278 bars restored, equal to live. Exit 1 names every
+     reason it does not restore.
    - R2 retention rules, then the archive objects: no script. Read both
      buckets through the Cloudflare MCP (`cloudflare-api` `execute`) on
      account `c8da9a44c29c435205b2ec133ee05f20`, GET only:
