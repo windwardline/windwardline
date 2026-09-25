@@ -278,8 +278,9 @@ owner-decision items last. Its eight steps are the complete pathway named by
      non-numeric limit all land there, because "I could not find a number above
      the ceiling" is not "every number is below it".
    - Off-box restore proof: `verify-postgres-restore.sh` in
-     `windwardline/levelflow-cloud` exits 0, run as
-     `wl-secret supabase-db-levelflow=PGPASSWORD cloudflare-r2-backup=R2_TOKEN -- scripts/ops/verify-postgres-restore.sh`.
+     `windwardline/levelflow-cloud` exits 0, run from `origin/main` rather than
+     the shared checkout's branch, as
+     `~/.local/bin/wl-secret supabase-db-levelflow=PGPASSWORD cloudflare-r2-backup=R2_TOKEN -- ~/.local/bin/wl-repo-script /Users/peacock/Projects/levelflow-cloud scripts/ops/verify-postgres-restore.sh`.
      The daily job proves an archive EXISTS, is structurally readable, accounts
      for every table the server names, and matches its remote checksum. None of
      that is recoverability — an archive can satisfy all four and restore to an
@@ -295,8 +296,14 @@ owner-decision items last. Its eight steps are the complete pathway named by
      ceasing to be dumped still fires. Exit 1 the archive does not recover;
      2 it could not be checked, and an empty bucket is the finding, not a pass.
    - Minute-bank restore proof: `verify-minute-bank-restore.sh` in
-     `windwardline/levelflow-cloud` exits 0, run from that checkout as
-     `wl-secret cloudflare-r2-backup=R2_TOKEN -- bash scripts/ops/verify-minute-bank-restore.sh`.
+     `windwardline/levelflow-cloud` exits 0, run from `origin/main` against the
+     checkout's live bank, as
+     `~/.local/bin/wl-secret cloudflare-r2-backup=R2_TOKEN -- env LEVELFLOW_CHECKOUT=/Users/peacock/Projects/levelflow-cloud ~/.local/bin/wl-repo-script /Users/peacock/Projects/levelflow-cloud scripts/ops/verify-minute-bank-restore.sh`.
+     `wl-secret` starts its child under `env -i`, so the checkout is named inside
+     its command; unset, the script reads the extracted tree, finds no bank and
+     refuses. Both proofs take `wl-secret` outermost because neither re-execs
+     through it itself. Both ran this way on 2026-09-25: 21 populated tables from
+     `postgres-20260924`, and 4,615,702 bars from `minute-bank-20260925`.
      The daily push matches the remote md5 and the parity check matches names;
      neither unpacks anything. This pulls the newest `minute-bank-<YYYYMMDD>`
      archive out of R2, tests and extracts it, and requires every restored
