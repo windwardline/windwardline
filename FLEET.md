@@ -1220,9 +1220,15 @@ drift, reported per repo and named for what it is.
    clean, GitHub-current `windwardline/windwardline@main`, run
    `scripts/bootstrap-repo.sh --dry-run --manifest <absolute JSON path>`, then
    rerun without `--dry-run` only after preflight passes. It validates the real
-   project files, closed manifest bundle, ordered gates, exact four-workflow set
-   and least-privilege schemas, current immutable fleet-action release, GitHub
-   identities, and Keychain item presence before creating anything. Before any
+   project files, closed manifest bundle, ordered gates, exact five-workflow set
+   (the project's `ci.yml` and `security.yml` plus the canonical review caller,
+   auto-merge lane, and Neon reaper) and least-privilege schemas, the live
+   template's workflow population, current immutable fleet-action release, GitHub
+   identities, and Keychain item presence before creating anything. The reaper
+   joined the template on 2026-09-03 while this pathway still demanded four
+   workflows, so every apply would have failed after `gh repo create`; the
+   harness never saw it because its fixture template was the manifest input
+   itself. Before any
    repository-owned helper executes, it proves the canonical origin, clean
    `main`, and byte-current remote head, then freezes every bootstrap-owned
    helper and manifest source into private snapshots. Apply mode

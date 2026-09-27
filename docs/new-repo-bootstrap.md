@@ -26,7 +26,7 @@ The manifest's exact fields are:
 - `automerge_app_id`: `4562963`, the reviewed ID for
   `windward-line-automerge`.
 - `ci_gates`: every named executable `run:` step in `ci.yml`, in workflow
-  order. `AGENTS.md` names all four workflows and repeats this exact ordered
+  order. `AGENTS.md` names all five workflows and repeats this exact ordered
   population under its `## Gates` section.
 - `required_checks`: the exact ordered CI and security contexts that run to
   completion on pull requests. `Headers live`, the advisory review,
@@ -45,9 +45,13 @@ The manifest's exact fields are:
   paths. Supply real `AGENTS.md`, `README.md`, `ci.yml`, `security.yml`, and
   `dependabot.yml` files.
 
-The finished repository has exactly four workflows: project-supplied `ci.yml`
-and `security.yml`, plus the bootstrap-owned canonical `claude-review.yml` and
-`dependabot-auto-merge.yml`. A fifth workflow is refused. Structural validation
+The finished repository has exactly five workflows: project-supplied `ci.yml`
+and `security.yml`, plus the bootstrap-owned canonical `claude-review.yml`,
+`dependabot-auto-merge.yml`, and `neon-branch-cleanup.yml`. The last is the
+Neon preview-branch reaper `fleet-template` seeds into every new repository; it
+skips until `NEON_PROJECT_ID` is set. Preflight reads the live template's
+workflow population and refuses any other template workflow before anything is
+created, and a sixth workflow is refused again after the clone. Structural validation
 also installs the byte-current canonical `scripts/scratch-clone.sh`; a manifest
 cannot replace that helper. It requires the exact fleet jobs, exact root
 permissions, and least-privilege job
@@ -64,7 +68,7 @@ Run the read-only preflight first:
   --dry-run --manifest /absolute/path/to/bootstrap.json
 ```
 
-It validates the closed manifest bundle, all four workflows, ordered gates, the
+It validates the closed manifest bundle, all five workflows, ordered gates, the
 current immutable fleet action release and the exact shared action paths at
 that commit, the signed-in GitHub owner, the live template,
 repository-name availability, the GitHub Actions App identity, and required
@@ -89,7 +93,7 @@ bootstrap then:
    blindly. The checkout is cloned under `/Users/peacock/Projects`.
 2. Rejects every symlink or special file inherited from the template before it
    writes. It installs the proprietary license and concrete project contract on
-   a feature branch, validates the exact four-workflow set again, and stages
+   a feature branch, validates the exact five-workflow set again, and stages
    literal explicit paths. The fixed trusted gitleaks executable scans that
    staged content before the first commit or push; a missing scanner, scanner
    error, or non-positive examined-byte count is a failure.

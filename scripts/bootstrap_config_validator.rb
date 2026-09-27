@@ -64,11 +64,16 @@ module BootstrapConfigValidator
     "yarn.lock" => "npm",
     "bun.lockb" => "bun"
   }.freeze
+  # Every workflow a bootstrapped repository carries, so AGENTS.md names each one
+  # before anything is created; the conformance checker requires the same of the
+  # live tree. neon-branch-cleanup.yml is the reaper fleet-template seeds into
+  # every new repository; it stays inert until NEON_PROJECT_ID is set.
   BOOTSTRAP_WORKFLOWS = %w[
     ci.yml
     security.yml
     claude-review.yml
     dependabot-auto-merge.yml
+    neon-branch-cleanup.yml
   ].freeze
 
   module_function
