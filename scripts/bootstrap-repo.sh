@@ -430,6 +430,9 @@ unreconciled_workflows=$(printf '%s' "$template_tree" | jq -r '
   | .[]') || die "fleet template workflow population could not be derived"
 [ -z "$unreconciled_workflows" ] \
   || die "fleet template carries a workflow the bootstrap does not reconcile: $(printf '%s' "$unreconciled_workflows" | tr '\n' ' ')"
+template_tree_sha=$(printf '%s' "$template_tree" \
+  | jq -er '.sha | select(type == "string" and test("^[0-9a-f]{40}$"))') \
+  || die "fleet template tree SHA was malformed"
 
 # A failed `gh api` can mean 404 or refusal. Only an exact HTTP 404 proves the
 # target name is available.
@@ -520,6 +523,38 @@ printf '%s' "$created_repository" | jq -e \
     .default_branch == "main" and .visibility == $visibility
   ' >/dev/null || die "created repository metadata does not match the requested target"
 
+# GitHub copies the template into a new repository a few seconds after creating
+# it; until then the default branch reads 409 "Git Repository is empty". The
+# first real apply in a month cloned inside that window, got an empty
+# repository, and began building a branch with none of the template's files.
+# Wait for the copy, and accept it only when its tree is the template's tree.
+deadline=$(( $(date +%s) + WAIT_SECONDS ))
+while :; do
+  # An empty repository answers 409, which is expected here. The ERR trap is
+  # lifted for this one read because it would otherwise fire inside the
+  # redirected call, mark the partial state reported, and send that report to
+  # /dev/null, so a later real failure would never name the retained targets.
+  set +e
+  trap - ERR
+  seed_response=$(gh api --include "repos/$full_repository/commits/main" 2>/dev/null)
+  trap report_partial_state ERR
+  set -e
+  seed_status=$(printf '%s\n' "$seed_response" | sed -n '1s/^HTTP\/[^ ]* \([0-9][0-9][0-9]\).*/\1/p')
+  case "$seed_status" in
+    200) break ;;
+    404|409|500|502|503|504) ;;
+    *) die "the template copy in $full_repository could not be read" ;;
+  esac
+  [ "$(date +%s)" -lt "$deadline" ] \
+    || die "timed out waiting for GitHub to copy the template into $full_repository"
+  sleep "$POLL_SECONDS"
+done
+seed_tree=$(printf '%s\n' "$seed_response" | sed '1,/^[[:space:]]*$/d' \
+  | jq -er '.commit.tree.sha | select(type == "string" and test("^[0-9a-f]{40}$"))') \
+  || die "the template copy in $full_repository had no readable tree"
+[ "$seed_tree" = "$template_tree_sha" ] \
+  || die "the new repository's seed tree differs from the template's tree"
+
 # Everything below is scoped to the repository just created. The initial main
 # branch remains the template seed; real project files land through a branch
 # and pull request, never by committing directly to main.
@@ -534,6 +569,10 @@ assert_destination_origin() {
 
 git clone "https://github.com/$full_repository.git" "$destination"
 assert_destination_origin
+clone_tree=$(git -C "$destination" rev-parse --verify --quiet 'HEAD^{tree}') \
+  || die "the clone does not hold the template seed: it has no commit"
+[ "$clone_tree" = "$seed_tree" ] \
+  || die "the clone does not hold the template seed: its tree differs"
 [ -z "$(git -C "$destination" status --porcelain)" ] || die "new clone is unexpectedly dirty"
 ruby -rfind -e '
   root = File.realpath(ARGV.fetch(0))
@@ -690,7 +729,14 @@ if ! "$GITLEAKS_BIN" git --staged --redact=100 --no-banner --no-color \
   >"$tmp/gitleaks.stdout" 2>"$tmp/gitleaks.stderr"; then
   die "staged secret scan failed; nothing was committed or pushed"
 fi
-scan_bytes=$(sed -nE 's/.*scanned ~.*\(([1-9][0-9]*)( bytes)?\) in .*/\1/p' \
+# gitleaks 8.30 prints "scanned ~2512 bytes (2.51 KB)": the exact count after
+# the tilde, a humanised size in parentheses. Older releases printed the count in
+# the parentheses, "~1 KB (1024 bytes)". Reading only the parentheses accepted
+# scans under 1 KB and refused every real bootstrap, so both shapes are read,
+# and a zero or absent count still fails.
+scan_bytes=$(sed -nE \
+  -e 's/.*scanned ~([1-9][0-9]*) bytes \(.*/\1/p' \
+  -e 's/.*scanned ~.*\(([1-9][0-9]*)( bytes)?\) in .*/\1/p' \
   "$tmp/gitleaks.stderr" | tail -1)
 printf '%s' "$scan_bytes" | grep -Eq '^[1-9][0-9]*$' \
   || die "staged secret scan reported no positive examined-byte count"

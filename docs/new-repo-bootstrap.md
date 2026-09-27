@@ -90,7 +90,10 @@ bootstrap then:
    and reads the exact repository back from GitHub before trusting the result.
    If creation reports an ambiguous failure, the readback distinguishes a
    created remote from an exact absence; it is never safe to retry the name
-   blindly. The checkout is cloned under `/Users/peacock/Projects`.
+   blindly. GitHub copies the template a few seconds after creation, so the
+   bootstrap waits for the default branch, accepts it only when its tree equals
+   the template's tree, and refuses a clone that does not hold that tree. The
+   checkout is cloned under `/Users/peacock/Projects`.
 2. Rejects every symlink or special file inherited from the template before it
    writes. It installs the proprietary license and concrete project contract on
    a feature branch, validates the exact five-workflow set again, and stages
