@@ -206,9 +206,16 @@ for tool_path in "$GH_BIN" "$GIT_BIN" "$JQ_BIN" "$RUBY_BIN" "$ACTIONLINT_BIN" "$
   [ -x "$tool_path" ] || die "required executable is unavailable: $tool_path"
 done
 [ -x "$SECURITY_BIN" ] || die "Keychain reader is unavailable: $SECURITY_BIN"
-[ -x "$PIN_AUDITOR" ] || die "action-pin release resolver is unavailable: $PIN_AUDITOR"
-[ -x "$HEADER_PROBE_BIN" ] || die "live-header probe is unavailable: $HEADER_PROBE_BIN"
-[ -x "$CONFORMANCE_BIN" ] || die "fleet conformance checker is unavailable: $CONFORMANCE_BIN"
+# These three run only as `/bin/bash --noprofile --norc <file>`, so what they
+# need is to be a readable regular file, not to carry an executable bit. The
+# canonical verify-live-headers.sh is tracked 0644, and an `-x` test here
+# refused every real run from 2026-08-26 while the harness's +x doubles passed.
+[ -f "$PIN_AUDITOR" ] && [ -r "$PIN_AUDITOR" ] \
+  || die "action-pin release resolver is unavailable: $PIN_AUDITOR"
+[ -f "$HEADER_PROBE_BIN" ] && [ -r "$HEADER_PROBE_BIN" ] \
+  || die "live-header probe is unavailable: $HEADER_PROBE_BIN"
+[ -f "$CONFORMANCE_BIN" ] && [ -r "$CONFORMANCE_BIN" ] \
+  || die "fleet conformance checker is unavailable: $CONFORMANCE_BIN"
 for required_file in "$VALIDATOR" "$INSPECTOR" "$FLEET_MD" "$REVIEW_CALLER" \
                      "$AUTOMERGE_WORKFLOW" "$NEON_REAPER_WORKFLOW" "$LICENSE_TEMPLATE" \
                      "$SCRATCH_TEMPLATE" "$APP_KEY_VERIFIER"; do
