@@ -190,6 +190,20 @@ set -euo pipefail
 [ "${USER:-}" = peacock ] || exit 89
 [ "${GH_CONFIG_DIR:-}" = /Users/peacock/.config/gh ] || exit 89
 printf '%s\n' "$*" >>"$BOOTSTRAP_TEST_GH_LOG"
+# GitHub copies a template into a new repository a few seconds after creating
+# it, and until then the default branch reads 409 "Git Repository is empty".
+# Every apply sees at least one empty read first, as a real one does.
+if [[ "$*" == 'api --include repos/windwardline/'*'/commits/main' ]]; then
+  polls=$(( $(cat "$BOOTSTRAP_TEST_SEED_COUNTER") + 1 ))
+  printf '%s\n' "$polls" >"$BOOTSTRAP_TEST_SEED_COUNTER"
+  if [ "$polls" -le "${BOOTSTRAP_TEST_SEED_EMPTY_POLLS:-1}" ]; then
+    printf 'HTTP/2 409 Conflict\r\n\r\n{"message":"Git Repository is empty."}\n'
+    exit 1
+  fi
+  printf 'HTTP/2 200 OK\r\n\r\n{"sha":"ffffffffffffffffffffffffffffffffffffffff","commit":{"tree":{"sha":"%s"}}}\n' \
+    "${BOOTSTRAP_TEST_SEED_TREE:-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee}"
+  exit 0
+fi
 if [[ "$*" == api\ --include\ repos/windwardline/* ]]; then
   if [ "${BOOTSTRAP_TEST_AMBIGUOUS_CREATE:-0}" = 1 ] &&
      [ -f "$BOOTSTRAP_TEST_CREATED_MARKER" ]; then
@@ -401,6 +415,9 @@ if [ "$1" = -C ]; then
     'diff --cached') exit 1 ;;
     'diff --quiet') [ "${BOOTSTRAP_TEST_TREE_MISMATCH:-0}" != 1 ] ;;
     'rev-parse HEAD'|'rev-parse origin/main') printf 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n' ;;
+    'rev-parse --verify')
+      [ "${BOOTSTRAP_TEST_EMPTY_CLONE:-0}" != 1 ] || exit 128
+      printf '%s\n' "${BOOTSTRAP_TEST_CLONE_TREE:-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee}" ;;
     *) printf 'unexpected mock git call: %s\n' "$*" >&2; exit 94 ;;
   esac
   exit 0
@@ -430,6 +447,20 @@ EOF
 # every real run from 2026-08-26 until it was caught on first use.
 chmod "$(stat -f %Lp "$ROOT/actions/verify-live-headers/verify-live-headers.sh")" "$TEST_BIN/header-probe"
 
+# The gitleaks double replays the byte-count line the installed scanner really
+# prints for a staged scan over 1 KB. It used to print "~1 KB (1024 bytes)", a
+# shape the bootstrap's parser read, while gitleaks 8.30 prints
+# "~2512 bytes (2.51 KB)" for anything over 1 KB. Every real bootstrap failed
+# that parse after `gh repo create`, and this harness passed.
+git init -q "$TMP/gitleaks-probe"
+printf '%2600s\n' probe >"$TMP/gitleaks-probe/probe.txt"
+git -C "$TMP/gitleaks-probe" add probe.txt
+/opt/homebrew/bin/gitleaks git --staged --redact=100 --no-banner --no-color --log-level info \
+  "$TMP/gitleaks-probe" >/dev/null 2>"$TMP/gitleaks-probe.err" \
+  || { printf 'harness: the installed gitleaks failed its probe scan\n' >&2; exit 1; }
+grep -m1 'scanned ~' "$TMP/gitleaks-probe.err" | sed 's/^.*INF /INF /' >"$TMP/gitleaks-scanned-line" \
+  || { printf 'harness: the installed gitleaks printed no byte count\n' >&2; exit 1; }
+
 cat >"$TEST_BIN/gitleaks" <<'EOF'
 #!/bin/sh
 printf 'gitleaks %s\n' "$*" >>"$BOOTSTRAP_TEST_GH_LOG"
@@ -439,8 +470,10 @@ if [ "${BOOTSTRAP_TEST_GITLEAKS_FAIL:-0}" = 1 ]; then
 fi
 if [ "${BOOTSTRAP_TEST_GITLEAKS_VACUOUS:-0}" = 1 ]; then
   printf 'INF scanned ~0 bytes (0) in 1ms\n' >&2
+elif [ -n "${BOOTSTRAP_TEST_GITLEAKS_LINE:-}" ]; then
+  printf '%s\n' "$BOOTSTRAP_TEST_GITLEAKS_LINE" >&2
 else
-  printf 'INF scanned ~1 KB (1024 bytes) in 1ms\n' >&2
+  cat "$BOOTSTRAP_TEST_GITLEAKS_REAL_LINE" >&2
 fi
 EOF
 chmod +x "$TEST_BIN/gitleaks"
@@ -571,7 +604,15 @@ EOF
 }
 
 run_bootstrap() {
+  printf '0\n' >"$TMP/seed-counter"
   env \
+    BOOTSTRAP_TEST_SEED_COUNTER="$TMP/seed-counter" \
+    BOOTSTRAP_TEST_SEED_EMPTY_POLLS="${BOOTSTRAP_TEST_SEED_EMPTY_POLLS:-1}" \
+    BOOTSTRAP_TEST_SEED_TREE="${BOOTSTRAP_TEST_SEED_TREE:-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee}" \
+    BOOTSTRAP_TEST_CLONE_TREE="${BOOTSTRAP_TEST_CLONE_TREE:-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee}" \
+    BOOTSTRAP_TEST_EMPTY_CLONE="${BOOTSTRAP_TEST_EMPTY_CLONE:-0}" \
+    BOOTSTRAP_TEST_GITLEAKS_LINE="${BOOTSTRAP_TEST_GITLEAKS_LINE:-}" \
+    BOOTSTRAP_TEST_GITLEAKS_REAL_LINE="$TMP/gitleaks-scanned-line" \
     BOOTSTRAP_TEST_MODE=1 \
     BOOTSTRAP_TEST_TOKEN="$TEST_TOKEN" \
     BOOTSTRAP_TEST_GH_LOG="$TMP/gh.log" \
@@ -2090,6 +2131,102 @@ else
   cat "$TMP/probe-unreadable.out" >&2
 fi
 chmod "$probe_mode" "$TEST_BIN/header-probe"
+
+make_manifest "$TMP/seed-wait.json" public fixture-seed-wait
+: >"$TMP/gh.log"
+: >"$TMP/git.log"
+if BOOTSTRAP_TEST_SEED_EMPTY_POLLS=3 \
+     run_bootstrap --manifest "$TMP/seed-wait.json" >"$TMP/seed-wait.out" 2>&1 &&
+   grep -q 'Bootstrap complete: windwardline/fixture-seed-wait' "$TMP/seed-wait.out" &&
+   [ "$(grep -c 'api --include repos/windwardline/fixture-seed-wait/commits/main' "$TMP/gh.log")" -eq 4 ]; then
+  ok 'the bootstrap waits for GitHub to copy the template before it clones'
+else
+  not_ok 'the bootstrap waits for GitHub to copy the template before it clones'
+  cat "$TMP/seed-wait.out" >&2
+fi
+
+make_manifest "$TMP/seed-never.json" public fixture-seed-never
+: >"$TMP/gh.log"
+: >"$TMP/git.log"
+if ! BOOTSTRAP_TEST_SEED_EMPTY_POLLS=1000000 \
+     run_bootstrap --manifest "$TMP/seed-never.json" >"$TMP/seed-never.out" 2>&1 &&
+   grep -q 'timed out waiting for GitHub to copy the template' "$TMP/seed-never.out" &&
+   grep -q 'PARTIAL STATE: https://github.com/windwardline/fixture-seed-never exists' "$TMP/seed-never.out" &&
+   grep -q 'repo create windwardline/fixture-seed-never' "$TMP/gh.log" &&
+   ! grep -q ' clone https://github.com/windwardline/fixture-seed-never' "$TMP/git.log" &&
+   ! grep -q 'push -u' "$TMP/git.log"; then
+  ok 'a template copy that never lands stops before the clone and names the partial remote'
+else
+  not_ok 'a template copy that never lands stops before the clone and names the partial remote'
+  cat "$TMP/seed-never.out" >&2
+fi
+
+make_manifest "$TMP/seed-mismatch.json" public fixture-seed-mismatch
+: >"$TMP/gh.log"
+: >"$TMP/git.log"
+if ! BOOTSTRAP_TEST_SEED_TREE='1111111111111111111111111111111111111111' \
+     run_bootstrap --manifest "$TMP/seed-mismatch.json" >"$TMP/seed-mismatch.out" 2>&1 &&
+   grep -q "seed tree differs from the template's tree" "$TMP/seed-mismatch.out" &&
+   ! grep -q 'push -u' "$TMP/git.log"; then
+  ok 'a seed whose tree differs from the template is refused before any write'
+else
+  not_ok 'a seed whose tree differs from the template is refused before any write'
+  cat "$TMP/seed-mismatch.out" >&2
+fi
+
+make_manifest "$TMP/empty-clone.json" public fixture-empty-clone
+: >"$TMP/gh.log"
+: >"$TMP/git.log"
+if ! BOOTSTRAP_TEST_EMPTY_CLONE=1 \
+     run_bootstrap --manifest "$TMP/empty-clone.json" >"$TMP/empty-clone.out" 2>&1 &&
+   grep -q 'clone does not hold the template seed' "$TMP/empty-clone.out" &&
+   ! grep -q 'switch -c' "$TMP/git.log" &&
+   ! grep -q 'push -u' "$TMP/git.log"; then
+  ok 'an empty clone is refused before the bootstrap branch is created'
+else
+  not_ok 'an empty clone is refused before the bootstrap branch is created'
+  cat "$TMP/empty-clone.out" >&2
+fi
+
+if grep -q 'scanned ~[1-9][0-9]* bytes (' "$TMP/gitleaks-scanned-line"; then
+  ok "the gitleaks double replays the installed scanner's own line: $(cat "$TMP/gitleaks-scanned-line")"
+else
+  not_ok 'the gitleaks double replays the installed scanner'"'"'s own line'
+  cat "$TMP/gitleaks-scanned-line" >&2
+fi
+
+shape_n=0
+for shape in 'INF scanned ~2512 bytes (2.51 KB) in 24.9ms' 'INF scanned ~12 bytes (12 bytes) in 23ms' \
+             'INF scanned ~1 KB (1024 bytes) in 1ms'; do
+  shape_n=$((shape_n + 1))
+  make_manifest "$TMP/gitleaks-shape.json" public "fixture-gitleaks-shape-$shape_n"
+  : >"$TMP/gh.log"
+  expected=$(printf '%s' "$shape" | sed -nE 's/.*~([0-9]+) bytes \(.*/\1/p; s/.*\(([0-9]+) bytes\).*/\1/p' | head -1)
+  if BOOTSTRAP_TEST_GITLEAKS_LINE="$shape" \
+       run_bootstrap --manifest "$TMP/gitleaks-shape.json" >"$TMP/gitleaks-shape.out" 2>&1 &&
+     grep -q "Staged secret scan: $expected bytes examined." "$TMP/gitleaks-shape.out"; then
+    ok "the staged-scan byte count is read from: $shape"
+  else
+    not_ok "the staged-scan byte count is read from: $shape"
+    cat "$TMP/gitleaks-shape.out" >&2
+  fi
+done
+
+for shape in 'INF scanned ~0 bytes (0 bytes) in 1ms' 'INF scanned something unexpected in 1ms'; do
+  shape_n=$((shape_n + 1))
+  make_manifest "$TMP/gitleaks-bad.json" public "fixture-gitleaks-bad-$shape_n"
+  : >"$TMP/gh.log"
+  : >"$TMP/git.log"
+  if ! BOOTSTRAP_TEST_GITLEAKS_LINE="$shape" \
+       run_bootstrap --manifest "$TMP/gitleaks-bad.json" >"$TMP/gitleaks-bad.out" 2>&1 &&
+     grep -q 'staged secret scan reported no positive examined-byte count' "$TMP/gitleaks-bad.out" &&
+     ! grep -q 'push -u' "$TMP/git.log"; then
+    ok "an unreadable or zero byte count is refused: $shape"
+  else
+    not_ok "an unreadable or zero byte count is refused: $shape"
+    cat "$TMP/gitleaks-bad.out" >&2
+  fi
+done
 
 printf 'bootstrap tests: %d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

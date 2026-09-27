@@ -1236,11 +1236,16 @@ drift, reported per repo and named for what it is.
    proves the exact App identity and its active all-repository Windward Line
    installation before remote creation and reads creation state back on any ambiguous result;
    it never retries a name blindly. It creates from
-   `windwardline/fleet-template` under `/Users/peacock/Projects`, proves the
+   `windwardline/fleet-template` under `/Users/peacock/Projects`, waits for
+   GitHub's asynchronous template copy and clones only a tree equal to the
+   template's, proves the
    release commit contains every shared action path the generated workflows
    call, and runs the bootstrap-owned staged gitleaks scan through its fixed trusted executable
    path before the first commit or push, refusing a non-positive examined-byte
-   count, and lands the project through a gated squash PR. Repository secrets
+   count, and lands the project through a gated squash PR. The first real apply
+   after 2026-08-26 met both hazards at once: it cloned inside the copy window
+   and got an empty repository, and gitleaks 8.30 reports byte counts in a shape
+   the parser read only below 1 KB. Repository secrets
    are installed only after the merged head, default-branch commit, and complete
    tree are rebound to the validated commit. The App key is reauthenticated from
    the same stream uploaded to Dependabot. The
