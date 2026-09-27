@@ -181,7 +181,7 @@ cat >"$TEST_BIN/pin-auditor" <<EOF
 [ "\${1:-}" = --latest-release ] || exit 64
 printf 'v1.0.0\\t%s\\n' '$pin_sha'
 EOF
-chmod +x "$TEST_BIN/pin-auditor"
+chmod "$(stat -f %Lp "$ROOT/scripts/verify-action-pins.sh")" "$TEST_BIN/pin-auditor"
 
 cat >"$TEST_BIN/gh" <<'EOF'
 #!/bin/bash
@@ -415,7 +415,7 @@ cat >"$TEST_BIN/conformance" <<'EOF'
 printf 'fleet conformance invoked\n' >>"$BOOTSTRAP_TEST_GH_LOG"
 printf 'fixture conformant\n'
 EOF
-chmod +x "$TEST_BIN/conformance"
+chmod "$(stat -f %Lp "$ROOT/scripts/fleet-conformance.sh")" "$TEST_BIN/conformance"
 
 cat >"$TEST_BIN/header-probe" <<'EOF'
 #!/bin/sh
@@ -424,7 +424,11 @@ cat >"$TEST_BIN/header-probe" <<'EOF'
 [ "$2" = bootstrap ] || exit 93
 printf 'header probe invoked\n' >>"$BOOTSTRAP_TEST_GH_LOG"
 EOF
-chmod +x "$TEST_BIN/header-probe"
+# Each helper double carries the mode of the real file it stands in for. The
+# doubles used to be chmod +x while the real verify-live-headers.sh is tracked
+# 0644, so a preflight that demanded an executable bit passed here and refused
+# every real run from 2026-08-26 until it was caught on first use.
+chmod "$(stat -f %Lp "$ROOT/actions/verify-live-headers/verify-live-headers.sh")" "$TEST_BIN/header-probe"
 
 cat >"$TEST_BIN/gitleaks" <<'EOF'
 #!/bin/sh
@@ -2061,6 +2065,31 @@ else
   not_ok 'AGENTS.md must name the seeded Neon reaper before anything is created'
   cat "$TMP/agents-no-neon.out" >&2
 fi
+
+probe_mode=$(stat -f %Lp "$TEST_BIN/header-probe")
+chmod 644 "$TEST_BIN/header-probe"
+make_production_manifest "$TMP/probe-mode.json" fixture-production-probe-mode
+: >"$TMP/gh.log"
+if run_bootstrap --manifest "$TMP/probe-mode.json" >"$TMP/probe-mode.out" 2>&1 &&
+   grep -q 'Bootstrap complete: windwardline/fixture-production-probe-mode' "$TMP/probe-mode.out" &&
+   grep -q 'header probe invoked' "$TMP/gh.log"; then
+  ok 'a helper the bootstrap runs through /bin/bash needs to be readable, not executable'
+else
+  not_ok 'a helper the bootstrap runs through /bin/bash needs to be readable, not executable'
+  cat "$TMP/probe-mode.out" >&2
+fi
+
+chmod 000 "$TEST_BIN/header-probe"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/public.json" >"$TMP/probe-unreadable.out" 2>&1 &&
+   grep -q 'live-header probe is unavailable' "$TMP/probe-unreadable.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'an unreadable helper still fails preflight before any mutation'
+else
+  not_ok 'an unreadable helper still fails preflight before any mutation'
+  cat "$TMP/probe-unreadable.out" >&2
+fi
+chmod "$probe_mode" "$TEST_BIN/header-probe"
 
 printf 'bootstrap tests: %d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
