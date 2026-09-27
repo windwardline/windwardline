@@ -22,6 +22,7 @@ HEADER_PROBE_DEFAULT="$ROOT/actions/verify-live-headers/verify-live-headers.sh"
 FLEET_MD="$ROOT/FLEET.md"
 REVIEW_CALLER="$ROOT/templates/claude-review.yml"
 AUTOMERGE_WORKFLOW="$ROOT/templates/dependabot-auto-merge.yml"
+NEON_REAPER_WORKFLOW="$ROOT/templates/neon-branch-cleanup.yml"
 LICENSE_TEMPLATE="$ROOT/templates/proprietary-license.txt"
 SCRATCH_TEMPLATE="$ROOT/templates/scratch-clone.sh"
 APP_KEY_VERIFIER="$SCRIPT_DIR/github_app_key_verifier.rb"
@@ -108,8 +109,9 @@ The JSON manifest must contain:
 
 `files` maps repository-relative targets to source files. It must supply a real
 AGENTS.md, README.md, ci.yml, security.yml, and dependabot.yml. The bootstrap
-owns CLAUDE.md, LICENSE, SECURITY.md, claude-review.yml, and
-dependabot-auto-merge.yml. Secret values never belong in the manifest.
+owns CLAUDE.md, LICENSE, SECURITY.md, claude-review.yml,
+dependabot-auto-merge.yml, and neon-branch-cleanup.yml. Secret values never
+belong in the manifest.
 
 Use --dry-run first. It validates the complete plan, GitHub identity, current
 fleet action release, GitHub Actions App identity, and Keychain item presence
@@ -208,8 +210,8 @@ done
 [ -x "$HEADER_PROBE_BIN" ] || die "live-header probe is unavailable: $HEADER_PROBE_BIN"
 [ -x "$CONFORMANCE_BIN" ] || die "fleet conformance checker is unavailable: $CONFORMANCE_BIN"
 for required_file in "$VALIDATOR" "$INSPECTOR" "$FLEET_MD" "$REVIEW_CALLER" \
-                     "$AUTOMERGE_WORKFLOW" "$LICENSE_TEMPLATE" "$SCRATCH_TEMPLATE" \
-                     "$APP_KEY_VERIFIER"; do
+                     "$AUTOMERGE_WORKFLOW" "$NEON_REAPER_WORKFLOW" "$LICENSE_TEMPLATE" \
+                     "$SCRATCH_TEMPLATE" "$APP_KEY_VERIFIER"; do
   [ -r "$required_file" ] || die "required bootstrap source is unavailable: $required_file"
 done
 
@@ -297,6 +299,7 @@ mkdir "$tmp/bootstrap-owned"
   "$FLEET_MD" "$tmp/bootstrap-owned/FLEET.md" \
   "$REVIEW_CALLER" "$tmp/bootstrap-owned/claude-review.yml" \
   "$AUTOMERGE_WORKFLOW" "$tmp/bootstrap-owned/dependabot-auto-merge.yml" \
+  "$NEON_REAPER_WORKFLOW" "$tmp/bootstrap-owned/neon-branch-cleanup.yml" \
   "$LICENSE_TEMPLATE" "$tmp/bootstrap-owned/proprietary-license.txt" \
   "$SCRATCH_TEMPLATE" "$tmp/bootstrap-owned/scratch-clone.sh" \
   "$APP_KEY_VERIFIER" "$tmp/bootstrap-owned/github-app-key-verifier.rb" \
@@ -309,6 +312,7 @@ PIN_AUDITOR="$tmp/bootstrap-owned/verify-action-pins.sh"
 FLEET_MD="$tmp/bootstrap-owned/FLEET.md"
 REVIEW_CALLER="$tmp/bootstrap-owned/claude-review.yml"
 AUTOMERGE_WORKFLOW="$tmp/bootstrap-owned/dependabot-auto-merge.yml"
+NEON_REAPER_WORKFLOW="$tmp/bootstrap-owned/neon-branch-cleanup.yml"
 LICENSE_TEMPLATE="$tmp/bootstrap-owned/proprietary-license.txt"
 SCRATCH_TEMPLATE="$tmp/bootstrap-owned/scratch-clone.sh"
 APP_KEY_VERIFIER="$tmp/bootstrap-owned/github-app-key-verifier.rb"
@@ -376,7 +380,8 @@ actionlint \
   "$(jq -r '.files[".github/workflows/ci.yml"]' "$tmp/plan.json")" \
   "$(jq -r '.files[".github/workflows/security.yml"]' "$tmp/plan.json")" \
   "$REVIEW_CALLER" \
-  "$AUTOMERGE_WORKFLOW"
+  "$AUTOMERGE_WORKFLOW" \
+  "$NEON_REAPER_WORKFLOW"
 
 login=$(gh api user --jq '.login') || die "GitHub identity could not be read"
 [ "$login" = "$OWNER" ] || die "gh is authenticated as $login; expected $OWNER"
@@ -387,6 +392,37 @@ printf '%s' "$template_json" | jq -e \
   '.name == "fleet-template" and .is_template == true and .archived == false and
    .visibility == "public" and .default_branch == "main"' >/dev/null \
   || die "fleet template is not the expected public, live main-branch template"
+
+# The template is the other half of the new repository's tree, so its workflow
+# population is read here, before anything exists. The bootstrap reconciles
+# exactly five workflow files: the manifest supplies ci.yml and security.yml,
+# and the bootstrap installs the canonical review caller, auto-merge lane, and
+# Neon reaper. fleet-template seeded that reaper into every new repository on
+# 2026-09-03 while this script still demanded four, and it only discovered the
+# difference after `gh repo create` — a partial remote on every run. Any other
+# template workflow would reach the new repository unaudited, so it is refused
+# now rather than after creation. The post-clone check below still guards the
+# interval between this read and the clone.
+template_tree=$(gh api "repos/$TEMPLATE/git/trees/main?recursive=1") \
+  || die "fleet template tree could not be read"
+printf '%s' "$template_tree" | jq -e '
+  type == "object" and .truncated == false and (.tree | type == "array") and
+  all(.tree[]; (.path | type == "string") and (.type | type == "string")) and
+  ([.tree[] | select(.type == "blob") | .path | select(startswith(".github/workflows/"))]
+    | length > 0)
+' >/dev/null || die "fleet template tree was malformed, truncated, or carried no workflows"
+unreconciled_workflows=$(printf '%s' "$template_tree" | jq -r '
+  [.tree[] | select(.type == "blob") | .path | select(startswith(".github/workflows/"))]
+  - [
+      ".github/workflows/ci.yml",
+      ".github/workflows/security.yml",
+      ".github/workflows/claude-review.yml",
+      ".github/workflows/dependabot-auto-merge.yml",
+      ".github/workflows/neon-branch-cleanup.yml"
+    ]
+  | .[]') || die "fleet template workflow population could not be derived"
+[ -z "$unreconciled_workflows" ] \
+  || die "fleet template carries a workflow the bootstrap does not reconcile: $(printf '%s' "$unreconciled_workflows" | tr '\n' ' ')"
 
 # A failed `gh api` can mean 404 or refusal. Only an exact HTTP 404 proves the
 # target name is available.
@@ -529,12 +565,17 @@ done <"$tmp/files.tsv"
 
 cp -- "$REVIEW_CALLER" "$destination/.github/workflows/claude-review.yml"
 cp -- "$AUTOMERGE_WORKFLOW" "$destination/.github/workflows/dependabot-auto-merge.yml"
+# Installed from the canonical blob rather than trusted from the template, the
+# same as the two lanes above: the checker compares this file wherever it
+# exists, so a template copy that drifted would otherwise fail the first run.
+cp -- "$NEON_REAPER_WORKFLOW" "$destination/.github/workflows/neon-branch-cleanup.yml"
 /bin/mkdir -p "$destination/scripts"
 cp -- "$SCRATCH_TEMPLATE" "$destination/scripts/scratch-clone.sh"
 printf '@AGENTS.md\n' >"$destination/CLAUDE.md"
 staged_paths+=(
   ".github/workflows/claude-review.yml"
   ".github/workflows/dependabot-auto-merge.yml"
+  ".github/workflows/neon-branch-cleanup.yml"
   "CLAUDE.md"
   "LICENSE"
   "SECURITY.md"
@@ -614,12 +655,13 @@ actionlint \
   "$destination/.github/workflows/ci.yml" \
   "$destination/.github/workflows/security.yml" \
   "$destination/.github/workflows/claude-review.yml" \
-  "$destination/.github/workflows/dependabot-auto-merge.yml"
+  "$destination/.github/workflows/dependabot-auto-merge.yml" \
+  "$destination/.github/workflows/neon-branch-cleanup.yml"
 ruby "$INSPECTOR" dependabot <"$destination/.github/dependabot.yml" >/dev/null
 
 ruby -e '
   directory = ARGV.fetch(0)
-  expected = %w[ci.yml claude-review.yml dependabot-auto-merge.yml security.yml]
+  expected = %w[ci.yml claude-review.yml dependabot-auto-merge.yml neon-branch-cleanup.yml security.yml]
   actual = Dir.children(directory).sort
   abort "workflow population differs from the exact bootstrap set" unless actual == expected
   actual.each do |name|

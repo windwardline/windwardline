@@ -32,6 +32,7 @@ cp "$ROOT/templates/claude-review.yml" "$HARNESS/templates/claude-review.yml"
 cp "$ROOT/templates/dependabot-auto-merge.yml" "$HARNESS/templates/dependabot-auto-merge.yml"
 cp "$ROOT/templates/proprietary-license.txt" "$HARNESS/templates/proprietary-license.txt"
 cp "$ROOT/templates/scratch-clone.sh" "$HARNESS/templates/scratch-clone.sh"
+cp "$ROOT/templates/neon-branch-cleanup.yml" "$HARNESS/templates/neon-branch-cleanup.yml"
 printf '%s\n' "$TEST_TOKEN" >"$HARNESS/.bootstrap-test-fixture"
 HARNESS_PHYSICAL=$(cd -P "$HARNESS" && pwd -P)
 
@@ -54,6 +55,7 @@ The live global contract at `~/AGENTS.md` applies. `FLEET.md` governs the workin
 - `security.yml`
 - `claude-review.yml`
 - `dependabot-auto-merge.yml`
+- `neon-branch-cleanup.yml`
 EOF
 
 cat >"$TMP/input/README.md" <<'EOF'
@@ -147,6 +149,29 @@ updates:
           - "*"
 EOF
 
+# The template the mock clone copies. It mirrors the live fleet-template's
+# workflow population: the project pair plus the three workflows the bootstrap
+# reconciles, including the Neon reaper fleet-template seeded into every new
+# repository on 2026-09-03. Until this fixture existed the mock cloned the
+# manifest input itself, which carries two workflows, so the exact-population
+# check never met a template shaped like the real one and every real apply would
+# have failed after `gh repo create`.
+TEMPLATE_FIXTURE="$TMP/template"
+cp -R "$TMP/input" "$TEMPLATE_FIXTURE"
+cp "$ROOT/templates/claude-review.yml" "$TEMPLATE_FIXTURE/.github/workflows/claude-review.yml"
+cp "$ROOT/templates/dependabot-auto-merge.yml" "$TEMPLATE_FIXTURE/.github/workflows/dependabot-auto-merge.yml"
+cp "$ROOT/templates/neon-branch-cleanup.yml" "$TEMPLATE_FIXTURE/.github/workflows/neon-branch-cleanup.yml"
+
+# The tree the preflight reads is derived from the same directory the mock clone
+# copies, so the two cannot disagree.
+template_tree_json() {
+  (cd "$1" && find . -type f | sed 's#^\./##' | LC_ALL=C sort) \
+    | jq -R . \
+    | jq -s '{sha: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", truncated: false,
+              tree: [.[] | {path: ., type: "blob"}]}'
+}
+template_tree_json "$TEMPLATE_FIXTURE" >"$TMP/template-tree.json"
+
 pin_sha=$(sed -n 's#.*verify-action-pins@\([0-9a-f]\{40\}\).*#\1#p' \
   "$TMP/input/.github/workflows/security.yml")
 
@@ -178,6 +203,9 @@ case "$1 ${2:-}" in
   'api user') printf 'windwardline\n' ;;
   'api repos/windwardline/fleet-template')
     printf '{"name":"fleet-template","is_template":true,"archived":false,"visibility":"public","default_branch":"main"}\n'
+    ;;
+  'api repos/windwardline/fleet-template/git/trees/main?recursive=1')
+    cat "$BOOTSTRAP_TEST_TEMPLATE_TREE"
     ;;
   'api repos/windwardline/windwardline/commits/main')
     printf '%s\n' "${BOOTSTRAP_TEST_REMOTE_MAIN:-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}"
@@ -550,7 +578,8 @@ run_bootstrap() {
     BOOTSTRAP_TEST_SOURCE_DIRTY="${BOOTSTRAP_TEST_SOURCE_DIRTY:-}" \
     BOOTSTRAP_TEST_SOURCE_HEAD="${BOOTSTRAP_TEST_SOURCE_HEAD:-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}" \
     BOOTSTRAP_TEST_REMOTE_MAIN="${BOOTSTRAP_TEST_REMOTE_MAIN:-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}" \
-    BOOTSTRAP_TEST_TEMPLATE="${BOOTSTRAP_TEST_TEMPLATE_OVERRIDE:-$TMP/input}" \
+    BOOTSTRAP_TEST_TEMPLATE="${BOOTSTRAP_TEST_TEMPLATE_OVERRIDE:-$TEMPLATE_FIXTURE}" \
+    BOOTSTRAP_TEST_TEMPLATE_TREE="${BOOTSTRAP_TEST_TEMPLATE_TREE_OVERRIDE:-$TMP/template-tree.json}" \
     BOOTSTRAP_TEST_APP_KEY_B64="${BOOTSTRAP_TEST_APP_KEY_B64_OVERRIDE:-$TMP/test-app-key.b64}" \
     BOOTSTRAP_TEST_FAIL_SECRET="${BOOTSTRAP_TEST_FAIL_SECRET:-0}" \
     BOOTSTRAP_TEST_GITLEAKS_FAIL="${BOOTSTRAP_TEST_GITLEAKS_FAIL:-0}" \
@@ -1953,6 +1982,84 @@ else
   cat "$TMP/partial.out" >&2
   cat "$TMP/gh.log" >&2
   cat "$TMP/git.log" >&2
+fi
+
+make_manifest "$TMP/neon.json" public fixture-neon
+: >"$TMP/gh.log"
+: >"$TMP/git.log"
+if run_bootstrap --manifest "$TMP/neon.json" >"$TMP/neon.out" 2>&1 &&
+   grep -q 'Bootstrap complete: windwardline/fixture-neon' "$TMP/neon.out" &&
+   cmp -s "$HARNESS/templates/neon-branch-cleanup.yml" \
+     "$HARNESS_PHYSICAL/projects/fixture-neon/.github/workflows/neon-branch-cleanup.yml" &&
+   [ "$(ls "$HARNESS_PHYSICAL/projects/fixture-neon/.github/workflows" | LC_ALL=C sort | tr '\n' ' ')" = \
+     'ci.yml claude-review.yml dependabot-auto-merge.yml neon-branch-cleanup.yml security.yml ' ]; then
+  ok 'a template carrying the seeded Neon reaper bootstraps with exactly five workflows'
+else
+  not_ok 'a template carrying the seeded Neon reaper bootstraps with exactly five workflows'
+  cat "$TMP/neon.out" >&2
+fi
+
+cp -R "$TEMPLATE_FIXTURE" "$TMP/drifted-template"
+printf '# drifted\n' >>"$TMP/drifted-template/.github/workflows/neon-branch-cleanup.yml"
+make_manifest "$TMP/neon-drift.json" public fixture-neon-drift
+: >"$TMP/gh.log"
+: >"$TMP/git.log"
+if BOOTSTRAP_TEST_TEMPLATE_OVERRIDE="$TMP/drifted-template" \
+     run_bootstrap --manifest "$TMP/neon-drift.json" >"$TMP/neon-drift.out" 2>&1 &&
+   grep -q 'Bootstrap complete: windwardline/fixture-neon-drift' "$TMP/neon-drift.out" &&
+   cmp -s "$HARNESS/templates/neon-branch-cleanup.yml" \
+     "$HARNESS_PHYSICAL/projects/fixture-neon-drift/.github/workflows/neon-branch-cleanup.yml"; then
+  ok 'a drifted template reaper is replaced by the canonical copy before the first commit'
+else
+  not_ok 'a drifted template reaper is replaced by the canonical copy before the first commit'
+  cat "$TMP/neon-drift.out" >&2
+fi
+
+cp -R "$TEMPLATE_FIXTURE" "$TMP/rogue-template"
+cp "$TMP/extra-workflow.yml" "$TMP/rogue-template/.github/workflows/rogue.yml"
+template_tree_json "$TMP/rogue-template" >"$TMP/rogue-tree.json"
+make_manifest "$TMP/rogue.json" public fixture-rogue
+: >"$TMP/gh.log"
+if ! BOOTSTRAP_TEST_TEMPLATE_OVERRIDE="$TMP/rogue-template" \
+     BOOTSTRAP_TEST_TEMPLATE_TREE_OVERRIDE="$TMP/rogue-tree.json" \
+     run_bootstrap --manifest "$TMP/rogue.json" >"$TMP/rogue.out" 2>&1 &&
+   grep -q 'fleet template carries a workflow the bootstrap does not reconcile: .github/workflows/rogue.yml' \
+     "$TMP/rogue.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log" &&
+   ! grep -q 'PARTIAL STATE' "$TMP/rogue.out"; then
+  ok 'a template workflow the bootstrap cannot reconcile fails preflight before any mutation'
+else
+  not_ok 'a template workflow the bootstrap cannot reconcile fails preflight before any mutation'
+  cat "$TMP/rogue.out" >&2
+fi
+
+jq '.truncated = true' "$TMP/template-tree.json" >"$TMP/truncated-tree.json"
+jq '.tree |= map(select(.path | startswith(".github/workflows/") | not))' \
+  "$TMP/template-tree.json" >"$TMP/no-workflow-tree.json"
+for tree_case in truncated-tree no-workflow-tree; do
+  : >"$TMP/gh.log"
+  if ! BOOTSTRAP_TEST_TEMPLATE_TREE_OVERRIDE="$TMP/$tree_case.json" \
+       run_bootstrap --dry-run --manifest "$TMP/public.json" >"$TMP/$tree_case.out" 2>&1 &&
+     grep -q 'fleet template tree was malformed, truncated, or carried no workflows' "$TMP/$tree_case.out" &&
+     ! grep -q 'repo create' "$TMP/gh.log"; then
+    ok "a $tree_case template read cannot pass as an empty workflow population"
+  else
+    not_ok "a $tree_case template read cannot pass as an empty workflow population"
+    cat "$TMP/$tree_case.out" >&2
+  fi
+done
+
+grep -v 'neon-branch-cleanup.yml' "$TMP/input/AGENTS.md" >"$TMP/agents-no-neon.md"
+jq --arg source "$TMP/agents-no-neon.md" '.files["AGENTS.md"] = $source' \
+  "$TMP/public.json" >"$TMP/agents-no-neon.json"
+: >"$TMP/gh.log"
+if ! run_bootstrap --dry-run --manifest "$TMP/agents-no-neon.json" >"$TMP/agents-no-neon.out" 2>&1 &&
+   grep -q 'AGENTS.md must name bootstrap workflow neon-branch-cleanup.yml' "$TMP/agents-no-neon.out" &&
+   ! grep -q 'repo create' "$TMP/gh.log"; then
+  ok 'AGENTS.md must name the seeded Neon reaper before anything is created'
+else
+  not_ok 'AGENTS.md must name the seeded Neon reaper before anything is created'
+  cat "$TMP/agents-no-neon.out" >&2
 fi
 
 printf 'bootstrap tests: %d passed, %d failed\n' "$pass" "$fail"
