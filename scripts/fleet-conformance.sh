@@ -33,7 +33,7 @@ command -v ruby >/dev/null 2>&1 || { echo "ERROR: ruby is required for fail-clos
 [ -r "$YAML_INSPECTOR" ] || { echo "ERROR: YAML inspector is missing: $YAML_INSPECTOR" >&2; exit 2; }
 [ -r "$PIN_AUDITOR" ] || { echo "ERROR: action-pin auditor is missing: $PIN_AUDITOR" >&2; exit 2; }
 EXEMPT="windwardline venture ops"   # mirrors FLEET.md's exceptions register exactly
-PRIVATE_BY_DESIGN="ops venture"     # mirrors FLEET.md's private-by-design register
+PRIVATE_BY_DESIGN="ops social-presence venture"     # mirrors FLEET.md's private-by-design register
 # Repos the owner has reserved, which therefore lag a fleet-wide change. Named
 # and reported every run rather than skipped: a skip list that cannot say why
 # is how fleet-template sat exempt while merging eight PRs through no gate.

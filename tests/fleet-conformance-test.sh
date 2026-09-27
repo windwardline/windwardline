@@ -1289,7 +1289,7 @@ extra' ;;
   repos/windwardline/levelflow-cloud/branches/main)
     emit 200 '{"name":"main","commit":{"sha":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}}'
     ;;
-  repos/windwardline/craft|repos/windwardline/ops|repos/windwardline/venture|repos/windwardline/windwardline)
+  repos/windwardline/craft|repos/windwardline/ops|repos/windwardline/social-presence|repos/windwardline/venture|repos/windwardline/windwardline)
     repo_name=${endpoint##*/}
     [ "$MOCK_SCENARIO" = registered_repo_missing ] && [ "$repo_name" = craft ] \
       && { emit 404 '{"message":"Not Found"}'; exit $?; }
@@ -1301,7 +1301,7 @@ extra' ;;
     fi
     emit 200 "{\"name\":\"$repo_name\",\"archived\":false,\"default_branch\":\"$default_branch\"}"
     ;;
-  repos/windwardline/craft/branches/*|repos/windwardline/ops/branches/*|repos/windwardline/venture/branches/*|repos/windwardline/windwardline/branches/*)
+  repos/windwardline/craft/branches/*|repos/windwardline/ops/branches/*|repos/windwardline/social-presence/branches/*|repos/windwardline/venture/branches/*|repos/windwardline/windwardline/branches/*)
     repo_and_branch=${endpoint#repos/windwardline/}
     repo_name=${repo_and_branch%%/*}
     encoded_branch=${endpoint##*/}
@@ -1532,6 +1532,7 @@ MD
 | Repo | Why |
 |---|---|
 | `ops` | Private |
+| `social-presence` | Private |
 | `venture` | Private |
 ## Held repos
 | Repo | Behind |
