@@ -977,9 +977,17 @@ embed one and records which candidate tools do. The same rule opens the global
 `~/AGENTS.md` section "Published media".
 
 - **The strip step is `scripts/strip-ai-provenance.sh`** (this repo). It
-  validates every input before the first write, removes every metadata block
-  exiftool can write while keeping the colour profile and orientation, then
-  re-scans each file and exits 1 if a marker survived. A file whose name lies
+  validates every input before the first write and removes every metadata
+  block exiftool can write, JFIF density and container tags included. It then
+  writes back the fields that decide how the picture renders (ICC profile, EXIF
+  orientation and colour space, PNG sRGB, gamma and density; chromaticity
+  survives on its own), fingerprints them before and after, and exits 1 if any
+  changed or if a marker survived. Video colour and rotation live in the
+  stream, which exiftool does not touch; it may move an MP4's index to the
+  front of the file, which is harmless. Until 2026-09-28 the tool claimed the
+  colour fields and dropped PNG sRGB, gamma and density: the grown-men-grow#223
+  review caught the unproven claim, and none of the 80 files stripped at
+  landing carried those chunks. A file whose name lies
   about its type (mimic's JPEG saved as `opengraph-image.png`) is stripped as a
   correctly named copy and written back under its own name. It needs
   `exiftool` (Homebrew). `tests/strip-ai-provenance-test.sh` signs real JPEG, PNG and MP4

@@ -37,6 +37,7 @@ signed=""
 for ext in jpg png mp4; do
   c2patool "base.$ext" -m manifest.json -o "signed.$ext" -f >/dev/null 2>&1 || { echo "ERROR: c2patool could not sign base.$ext" >&2; exit 2; }
   c2patool "signed.$ext" 2>/dev/null | grep -q trainedAlgorithmicMedia || { echo "ERROR: signed.$ext carries no readable manifest; the fixture proves nothing." >&2; exit 2; }
+  cp "signed.$ext" "pristine.$ext" || exit 2
   signed="$signed signed.$ext"
 done
 exiftool -q -o tagged.jpg '-XMP-iptcExt:DigitalSourceType=http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia' \
@@ -57,7 +58,47 @@ for f in $signed tagged.jpg; do
 done
 if exiftool -s3 -XMP-iptcExt:DigitalSourceType tagged.jpg | grep -q .; then not_ok "IPTC source type removed"; else ok "IPTC source type removed"; fi
 
-cp signed.jpg mislabeled.png
+# Colour survives. The PNG carries sRGB, gamma and chromaticity chunks, plus
+# the one pixel-density chunk it already had, beside its manifest; the JPEG carries an ICC profile, a rotated EXIF
+# orientation and an EXIF colour space. All of it must come through unchanged.
+python3 - <<'PY' || exit 2
+import struct, zlib
+def chunk(t, d): return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xffffffff)
+src = open("pristine.png", "rb").read()
+extra = (chunk(b"sRGB", b"\x00") + chunk(b"gAMA", struct.pack(">I", 45455))
+         + chunk(b"cHRM", struct.pack(">8I", 31270, 32900, 64000, 33000, 30000, 60000, 15000, 6000)))
+types, i = [], 8
+while i + 8 <= len(src):
+    n, = struct.unpack(">I", src[i:i + 4]); types.append(src[i + 4:i + 8]); i += 12 + n
+assert types.count(b"pHYs") == 1, "the signed PNG must carry exactly one pHYs chunk of its own"
+open("colour.png", "wb").write(src[:33] + extra + src[33:])
+PY
+icc=$(ls /System/Library/ColorSync/Profiles/*.icc 2>/dev/null | head -1)
+[ -n "$icc" ] || { echo "ERROR: no ICC profile on this machine to build the JPEG fixture." >&2; exit 2; }
+exiftool -q -o colour.jpg "-icc_profile<=$icc" -EXIF:Orientation#=6 -EXIF:ColorSpace#=1 pristine.jpg || exit 2
+png_chunks() { python3 -c "import struct,sys
+d=open(sys.argv[1],'rb').read();i=8;o=[]
+while i+8<=len(d):
+    n,=struct.unpack('>I',d[i:i+4]);t=d[i+4:i+8].decode();o.append(t);i+=12+n
+    if t=='IEND':break
+print(' '.join(sorted(set(o)-{'IDAT'})))" "$1"; }
+jpeg_fields() { exiftool -s3 -ICC_Profile:ProfileDescription -EXIF:Orientation -EXIF:ColorSpace "$1" | tr '\n' '|'; }
+want_jpeg=$(jpeg_fields colour.jpg)
+bash "$STRIP" colour.png colour.jpg >out 2>&1
+rc=$?
+if [ "$rc" -eq 0 ] && [ "$(png_chunks colour.png)" = "IEND IHDR cHRM gAMA pHYs sRGB" ]; then
+  ok "PNG sRGB, gamma, chromaticity and density survive; the manifest does not"
+else
+  not_ok "PNG sRGB, gamma, chromaticity and density survive (rc=$rc, chunks: $(png_chunks colour.png))"; sed 's/^/  /' out
+fi
+if [ "$rc" -eq 0 ] && [ -n "$want_jpeg" ] && [ "$(jpeg_fields colour.jpg)" = "$want_jpeg" ]; then
+  ok "JPEG ICC profile, orientation and colour space survive"
+else
+  not_ok "JPEG ICC profile, orientation and colour space survive (want $want_jpeg, got $(jpeg_fields colour.jpg))"
+fi
+grep -q 'compared before and after' out && ok "strip says which rendering fields it compared" || not_ok "strip says which rendering fields it compared"
+
+cp pristine.jpg mislabeled.png
 bash "$STRIP" mislabeled.png >out 2>&1
 rc=$?
 if [ "$rc" -eq 0 ] && c2patool mislabeled.png 2>&1 | grep -qi 'no claim found' \
@@ -67,7 +108,7 @@ else
   not_ok "JPEG data named .png is stripped in place and stays JPEG (rc=$rc)"; sed 's/^/  /' out
 fi
 
-cp signed.jpg keep.jpg
+cp pristine.jpg keep.jpg
 before=$(shasum -a 256 keep.jpg)
 printf 'x' >notes.txt
 bash "$STRIP" keep.jpg notes.txt >out 2>&1
