@@ -37,6 +37,12 @@ jq -e '.hooks.PreToolUse[0].hooks[0].command | test("repo-location-guard")' "$G"
 # This audit stays the weekly backstop; a disarmed guard is drift.
 jq -e '[.hooks.SessionStart[]?.hooks[]?.command] | any(test("settings-hygiene-guard"))' "$G" >/dev/null 2>&1 \
   || say "global hooks: settings-hygiene guard not registered"
+# The JSON-interpreter guard (PreToolUse) blocks `python3 -c`/`node -e` JSON
+# parses and points at jq, which is on standing allow. Each such parse used to
+# prompt, and approving it wrote an interpreter wildcard: ten stripped in one
+# night of 2026-09-27. The prose rule in ~/AGENTS.md asks; this enforces it.
+jq -e '[.hooks.PreToolUse[]?.hooks[]?.command] | any(test("json-interpreter-guard"))' "$G" >/dev/null 2>&1 \
+  || say "global hooks: json-interpreter guard not registered"
 jq -e '.hooks.Stop' "$W" >/dev/null 2>&1 \
   || say "workspace hooks: done-gate Stop hook not registered"
 
@@ -75,7 +81,26 @@ jq -e '.hooks.Stop' "$W" >/dev/null 2>&1 \
 # world-writable directory — anything that can win the race to write that path
 # gets an unprompted run. Scoped to /tmp deliberately: the session scratchpad
 # under /private/tmp/claude-501/<uuid>/ is not shared and not predictable.
-LOCAL_BAD='gh (api|pr|repo|auth|workflow) \*|security (dump-keychain|find-(generic|internet)-password|export|unlock-keychain)|security (delete|add|set)-(generic|internet)-password|Bash\((chmod \+x )?/tmp/|python[0-9]? -c|python[0-9]? -\)|node[^)]* -e|npm run \*|Bash\(npx[^)]*\*|apply_migration|execute_sql|execute_zapier_write|Read\(//Users/peacock/\*\*|postgres(ql)?://[^"]*:[^@"]{6,}@|wrangler login|brew install \*|git reset \*|git rm \*'
+#
+# Five clauses added 2026-09-28, for twelve grants this audit passed clean.
+# Ten sat in ~/.claude/settings.local.json, dated 11 August, applying to every
+# session:
+# - worldwritable-exec also catches an interpreter or shell in front of the
+#   /tmp path — `Bash(zsh -ic 'python3 /tmp/fmptest.py')` is the same standing
+#   execution the Bash(/tmp/...) form names. The interpreter is anchored to a
+#   word boundary so `cp x.sh /tmp/y.bak` is not read as `sh /tmp/`.
+# - applescript-wildcard: `osascript *` runs arbitrary AppleScript, which
+#   shells out to anything. It is an interpreter wildcard under another name.
+# - infra-execute: the Cloudflare API `execute` tool reads and writes the whole
+#   account through one name, the same shape as execute_sql above.
+# - launchd-wildcard: `launchctl load|submit *` registers arbitrary persistent
+#   jobs without a prompt.
+# - mcp-config-wildcard: `claude|codex|docker mcp *` rewrites MCP registries,
+#   which mcp-health.sh and the service baseline exist to hold still.
+# Measured before adding: across all 1,004 allow/ask/deny entries in the 11
+# settings files on the machine, the five clauses flag exactly those twelve,
+# all on allow, and nothing in ask or deny.
+LOCAL_BAD='gh (api|pr|repo|auth|workflow) \*|security (dump-keychain|find-(generic|internet)-password|export|unlock-keychain)|security (delete|add|set)-(generic|internet)-password|Bash\((chmod \+x )?/tmp/|[( '"'"'"](python[0-9]?|bash|sh|zsh|node|ruby|perl) /tmp/|osascript \*|cloudflare-api__execute|launchctl (load|unload|bootstrap|bootout|submit) \*|(claude|codex|docker|agy) mcp(:| )\*|python[0-9]? -c|python[0-9]? -\)|node[^)]* -e|npm run \*|Bash\(npx[^)]*\*|apply_migration|execute_sql|execute_zapier_write|Read\(//Users/peacock/\*\*|postgres(ql)?://[^"]*:[^@"]{6,}@|wrangler login|brew install \*|git reset \*|git rm \*'
 while IFS= read -r f; do
   hits=$(grep -nE "$LOCAL_BAD" "$f" 2>/dev/null | cut -d: -f1 | paste -sd, -)
   [ -z "$hits" ] || say "$f: forbidden entries at line(s) $hits"

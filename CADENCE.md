@@ -182,9 +182,12 @@ owner-decision items last. Its eight steps are the complete pathway named by
      forbidden grants, a keychain read among them, defeating the very ask
      fence this audit asserts two checks earlier. Depth is 5 so a
      settings.local.json inside a git worktree is not invisible either,
-     both machine guard hooks registered (repo-location PreToolUse,
-     settings-hygiene SessionStart — the latter strips forbidden local
-     grants same-day; this audit is its weekly backstop).
+     the machine guard hooks registered (repo-location and json-interpreter
+     PreToolUse, settings-hygiene SessionStart — the last strips forbidden
+     local grants same-day; this audit is its weekly backstop). The guard's
+     patterns and this audit's `LOCAL_BAD` must forbid the same set, and ops
+     `tests/test_permission_patterns_in_sync.py` asserts it rather than a
+     comment asking for it.
      Absolute rules: it asks whether the surface is safe, not whether it moved.
    - Change detection: `guardrail-drift.sh` in `windwardline/ops` (private)
      exits 0. It asserts the model defaults for the two file-backed clients
