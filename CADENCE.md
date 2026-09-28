@@ -157,16 +157,19 @@ owner-decision items last. Its eight steps are the complete pathway named by
    Runtime-log retention is one day on Pro; the errors table holds seven.
    **The preview verdict is derived, not judged:** run
    `scripts/preview-telemetry-check.sh --since <previous Monday>` (this repo).
-   A project with no preview deployment created in the window is `n/a`,
-   because nothing existed to render. One with previews and preview log rows is
-   `proven`. One with previews and no preview row is `UNPROVEN`, a finding
-   reported in the preview row and never folded into clean. Exit 1 is any
-   UNPROVEN; exit 2 is a read that failed, and is never a pass (owner ruling,
-   2026-09-27). Run thirteen had no preview rows on any app and could say only
-   "unproven" — the same words a broken pipeline would earn — though six of its
-   eleven projects had built no preview all week. Because logs keep one day, a
-   preview built midweek and not visited since reads UNPROVEN; n/a depends on
-   the deployment population, never on the logs.
+   `n/a` when no preview could have rendered or erred: none was built in the
+   window, every one was CANCELED, or the newest READY one is a static build
+   with no function output (levelflow-cloud's Vite build; its runtime lives in
+   Supabase). `proven` when preview log rows exist. Logs keep one day, so when
+   none do, the script requests the newest READY preview once with
+   `vercel curl` and reads again, and the row it caused is the proof. SSO is
+   passed with each project's automation bypass, which `vercel curl` retrieves
+   or generates through the CLI login and Vercel holds. Nothing is stored
+   locally, and no per-app secret is ever added to Keychain (owner ruling,
+   2026-09-27). `UNPROVEN` when a probe yields no row, `FAILING` when the
+   preview answers 5xx (run four's case: builds Ready, every page 500): exit 1.
+   A failed read is exit 2, never a pass. Run thirteen found five apps with no
+   preview rows. Four were proven by the probe; levelflow is static.
 5. **Guardrail drift** — every check below. A check with no script names the
    read it makes instead.
    - Permission surface: `scripts/permission-audit.sh` (this repo) exits

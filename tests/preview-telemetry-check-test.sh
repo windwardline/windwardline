@@ -13,12 +13,19 @@ mkdir -p "$TMP/bin"
 cat >"$TMP/bin/vercel" <<'MOCK_VERCEL'
 #!/bin/bash
 sub=$1; shift
-project=""; next="first"
+project=""; next="first"; after_separator=0
+for arg in "$@"; do
+  if [ "$after_separator" -eq 1 ] && [ "$arg" = --scope ]; then
+    exit 97 # --scope after -- would be handed to curl, not to vercel
+  fi
+  [ "$arg" = -- ] && after_separator=1
+done
 while [ "$#" -gt 0 ]; do
   case "$1" in
+    --) break ;;
     --project) project=$2; shift ;;
     --next) next=$2; shift ;;
-    --environment|--scope|--limit|--since) shift ;;
+    --environment|--scope|--limit|--since|--deployment) shift ;;
     --*) ;;
     *) [ -z "$project" ] && project=$1 ;;
   esac
@@ -26,8 +33,23 @@ while [ "$#" -gt 0 ]; do
 done
 case "$sub" in
   project) f="$STUB_DIR/projects.json" ;;
+  teams) f="$STUB_DIR/teams.json" ;;
+  api) f="$STUB_DIR/api.json" ;;
   list) f="$STUB_DIR/list-$project-$next.json" ;;
-  logs) f="$STUB_DIR/logs-$project.jsonl" ;;
+  logs)
+    f="$STUB_DIR/logs-$project.jsonl"
+    [ -f "$STUB_DIR/probed" ] && [ -f "$STUB_DIR/logs-$project-after.jsonl" ] \
+      && f="$STUB_DIR/logs-$project-after.jsonl"
+    ;;
+  curl)
+    # The probe must run from a directory linked to the right team and project.
+    grep -q '"orgId":"team_x"' .vercel/project.json 2>/dev/null || exit 96
+    grep -q '"projectId":"prj_a"' .vercel/project.json || exit 95
+    [ -f "$STUB_DIR/curl-fail" ] && exit 1
+    touch "$STUB_DIR/probed"
+    cat "$STUB_DIR/curl-status" 2>/dev/null || printf 200
+    exit 0
+    ;;
   *) exit 98 ;;
 esac
 [ -f "$f" ] || exit 9
@@ -45,6 +67,8 @@ scenario() {
   rm -rf "$STUB_DIR"
   mkdir -p "$STUB_DIR"
   printf '{"projects":[{"name":"alpha","id":"prj_a"}]}' >"$STUB_DIR/projects.json"
+  printf '{"teams":[{"slug":"windwardline","id":"team_x"}]}' >"$STUB_DIR/teams.json"
+  printf '{"lambdas":[{"output":[{"path":"__fn_x"}]}]}' >"$STUB_DIR/api.json"
 }
 
 deployments() { # project page next createdAt...
@@ -60,7 +84,7 @@ deployments() { # project page next createdAt...
 }
 
 run() {
-  OUT=$(PATH="$TMP/bin:$PATH" STUB_DIR="$STUB_DIR" "$CHECK" --since 2026-09-21 2>&1)
+  OUT=$(PATH="$TMP/bin:$PATH" STUB_DIR="$STUB_DIR" "$CHECK" --since 2026-09-21 --probe-wait 0 2>&1)
   CODE=$?
 }
 
@@ -99,6 +123,72 @@ deployments alpha first null "$IN_WINDOW"
 : >"$STUB_DIR/logs-alpha.jsonl"
 run
 expect "previews without rows are unproven" 1 "alpha.*UNPROVEN"
+
+# No row yet, so the newest READY preview is requested once and the logs are
+# read again. The row the probe produced is the proof.
+scenario probed
+deployments alpha first null "$IN_WINDOW"
+: >"$STUB_DIR/logs-alpha.jsonl"
+printf '{"environment":"preview","responseStatusCode":307}\n' >"$STUB_DIR/logs-alpha-after.jsonl"
+printf 307 >"$STUB_DIR/curl-status"
+run
+expect "a probe that yields a row is proven" 0 "alpha.*proven.*probed.*307"
+
+# A preview that answers 5xx is the run-four failure: builds Ready, page dead.
+scenario probe-5xx
+deployments alpha first null "$IN_WINDOW"
+: >"$STUB_DIR/logs-alpha.jsonl"
+printf '{"environment":"preview","responseStatusCode":500}\n' >"$STUB_DIR/logs-alpha-after.jsonl"
+printf 500 >"$STUB_DIR/curl-status"
+run
+expect "a preview answering 5xx is failing" 1 "alpha.*FAILING.*500"
+
+scenario probe-fails
+deployments alpha first null "$IN_WINDOW"
+: >"$STUB_DIR/logs-alpha.jsonl"
+touch "$STUB_DIR/curl-fail"
+run
+expect "a failed probe is incomplete" 2 "alpha.*INCOMPLETE"
+
+# Nothing READY means nothing can be requested; that is unproven, not n/a.
+scenario none-ready
+printf '{"deployments":[{"url":"x","target":null,"createdAt":%s,"state":"ERROR"}],"pagination":{"next":null}}' \
+  "$IN_WINDOW" >"$STUB_DIR/list-alpha-first.json"
+: >"$STUB_DIR/logs-alpha.jsonl"
+run
+expect "no READY preview is unproven" 1 "alpha.*UNPROVEN.*READY"
+[ ! -f "$STUB_DIR/probed" ] || { fail=$((fail + 1)); echo "FAIL none-ready probed anyway"; }
+
+scenario no-team
+deployments alpha first null "$IN_WINDOW"
+: >"$STUB_DIR/logs-alpha.jsonl"
+printf '{"teams":[]}' >"$STUB_DIR/teams.json"
+run
+expect "an unresolvable team is incomplete" 2 "alpha.*INCOMPLETE"
+
+# A static build has no function to run, so there is no runtime to error and
+# no row a request could produce: levelflow-cloud's Vite output, edge-cached.
+scenario static
+deployments alpha first null "$IN_WINDOW"
+: >"$STUB_DIR/logs-alpha.jsonl"
+printf '{"lambdas":[{"output":[]}]}' >"$STUB_DIR/api.json"
+run
+expect "a static build is n/a" 0 "alpha.*n/a.*no runtime"
+[ ! -f "$STUB_DIR/probed" ] || { fail=$((fail + 1)); echo "FAIL static probed anyway"; }
+
+scenario api-malformed
+deployments alpha first null "$IN_WINDOW"
+: >"$STUB_DIR/logs-alpha.jsonl"
+printf '{"nolambdas":true}' >"$STUB_DIR/api.json"
+run
+expect "an unreadable deployment detail is incomplete" 2 "alpha.*INCOMPLETE"
+
+# A canceled build never rendered, so it is not a preview that could.
+scenario canceled
+printf '{"deployments":[{"url":"x","target":null,"createdAt":%s,"state":"CANCELED"}],"pagination":{"next":null}}' \
+  "$IN_WINDOW" >"$STUB_DIR/list-alpha-first.json"
+run
+expect "canceled builds only is n/a" 0 "alpha.*n/a"
 
 # A row from another environment proves nothing about preview.
 scenario wrong-env
