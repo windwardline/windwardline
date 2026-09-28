@@ -193,6 +193,14 @@ printf '%s\n' "$*" >>"$BOOTSTRAP_TEST_GH_LOG"
 # GitHub copies a template into a new repository a few seconds after creating
 # it, and until then the default branch reads 409 "Git Repository is empty".
 # Every apply sees at least one empty read first, as a real one does.
+# gh 2.101 refuses --slurp beside --jq or --template ("the `--slurp` option is
+# not supported with `--jq` or `--template`"), and so does this double. The
+# bootstrap's ruleset count used exactly that pair, and the first real run to
+# reach it stopped with a merged-ready pull request and no ruleset.
+if [[ " $* " == *' --slurp '* ]] && [[ " $* " == *' --jq '* || " $* " == *' --template '* ]]; then
+  printf 'the `--slurp` option is not supported with `--jq` or `--template`\n' >&2
+  exit 1
+fi
 if [[ "$*" == 'api --include repos/windwardline/'*'/commits/main' ]]; then
   polls=$(( $(cat "$BOOTSTRAP_TEST_SEED_COUNTER") + 1 ))
   printf '%s\n' "$polls" >"$BOOTSTRAP_TEST_SEED_COUNTER"
@@ -320,7 +328,10 @@ case "$1 ${2:-}" in
         printf '[{"check_runs":[{"name":"verify","status":"completed","conclusion":"success","app":{"id":15368}},{"name":"Semgrep CE","status":"completed","conclusion":"success","app":{"id":15368}},{"name":"Secret scan","status":"completed","conclusion":"success","app":{"id":15368}},{"name":"review / gate","status":"completed","conclusion":"success","app":{"id":15368}},{"name":"review / review","status":"completed","conclusion":"skipped","app":{"id":15368}},{"name":"dependabot-auto-merge","status":"completed","conclusion":"skipped","app":{"id":15368}}]}]\n'
       fi
     elif [[ "$*" == *'/rulesets?'* ]]; then
-      printf '0\n'
+      # One page, no rulesets: the raw slurped shape, which the caller must
+      # reduce itself. The double used to print the reduced "0", as if --jq had
+      # run, so a call that real gh refuses passed here.
+      printf '[[]]\n'
     else
       exit 95
     fi

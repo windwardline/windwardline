@@ -836,8 +836,10 @@ printf '%s' "$checks_json" | jq -e \
 # because GitHub defaults it off and a template does not carry it.
 gh repo edit "$full_repository" --enable-auto-merge --delete-branch-on-merge
 
+# Piped, not --jq: gh refuses --slurp beside --jq, and the first real run to
+# reach this line stopped here with a merge-ready pull request and no ruleset.
 ruleset_count=$(gh api --paginate --slurp "repos/$full_repository/rulesets?per_page=100" \
-  --jq '[.[][] | select(.name == "main-requires-green-ci")] | length') \
+  | jq '[.[][] | select(.name == "main-requires-green-ci")] | length') \
   || die "existing rulesets could not be enumerated"
 [ "$ruleset_count" -eq 0 ] || die "main-requires-green-ci already exists; refusing a duplicate"
 
