@@ -27,6 +27,23 @@ manifest_count=$(printf '%s\n' "$manifest" | awk 'NF { n++ } END { print n+0 }')
 exit 0
 PIN_AUDITOR
 chmod +x "$TMP/subject/scripts/verify-action-pins.sh"
+cat >"$TMP/subject/scripts/media_provenance.rb" <<'MEDIA_AUDITOR'
+# Test double for the published-media auditor: it receives the same snapshot
+# manifest as the pin auditor and proves the checker preserves its exit status.
+exit 2 unless ARGV[0] == "audit" && ARGV[1] == "--snapshot-manifest" && ARGV[2] == "-"
+manifest = $stdin.read
+File.write("#{ENV.fetch("MOCK_LOG")}.media-manifest", manifest)
+File.open(ENV.fetch("MOCK_LOG"), "a") { |f| f.puts "media-auditor #{ARGV.join(" ")}" }
+exit 2 unless manifest.lines.count { |l| !l.strip.empty? } == ARGV[3].to_i
+case ENV["MOCK_SCENARIO"]
+when "media_auditor_incomplete" then exit 2
+when "media_auditor_drift"
+  puts "fixture                site/og.png: c2pa"
+  exit 1
+end
+puts "Published media conformant — 1 media blob(s) across #{ARGV[3]} repo(s), none carrying an embedded AI indicator."
+exit 0
+MEDIA_AUDITOR
 
 cat >"$TMP/bin/gh" <<'MOCK_GH'
 #!/bin/bash
@@ -2266,6 +2283,9 @@ run_case review-prefix-in-nonreview-workflow-is-a-gate-candidate review_prefix_n
 run_case policy-registers-match-code register_mismatch 2 'Exceptions register does not match checker EXEMPT'
 run_case registered-repo-must-exist registered_repo_missing 2 'craft repository identity.*absent|craft.*HTTP 404'
 run_case pin-auditor-incomplete-preserves-exit-two pin_auditor_incomplete 2 'ACTION PIN AUDIT INCOMPLETE'
+run_case media-auditor-runs-on-a-conformant-fleet valid 0 'Published media conformant'
+run_case media-auditor-drift-fails media_auditor_drift 1 'site/og.png: c2pa'
+run_case media-auditor-incomplete-preserves-exit-two media_auditor_incomplete 2 'PUBLISHED MEDIA AUDIT INCOMPLETE'
 # The registers the checker hardcodes are compared, in every other test, against
 # a FIXTURE FLEET.md this suite writes itself. That can only ever prove the
 # checker agrees with the fixture. On 2026-08-31 the managed-edge row was edited

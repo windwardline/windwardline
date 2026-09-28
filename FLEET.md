@@ -965,6 +965,57 @@ repository states the fact it depends on**, so a later reader can check it.
 And **a bidirectional check between two stores proves nothing until the third
 population — what the provider actually holds — is consulted.**
 
+## Published media carries no embedded AI indicator (owner-ruled 2026-09-27)
+
+Media the owner publishes, from any repo on any platform, carries no embedded
+marker of AI involvement. The owner discloses AI content through each
+platform's own labeling tool wherever that platform's current rules require
+it, so stripping a file changes who discloses, never whether: every platform
+rule is still followed. Invisible pixel watermarks (SynthID and the like) are
+not attacked; where one matters, the project chooses a tool that does not
+embed one and records which candidate tools do. The same rule opens the global
+`~/AGENTS.md` section "Published media".
+
+- **The strip step is `scripts/strip-ai-provenance.sh`** (this repo). It
+  validates every input before the first write, removes every metadata block
+  exiftool can write while keeping the colour profile and orientation, then
+  re-scans each file and exits 1 if a marker survived. A file whose name lies
+  about its type (mimic's JPEG saved as `opengraph-image.png`) is stripped as a
+  correctly named copy and written back under its own name. It needs
+  `exiftool` (Homebrew). `tests/strip-ai-provenance-test.sh` signs real JPEG, PNG and MP4
+  fixtures with `c2patool`, strips them, and requires that `c2patool` finds no
+  manifest and every file still decodes.
+- **The check is `scripts/media_provenance.rb`**, pathway 1's published-media
+  audit. It reads every media blob (images, video, audio, SVG) in every
+  non-archived repo, exempt repos included, at the snapshot commit the checker
+  captured, and hashes the bytes back to the blob SHA before trusting them. It
+  flags an embedded C2PA manifest (the JUMBF `c2pa` label every embedding
+  carries, or SVG's `<c2pa:manifest>`), a remote-manifest reference
+  (`dcterms:provenance`), and an IPTC `digitalSourceType` from IPTC's own
+  vocabulary for algorithmic or AI media, inflating compressed PNG text first.
+  Zero media blobs fleet-wide aborts; so does any refused read, truncated tree,
+  or byte mismatch.
+- **What the check does not examine, stated so it is not read as more.** EXIF
+  or XMP fields that merely name a generative tool are not matched: a list of
+  names is only as complete as its last spelling, so the strip step removes
+  every such field instead. Pixel watermarks are out of scope by rule. The
+  check covers what is committed as a media file: an image base64-encoded
+  inside another file is not decoded, and media uploaded straight to a
+  platform never passes through a repo. There the strip step is the control.
+- **Cost.** There is no cache, as with the pin audit: every run reads every
+  media byte again, about 618 MB across 1,335 files on 2026-09-27, in roughly a
+  minute.
+
+Closure. Codified here; enforced by the audit in pathway 1; applied to every
+existing repo because the audit sweeps the whole account; and it reaches every
+future repo the same way, the moment GitHub creates it, so fleet-template needs
+no copy of anything. The first audit, on 2026-09-27, failed 80 of 1,335 files:
+78 editorial images in grown-men-grow, mimic's Open Graph image and
+proper-form's tutorial video. Each was stripped in its own repo
+(grown-men-grow#223, mimic#81, proper-form#44), with pixels and frames proven
+unchanged, before this section landed, so the rule met a fleet that already
+satisfied it.
+
 ## Repository visibility
 
 **Every fleet repo is public unless it is on the private-by-design register below.**
@@ -1075,8 +1126,8 @@ drift, reported per repo and named for what it is.
    derives the account through paginated REST: every non-archived repo,
    templates included. The exceptions register is removed from the main CI and
    application-shape loop; citation, cycle, pointer, gate-enumeration,
-   visibility, suppression, dependency-scan, and action-pin audits still sweep
-   the full account. `fleet-template` can no longer disappear because GitHub
+   visibility, suppression, dependency-scan, action-pin, and published-media
+   audits still sweep the full account. `fleet-template` can no longer disappear because GitHub
    marks it `isTemplate`. A new repo is in scope the moment it exists.
    Every read preserves HTTP status: exact 404 means absence only for an
    optional resource; 403, 429, 500, transport failure, malformed JSON/base64,

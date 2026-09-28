@@ -29,6 +29,8 @@ gate: bash tests/verify-action-pins-test.sh
 gate: bash tests/verify-ghost-managed-edge-test.sh
 gate: bash tests/verify-live-headers-test.sh
 gate: bash tests/preview-telemetry-check-test.sh
+gate: ruby tests/media-provenance-test.rb
+gate: bash tests/strip-ai-provenance-test.sh
 gate: git diff --check
 release: bash tests/fleet-conformance-test.sh
 cadence: bash scripts/fleet-conformance.sh
