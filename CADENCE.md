@@ -328,14 +328,15 @@ owner-decision items last. Its eight steps are the complete pathway named by
      `windwardline-backups` carries `expire-backups-after-365-days`,
      `enabled: true`, age 31536000 s, over every object — its
      `conditions.prefix` reads empty or absent, and both mean all objects —
-     plus the default multipart-abort rule, and no lock rule.
+     plus `Default Multipart Abort Rule`, `enabled: true`, age 604800 s, and no
+     lock rule.
      `windwardline-archives` carries no rule that expires or transitions an
      object, only that multipart abort, and one lock rule: `enabled: true`,
      `condition.type` `Indefinite`, and no prefix — `wrangler r2 bucket lock
      add` omits the key entirely for an all-object rule rather than sending
-     `""`, so absent and empty both read as all objects here too. The first
-     run records the multipart rule's id and age in this bullet, so "the
-     default" becomes a name later runs can check.
+     `""`, so absent and empty both read as all objects here too. Its
+     multipart rule is the same `Default Multipart Abort Rule` at 604800 s,
+     recorded by run thirteen; any other id or age is drift.
      Then the objects, because rules are not objects: list
      `windwardline-archives` and match every key and byte size against
      levelflow-cloud `docs/offbox-archives.md`. A lock dropped, an object
