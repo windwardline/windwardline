@@ -218,7 +218,22 @@ case "$1 ${2:-}" in
   'api repos/windwardline/fleet-template')
     printf '{"name":"fleet-template","is_template":true,"archived":false,"visibility":"public","default_branch":"main"}\n'
     ;;
+  # These answer as GitHub does. `git/trees/main` names the branch's COMMIT in
+  # .sha, not its tree; the tree SHA comes from `commits/main`, and a listing
+  # requested by tree SHA echoes that tree. The mock once returned the tree SHA
+  # for the ref, so a seed check that compared a tree against a commit passed
+  # here and refused the first real run that reached it.
+  'api repos/windwardline/fleet-template/commits/main')
+    printf '{"sha":"%s","commit":{"tree":{"sha":"%s"}}}\n' \
+      "$BOOTSTRAP_TEST_TEMPLATE_COMMIT" "$(jq -r .sha "$BOOTSTRAP_TEST_TEMPLATE_TREE")"
+    ;;
   'api repos/windwardline/fleet-template/git/trees/main?recursive=1')
+    jq --arg commit "$BOOTSTRAP_TEST_TEMPLATE_COMMIT" '.sha = $commit' "$BOOTSTRAP_TEST_TEMPLATE_TREE"
+    ;;
+  api\ repos/windwardline/fleet-template/git/trees/*)
+    requested=${2#repos/windwardline/fleet-template/git/trees/}
+    requested=${requested%%\?*}
+    [ "$requested" = "$(jq -r .sha "$BOOTSTRAP_TEST_TEMPLATE_TREE")" ] || exit 1
     cat "$BOOTSTRAP_TEST_TEMPLATE_TREE"
     ;;
   'api repos/windwardline/windwardline/commits/main')
@@ -606,6 +621,7 @@ EOF
 run_bootstrap() {
   printf '0\n' >"$TMP/seed-counter"
   env \
+    BOOTSTRAP_TEST_TEMPLATE_COMMIT="${BOOTSTRAP_TEST_TEMPLATE_COMMIT:-9999999999999999999999999999999999999999}" \
     BOOTSTRAP_TEST_SEED_COUNTER="$TMP/seed-counter" \
     BOOTSTRAP_TEST_SEED_EMPTY_POLLS="${BOOTSTRAP_TEST_SEED_EMPTY_POLLS:-1}" \
     BOOTSTRAP_TEST_SEED_TREE="${BOOTSTRAP_TEST_SEED_TREE:-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee}" \
@@ -2186,6 +2202,19 @@ if ! BOOTSTRAP_TEST_EMPTY_CLONE=1 \
 else
   not_ok 'an empty clone is refused before the bootstrap branch is created'
   cat "$TMP/empty-clone.out" >&2
+fi
+
+make_manifest "$TMP/tree-by-sha.json" public fixture-tree-by-sha
+: >"$TMP/gh.log"
+if run_bootstrap --manifest "$TMP/tree-by-sha.json" >"$TMP/tree-by-sha.out" 2>&1 &&
+   grep -q 'Bootstrap complete: windwardline/fixture-tree-by-sha' "$TMP/tree-by-sha.out" &&
+   grep -q 'api repos/windwardline/fleet-template/commits/main' "$TMP/gh.log" &&
+   grep -q 'api repos/windwardline/fleet-template/git/trees/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee?recursive=1' "$TMP/gh.log" &&
+   ! grep -q 'fleet-template/git/trees/main' "$TMP/gh.log"; then
+  ok "the template is read by its tree SHA, so the seed check compares a tree with a tree"
+else
+  not_ok "the template is read by its tree SHA, so the seed check compares a tree with a tree"
+  cat "$TMP/tree-by-sha.out" >&2
 fi
 
 if grep -q 'scanned ~[1-9][0-9]* bytes (' "$TMP/gitleaks-scanned-line"; then

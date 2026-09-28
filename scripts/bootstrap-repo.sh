@@ -410,10 +410,19 @@ printf '%s' "$template_json" | jq -e \
 # template workflow would reach the new repository unaudited, so it is refused
 # now rather than after creation. The post-clone check below still guards the
 # interval between this read and the clone.
-template_tree=$(gh api "repos/$TEMPLATE/git/trees/main?recursive=1") \
+# The tree SHA comes from the head commit, and the listing is requested by that
+# SHA, so both reads describe one immutable tree. Asked by ref, `git/trees/main`
+# names the branch's commit in .sha rather than its tree; comparing that against
+# a seed's tree refused a correct copy on the first real run to reach the check.
+template_head=$(gh api "repos/$TEMPLATE/commits/main") \
+  || die "fleet template head could not be read"
+template_tree_sha=$(printf '%s' "$template_head" \
+  | jq -er '.commit.tree.sha | select(type == "string" and test("^[0-9a-f]{40}$"))') \
+  || die "fleet template tree SHA was malformed"
+template_tree=$(gh api "repos/$TEMPLATE/git/trees/$template_tree_sha?recursive=1") \
   || die "fleet template tree could not be read"
-printf '%s' "$template_tree" | jq -e '
-  type == "object" and .truncated == false and (.tree | type == "array") and
+printf '%s' "$template_tree" | jq -e --arg tree "$template_tree_sha" '
+  type == "object" and .sha == $tree and .truncated == false and (.tree | type == "array") and
   all(.tree[]; (.path | type == "string") and (.type | type == "string")) and
   ([.tree[] | select(.type == "blob") | .path | select(startswith(".github/workflows/"))]
     | length > 0)
@@ -430,9 +439,6 @@ unreconciled_workflows=$(printf '%s' "$template_tree" | jq -r '
   | .[]') || die "fleet template workflow population could not be derived"
 [ -z "$unreconciled_workflows" ] \
   || die "fleet template carries a workflow the bootstrap does not reconcile: $(printf '%s' "$unreconciled_workflows" | tr '\n' ' ')"
-template_tree_sha=$(printf '%s' "$template_tree" \
-  | jq -er '.sha | select(type == "string" and test("^[0-9a-f]{40}$"))') \
-  || die "fleet template tree SHA was malformed"
 
 # A failed `gh api` can mean 404 or refusal. Only an exact HTTP 404 proves the
 # target name is available.
