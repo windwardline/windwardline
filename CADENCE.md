@@ -155,6 +155,18 @@ owner-decision items last. Its eight steps are the complete pathway named by
    at least one live app, in the environment being cleared — or "no errors"
    and "no telemetry" read alike.
    Runtime-log retention is one day on Pro; the errors table holds seven.
+   **The preview verdict is derived, not judged:** run
+   `scripts/preview-telemetry-check.sh --since <previous Monday>` (this repo).
+   A project with no preview deployment created in the window is `n/a`,
+   because nothing existed to render. One with previews and preview log rows is
+   `proven`. One with previews and no preview row is `UNPROVEN`, a finding
+   reported in the preview row and never folded into clean. Exit 1 is any
+   UNPROVEN; exit 2 is a read that failed, and is never a pass (owner ruling,
+   2026-09-27). Run thirteen had no preview rows on any app and could say only
+   "unproven" — the same words a broken pipeline would earn — though six of its
+   eleven projects had built no preview all week. Because logs keep one day, a
+   preview built midweek and not visited since reads UNPROVEN; n/a depends on
+   the deployment population, never on the logs.
 5. **Guardrail drift** — every check below. A check with no script names the
    read it makes instead.
    - Permission surface: `scripts/permission-audit.sh` (this repo) exits
