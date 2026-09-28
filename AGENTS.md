@@ -28,7 +28,9 @@ gate: bash tests/dependabot-auto-merge-test.sh
 gate: bash tests/verify-action-pins-test.sh
 gate: bash tests/verify-ghost-managed-edge-test.sh
 gate: bash tests/verify-live-headers-test.sh
+gate: bash tests/preview-telemetry-check-test.sh
 gate: git diff --check
 release: bash tests/fleet-conformance-test.sh
 cadence: bash scripts/fleet-conformance.sh
+cadence: bash scripts/preview-telemetry-check.sh
 ```
