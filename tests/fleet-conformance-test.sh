@@ -1306,7 +1306,7 @@ extra' ;;
   repos/windwardline/levelflow-cloud/branches/main)
     emit 200 '{"name":"main","commit":{"sha":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}}'
     ;;
-  repos/windwardline/craft|repos/windwardline/ops|repos/windwardline/social-presence|repos/windwardline/venture|repos/windwardline/windwardline)
+  repos/windwardline/craft|repos/windwardline/ops|repos/windwardline/social-presence|repos/windwardline/commis-goods|repos/windwardline/windwardline)
     repo_name=${endpoint##*/}
     [ "$MOCK_SCENARIO" = registered_repo_missing ] && [ "$repo_name" = craft ] \
       && { emit 404 '{"message":"Not Found"}'; exit $?; }
@@ -1318,7 +1318,7 @@ extra' ;;
     fi
     emit 200 "{\"name\":\"$repo_name\",\"archived\":false,\"default_branch\":\"$default_branch\"}"
     ;;
-  repos/windwardline/craft/branches/*|repos/windwardline/ops/branches/*|repos/windwardline/social-presence/branches/*|repos/windwardline/venture/branches/*|repos/windwardline/windwardline/branches/*)
+  repos/windwardline/craft/branches/*|repos/windwardline/ops/branches/*|repos/windwardline/social-presence/branches/*|repos/windwardline/commis-goods/branches/*|repos/windwardline/windwardline/branches/*)
     repo_and_branch=${endpoint#repos/windwardline/}
     repo_name=${repo_and_branch%%/*}
     encoded_branch=${endpoint##*/}
@@ -1339,7 +1339,7 @@ extra' ;;
     esac
     emit 200 "{\"sha\":\"dddddddddddddddddddddddddddddddddddddddd\",\"truncated\":false,\"tree\":$tree}"
     ;;
-  repos/windwardline/venture/git/trees/dddddddddddddddddddddddddddddddddddddddd\?recursive=1|repos/windwardline/windwardline/git/trees/dddddddddddddddddddddddddddddddddddddddd\?recursive=1)
+  repos/windwardline/commis-goods/git/trees/dddddddddddddddddddddddddddddddddddddddd\?recursive=1|repos/windwardline/windwardline/git/trees/dddddddddddddddddddddddddddddddddddddddd\?recursive=1)
     emit 200 '{"sha":"dddddddddddddddddddddddddddddddddddddddd","truncated":false,"tree":[]}'
     ;;
   repos/windwardline/ops/contents/.github/workflows\?ref=dddddddddddddddddddddddddddddddddddddddd)
@@ -1411,7 +1411,7 @@ jobs: {}')"
       emit 404 '{"message":"Not Found"}'
     fi
     ;;
-  repos/windwardline/windwardline/contents/.github/workflows\?ref=dddddddddddddddddddddddddddddddddddddddd|repos/windwardline/venture/contents/.github/workflows\?ref=dddddddddddddddddddddddddddddddddddddddd)
+  repos/windwardline/windwardline/contents/.github/workflows\?ref=dddddddddddddddddddddddddddddddddddddddd|repos/windwardline/commis-goods/contents/.github/workflows\?ref=dddddddddddddddddddddddddddddddddddddddd)
     emit 404 '{"message":"Not Found"}'
     ;;
   repos/windwardline/ops/vulnerability-alerts)
@@ -1550,7 +1550,7 @@ MD
 |---|---|
 | `ops` | Private |
 | `social-presence` | Private |
-| `venture` | Private |
+| `commis-goods` | Private |
 ## Held repos
 | Repo | Behind |
 |---|---|
@@ -1559,7 +1559,7 @@ MD
 | Repo | Exception |
 |---|---|
 | `windwardline` | No CI |
-| `venture` | Outside fleet |
+| `commis-goods` | Outside fleet |
 MD
   # The Exceptions register's conditional row must close BEFORE the next heading
   # opens, or it lands in the wrong section and every register comparison fails.
