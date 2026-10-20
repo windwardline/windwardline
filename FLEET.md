@@ -820,6 +820,27 @@ the branch goes. `scripts/fleet-conformance.sh` reads every non-archived
 repository's branch list, compares each non-default branch to the default, and
 fails on any branch ahead with no pull request in any state.
 
+### Supabase tables carry explicit grants (standing, 2026-10-20)
+
+From 2026-10-30 Supabase stops granting Data API access to new tables in the
+`public` schema, and the change reaches every schema rebuilt from migrations:
+preview branches, a new project, `supabase db reset`. A table created without
+grants answers "permission denied" to supabase-js. A table created with the
+grants Supabase's notice suggests gives `anon` select. Neither is a decision, and
+the grants are security decisions: in LevelFlow Cloud, `trade_setups` and
+`trade_outcomes` give `authenticated` select only, and `market_bars` and
+`fmp_usage` are service-role only.
+
+So every migration dated on or after 2026-10-20, in any repository, that creates
+a table in `public` names that table in a GRANT or a REVOKE for each of `anon`,
+`authenticated` and `service_role`, in the same file. Existing tables keep their
+grants and are out of scope. `scripts/supabase_grants.rb` enforces it inside
+`scripts/fleet-conformance.sh`, reading every repository's
+`supabase/migrations/` at the audit's snapshot commit, so a repository that
+adopts Supabase later is held to the rule from its first migration. A repository
+that owns a migrations gate carries the same rule locally (LevelFlow Cloud:
+`scripts/check-migrations.mjs`).
+
 ## Preferred stack
 
 The default stack for every project. Deviations follow the protocol below —
