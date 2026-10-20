@@ -17,7 +17,7 @@
 #   * preview deployments existed and no preview row came back: UNPROVEN, a
 #     finding, never folded into clean.
 #
-# Runtime logs are retained one day on Pro, so a preview built midweek and not
+# Request logs are retained one day on Pro, so a preview built midweek and not
 # visited since has no row to find. Before calling that UNPROVEN, the check
 # requests the newest READY preview once with `vercel curl` and reads the logs
 # again, so the proof is a row it caused. SSO protection is passed with the
@@ -185,14 +185,20 @@ def probe(project_id, url):
 
 
 def preview_rows(project):
-    out = vercel("logs", "--project", project, "--environment", "preview",
+    # Request records, not runtime output. From CLI 64.7 `vercel logs` reads
+    # the `runtime` source, which carries only what a function prints; every
+    # request lands in the `requests` source instead, nested under `data`.
+    # Run fifteen (2026-10-20) read runtime, saw nothing from four apps that
+    # answered 200, and reported them UNPROVEN.
+    out = vercel("logs", "requests", "--project", project, "--environment", "preview",
                  "--since", "24h", "--json", "--limit", "20")
     rows = 0
     for line in out.splitlines():
         if not line.strip():
             continue
         row = load(line, f"a {project} log line")
-        if isinstance(row, dict) and row.get("environment") == "preview":
+        data = row.get("data") if isinstance(row, dict) and row.get("type") == "request" else None
+        if isinstance(data, dict) and data.get("environment") == "preview":
             rows += 1
     return rows
 

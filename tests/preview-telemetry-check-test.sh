@@ -13,7 +13,8 @@ mkdir -p "$TMP/bin"
 cat >"$TMP/bin/vercel" <<'MOCK_VERCEL'
 #!/bin/bash
 sub=$1; shift
-project=""; next="first"; after_separator=0
+project=""; next="first"; after_separator=0; source=runtime
+if [ "$sub" = logs ] && [ "${1:-}" = requests ]; then source=requests; shift; fi
 for arg in "$@"; do
   if [ "$after_separator" -eq 1 ] && [ "$arg" = --scope ]; then
     exit 97 # --scope after -- would be handed to curl, not to vercel
@@ -37,6 +38,12 @@ case "$sub" in
   api) f="$STUB_DIR/api.json" ;;
   list) f="$STUB_DIR/list-$project-$next.json" ;;
   logs)
+    # Since CLI 64.7 request records live only in the `requests` source; the
+    # default `runtime` source carries application output and nothing else.
+    if [ "$source" != requests ]; then
+      printf '{"type":"summary","recordsReturned":0}\n'
+      exit 0
+    fi
     f="$STUB_DIR/logs-$project.jsonl"
     [ -f "$STUB_DIR/probed" ] && [ -f "$STUB_DIR/logs-$project-after.jsonl" ] \
       && f="$STUB_DIR/logs-$project-after.jsonl"
@@ -113,7 +120,7 @@ expect "previews before the window are n/a" 0 "alpha.*n/a"
 # Previews existed and the pipeline returned preview rows.
 scenario proven
 deployments alpha first null "$IN_WINDOW"
-printf '{"environment":"preview","responseStatusCode":200}\n' >"$STUB_DIR/logs-alpha.jsonl"
+printf '{"type":"request","data":{"environment":"preview","httpStatus":200}}\n{"type":"summary","recordsReturned":1}\n' >"$STUB_DIR/logs-alpha.jsonl"
 run
 expect "previews with rows are proven" 0 "alpha.*proven"
 
@@ -129,7 +136,7 @@ expect "previews without rows are unproven" 1 "alpha.*UNPROVEN"
 scenario probed
 deployments alpha first null "$IN_WINDOW"
 : >"$STUB_DIR/logs-alpha.jsonl"
-printf '{"environment":"preview","responseStatusCode":307}\n' >"$STUB_DIR/logs-alpha-after.jsonl"
+printf '{"type":"request","data":{"environment":"preview","httpStatus":307}}\n{"type":"summary","recordsReturned":1}\n' >"$STUB_DIR/logs-alpha-after.jsonl"
 printf 307 >"$STUB_DIR/curl-status"
 run
 expect "a probe that yields a row is proven" 0 "alpha.*proven.*probed.*307"
@@ -138,7 +145,7 @@ expect "a probe that yields a row is proven" 0 "alpha.*proven.*probed.*307"
 scenario probe-5xx
 deployments alpha first null "$IN_WINDOW"
 : >"$STUB_DIR/logs-alpha.jsonl"
-printf '{"environment":"preview","responseStatusCode":500}\n' >"$STUB_DIR/logs-alpha-after.jsonl"
+printf '{"type":"request","data":{"environment":"preview","httpStatus":500}}\n{"type":"summary","recordsReturned":1}\n' >"$STUB_DIR/logs-alpha-after.jsonl"
 printf 500 >"$STUB_DIR/curl-status"
 run
 expect "a preview answering 5xx is failing" 1 "alpha.*FAILING.*500"
@@ -193,9 +200,17 @@ expect "canceled builds only is n/a" 0 "alpha.*n/a"
 # A row from another environment proves nothing about preview.
 scenario wrong-env
 deployments alpha first null "$IN_WINDOW"
-printf '{"environment":"production","responseStatusCode":200}\n' >"$STUB_DIR/logs-alpha.jsonl"
+printf '{"type":"request","data":{"environment":"production","httpStatus":200}}\n{"type":"summary","recordsReturned":1}\n' >"$STUB_DIR/logs-alpha.jsonl"
 run
 expect "a production row does not prove preview" 1 "alpha.*UNPROVEN"
+
+# The CLI ends every --json read with a summary line. It counts records; it is
+# not one, so a summary alone proves nothing.
+scenario summary-only
+deployments alpha first null "$IN_WINDOW"
+printf '{"type":"summary","recordsReturned":0}\n' >"$STUB_DIR/logs-alpha.jsonl"
+run
+expect "a summary line alone is not a row" 1 "alpha.*UNPROVEN"
 
 # A production deployment in a preview listing is not counted as a preview.
 scenario prod-in-list
