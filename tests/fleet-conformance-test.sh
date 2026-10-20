@@ -1218,6 +1218,27 @@ extra' ;;
   repos/windwardline/fixture/rulesets/1)
     emit 200 "$(ruleset_response)"
     ;;
+  repos/windwardline/fixture/branches\?*|repos/windwardline/fixture2/branches\?*)
+    case "$MOCK_SCENARIO" in
+      unlanded_branch|parked_branch|landed_branch)
+        emit 200 '[{"name":"main"},{"name":"docs/stray"}]' ;;
+      *) emit 200 '[{"name":"main"}]' ;;
+    esac
+    ;;
+  repos/windwardline/fixture/compare/*)
+    if [ "$MOCK_SCENARIO" = landed_branch ]; then
+      emit 200 '{"ahead_by":0}'
+    else
+      emit 200 '{"ahead_by":3}'
+    fi
+    ;;
+  "repos/windwardline/fixture/pulls?state=all&head="*)
+    if [ "$MOCK_SCENARIO" = parked_branch ]; then
+      emit 200 '[{"number":5,"state":"closed"}]'
+    else
+      emit 200 '[]'
+    fi
+    ;;
   repos/windwardline/fixture/pulls*)
     if [ "$MOCK_SCENARIO" = pr_repeated_page ]; then
       page_body=$(jq -nc '[range(1;101) | {number:.,merged_at:"2026-08-19T00:00:00Z",head:{sha:"cccccccccccccccccccccccccccccccccccccccc"},base:{ref:"main"}}]')
@@ -2063,6 +2084,9 @@ run_case valid-fixture valid 0 'Fleet conformant'
 run_case template-repo-included template_repo 0 'fixture[[:space:]]+✓'
 run_case internal-visibility-cannot-pass internal_visibility 1 'visibility:.*internal|visibility.*INTERNAL'
 run_case branch-deletion-off-cannot-pass branch_deletion_off 1 'delete-branch-on-merge:off'
+run_case unlanded-branch-cannot-pass unlanded_branch 1 'unlanded-branch:docs/stray'
+run_case parked-branch-with-closed-pr-passes parked_branch 0 'Unlanded branches conformant'
+run_case branch-not-ahead-passes landed_branch 0 'Unlanded branches conformant'
 run_case required-refusal-aborts refused_required 2 'HTTP 403|refused'
 run_case rate-limit-aborts rate_limited 2 'HTTP 429|refused'
 run_case server-error-aborts server_error 2 'HTTP 500|refused'

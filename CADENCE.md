@@ -111,7 +111,9 @@ owner-decision items last. Its eight steps are the complete pathway named by
    Nothing else watches that gap: run three found the guardrail-drift pair
    stalled since 2026-08-08 while the daily log recorded it as shipped.
    Authored is not landed — a `.remember/` daily saying work is done is not
-   evidence it merged; verify against the default branch. Distinguish
+   evidence it merged; verify against the default branch. A branch pushed with
+   no PR at all is invisible to this sweep, so step 1's checker reports it as
+   `unlanded-branch` (FLEET.md, Unlanded branches). Distinguish
    deliberately parked drafts (craft#5, the Lighthouse gate held until two
    studies clear 95) from stalled work. Report PRs examined alongside
    stalled found, so a clean sweep is visibly "looked at N, found 0".

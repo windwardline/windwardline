@@ -2525,6 +2525,58 @@ EOF
   fi
 fi
 
+# Unlanded branches, across the whole account. A branch ahead of the default
+# branch with no pull request in any state is work that was pushed and never
+# offered for merge, and nothing else in the fleet can see it: the open-PR
+# sweep needs a PR to find, and a daily that says "done" is not a merge.
+# Run fifteen (2026-10-20) found social-presence's Decisions 4-13 on such a
+# branch for three weeks while main's HANDOFF.md, the state of record, stopped
+# at Decision 3. A closed PR counts as acknowledged: that is how work is parked
+# on purpose (craft's Lighthouse gate), and its commits stay reachable.
+echo
+unl_rows=$DEFAULT_BRANCH_ROWS
+if [ -z "${unl_rows//[[:space:]]/}" ]; then
+  die_incomplete "unlanded-branch population is empty."
+else
+  unl_fail=0
+  unl_checked=0
+  unl_branches=0
+  unl_expected=$(printf '%s\n' "$unl_rows" | grep -c . || true)
+  while IFS=$'\t' read -r name def; do
+    [ -n "$name" ] || continue
+    required_json "repos/$OWNER/$name/branches?per_page=100" "$name branch list"
+    json_shape "$name branch list" 'type == "array" and all(.[]; .name | type == "string")'
+    # One page, read whole. A repo at 100 branches would need paging this
+    # audit does not do, so it refuses rather than judge part of the set.
+    [ "$(printf '%s' "$JSON" | jq 'length')" -lt 100 ] \
+      || die_incomplete "$name lists 100+ branches; the unlanded-branch audit reads one page."
+    unl_checked=$((unl_checked + 1))
+    branches=$(printf '%s' "$JSON" | jq -r --arg d "$def" '.[].name | select(. != $d)')
+    for b in $branches; do
+      unl_branches=$((unl_branches + 1))
+      required_json "repos/$OWNER/$name/compare/$def...$b" "$name compare $def...$b"
+      json_shape "$name compare $def...$b" '.ahead_by | type == "number"'
+      [ "$(printf '%s' "$JSON" | jq '.ahead_by')" -gt 0 ] || continue
+      required_json "repos/$OWNER/$name/pulls?state=all&head=$OWNER:$b&per_page=1" "$name pull requests for $b"
+      json_shape "$name pull requests for $b" 'type == "array"'
+      if [ "$(printf '%s' "$JSON" | jq 'length')" -eq 0 ]; then
+        printf '%-22s %s\n' "$name" "unlanded-branch:$b (ahead of $def, no pull request)"
+        unl_fail=1
+      fi
+    done
+  done <<EOF
+$unl_rows
+EOF
+  if [ "$unl_checked" -eq 0 ] || [ "$unl_checked" -ne "$unl_expected" ]; then
+    die_incomplete "unlanded-branch audit examined $unl_checked of $unl_expected repo(s)."
+  fi
+  if [ "$unl_fail" -eq 0 ]; then
+    echo "Unlanded branches conformant — $unl_checked repo(s), $unl_branches non-default branch(es), none ahead without a pull request."
+  else
+    fail=1
+  fi
+fi
+
 # Exemption premises, re-verified every run. An exemption is a claim about a
 # repo ("no CI"), and a blanket skip list can never notice when that claim stops
 # being true — the skip is exactly what stops anyone looking. fleet-template was
