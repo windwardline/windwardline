@@ -151,9 +151,14 @@ owner-decision items last. Its eight steps are the complete pathway named by
    production-only view is not a clean sweep.
    In-stack observability, deliberately: no third-party error service
    (owner decision 2026-08-04). A zero is only reportable with a probe
-   showing the pipeline returns rows — group runtime logs by status code on
-   at least one live app, in the environment being cleared — or "no errors"
-   and "no telemetry" read alike.
+   showing the pipeline returns rows — read request records on at least one
+   live app, in the environment being cleared — or "no errors" and "no
+   telemetry" read alike. **Request records are the `requests` source**:
+   `vercel logs requests --project <app> --environment production --json`.
+   From CLI 64.7 the default `runtime` source, and the MCP
+   `get_runtime_logs` that reads it, carry only what a function prints, so an
+   app that logs nothing reads empty there while serving 200s. Run fifteen
+   found four apps UNPROVEN that way.
    Runtime-log retention is one day on Pro; the errors table holds seven.
    **The preview verdict is derived, not judged:** run
    `scripts/preview-telemetry-check.sh --since <previous Monday>` (this repo).
@@ -428,6 +433,14 @@ owner-decision items last. Its eight steps are the complete pathway named by
    Deliberately last: the review's own memory writes belong in the same
    week's snapshot (the first run had to snapshot twice to achieve this), and
    step 5's drift check reads the baseline this step replaces.
+   Once the snapshot PR merges, stamp the run complete:
+   `mkdir -p ~/.local/share/windwardline && date -u +%FT%TZ > ~/.local/share/windwardline/cadence-complete`.
+   `agent-exit-status.sh` in `windwardline/ops` reads that stamp daily and
+   reports it stale after eight days. A scheduled run that stops at a session
+   limit still reports "succeeded": 2026-10-12's ran 22 seconds and did
+   nothing, and three weeks of service-baseline evidence expired before run
+   fifteen found it. The stamp is written last, so only a finished run can
+   write it.
 
 ## Expected absences
 
