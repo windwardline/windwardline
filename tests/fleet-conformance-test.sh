@@ -44,6 +44,22 @@ end
 puts "Published media conformant — 1 media blob(s) across #{ARGV[3]} repo(s), none carrying an embedded AI indicator."
 exit 0
 MEDIA_AUDITOR
+cat >"$TMP/subject/scripts/supabase_grants.rb" <<'SUPABASE_AUDITOR'
+# Test double for the Supabase grants auditor: same snapshot manifest as the
+# media auditor, and the checker must preserve its exit status.
+exit 2 unless ARGV[0] == "audit" && ARGV[1] == "--snapshot-manifest" && ARGV[2] == "-"
+manifest = $stdin.read
+File.open(ENV.fetch("MOCK_LOG"), "a") { |f| f.puts "supabase-auditor #{ARGV.join(" ")}" }
+exit 2 unless manifest.lines.count { |l| !l.strip.empty? } == ARGV[3].to_i
+case ENV["MOCK_SCENARIO"]
+when "supabase_auditor_incomplete" then exit 2
+when "supabase_auditor_drift"
+  puts "fixture                supabase/migrations/20261021000000_w.sql: public.widgets has no GRANT or REVOKE for anon"
+  exit 1
+end
+puts "Supabase grants conformant — 0 migration(s) across 0 Supabase repo(s) of #{ARGV[3]}; 0 dated on or after 20261020 and judged."
+exit 0
+SUPABASE_AUDITOR
 
 cat >"$TMP/bin/gh" <<'MOCK_GH'
 #!/bin/bash
@@ -2310,6 +2326,8 @@ run_case pin-auditor-incomplete-preserves-exit-two pin_auditor_incomplete 2 'ACT
 run_case media-auditor-runs-on-a-conformant-fleet valid 0 'Published media conformant'
 run_case media-auditor-drift-fails media_auditor_drift 1 'site/og.png: c2pa'
 run_case media-auditor-incomplete-preserves-exit-two media_auditor_incomplete 2 'PUBLISHED MEDIA AUDIT INCOMPLETE'
+run_case supabase-auditor-drift-fails supabase_auditor_drift 1 'public.widgets has no GRANT or REVOKE for anon'
+run_case supabase-auditor-incomplete-preserves-exit-two supabase_auditor_incomplete 2 'SUPABASE GRANTS AUDIT INCOMPLETE'
 # The registers the checker hardcodes are compared, in every other test, against
 # a FIXTURE FLEET.md this suite writes itself. That can only ever prove the
 # checker agrees with the fixture. On 2026-08-31 the managed-edge row was edited

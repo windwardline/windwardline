@@ -30,10 +30,12 @@ here=$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)
 YAML_INSPECTOR="$here/actions_yaml_inspector.rb"
 PIN_AUDITOR="$here/verify-action-pins.sh"
 MEDIA_AUDITOR="$here/media_provenance.rb"
+SUPABASE_AUDITOR="$here/supabase_grants.rb"
 command -v ruby >/dev/null 2>&1 || { echo "ERROR: ruby is required for fail-closed YAML inspection." >&2; exit 2; }
 [ -r "$YAML_INSPECTOR" ] || { echo "ERROR: YAML inspector is missing: $YAML_INSPECTOR" >&2; exit 2; }
 [ -r "$PIN_AUDITOR" ] || { echo "ERROR: action-pin auditor is missing: $PIN_AUDITOR" >&2; exit 2; }
 [ -r "$MEDIA_AUDITOR" ] || { echo "ERROR: published-media auditor is missing: $MEDIA_AUDITOR" >&2; exit 2; }
+[ -r "$SUPABASE_AUDITOR" ] || { echo "ERROR: Supabase grants auditor is missing: $SUPABASE_AUDITOR" >&2; exit 2; }
 EXEMPT="windwardline commis-goods ops"   # mirrors FLEET.md's exceptions register exactly
 PRIVATE_BY_DESIGN="commis-goods ops social-presence"     # mirrors FLEET.md's private-by-design register
 # Repos the owner has reserved, which therefore lag a fleet-wide change. Named
@@ -2972,6 +2974,23 @@ case "$media_rc" in
   0) ;;
   1) fail=1 ;;
   *) die_incomplete "PUBLISHED MEDIA AUDIT INCOMPLETE (rc=$media_rc) — no fleet drift classification is valid." ;;
+esac
+
+# Supabase migrations, in one pass across the whole account (FLEET.md "Supabase
+# tables carry explicit grants"). From 2026-10-30 Supabase grants new public
+# tables nothing, preview branches and `supabase db reset` included, so any
+# migration dated on or after 2026-10-20 that creates a public table must decide
+# anon, authenticated and service_role for it. Read at the same snapshot commits
+# as the two audits above, every repo included: a repo that adopts Supabase
+# later is held to this the day its first migration lands.
+echo
+supabase_rc=0
+printf '%s\n' "$REPO_SHA_ROWS" \
+  | ruby "$SUPABASE_AUDITOR" audit --snapshot-manifest - "$repo_actual" || supabase_rc=$?
+case "$supabase_rc" in
+  0) ;;
+  1) fail=1 ;;
+  *) die_incomplete "SUPABASE GRANTS AUDIT INCOMPLETE (rc=$supabase_rc) — no fleet drift classification is valid." ;;
 esac
 
 if [ "$fail" -eq 0 ]; then
