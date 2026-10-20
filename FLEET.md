@@ -807,6 +807,19 @@ and asserts it in the final settings verification alongside `allow_auto_merge`.
 endpoint — the listing endpoint returns `null` for this field and would read as
 "off" everywhere — and fails on any repo that has it off.
 
+### Unlanded branches (standing, 2026-10-20)
+
+No branch sits ahead of its repository's default branch without a pull request.
+Pushed and never offered for merge is the one state no other control sees: the
+cadence's open-PR sweep needs a PR to find, and a daily that says "done" is not
+a merge. On 2026-10-20 social-presence's Decisions 4–13 had sat three weeks on
+such a branch while `docs/HANDOFF.md` on main, the project's state of record,
+stopped at Decision 3. A closed PR satisfies the rule, because closing is how
+work is parked on purpose and the closed PR keeps its commits reachable after
+the branch goes. `scripts/fleet-conformance.sh` reads every non-archived
+repository's branch list, compares each non-default branch to the default, and
+fails on any branch ahead with no pull request in any state.
+
 ## Preferred stack
 
 The default stack for every project. Deviations follow the protocol below —
