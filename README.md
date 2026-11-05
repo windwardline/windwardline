@@ -15,7 +15,7 @@ enforced in CI.
 | [That's Extra](https://github.com/windwardline/thats-extra) | Change-order automation for subcontractors | [thats-extra.windwardline.com](https://thats-extra.windwardline.com) |
 | [Proper Form](https://github.com/windwardline/proper-form) | A judgment-free menswear guide — design-token theming | [proper-form.windwardline.com](https://proper-form.windwardline.com) |
 
-The chart of the whole course, with soundings: **[portfolio.windwardline.com](https://portfolio.windwardline.com)**
+The chart of the whole course, with soundings: **[michaelpeacock.dev](https://michaelpeacock.dev)**
 
 ## Engineering standard
 
