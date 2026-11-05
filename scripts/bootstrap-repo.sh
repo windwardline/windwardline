@@ -351,9 +351,7 @@ printf '%s' "$release_tree" | jq -e --arg sha "$release_sha" '
       "scripts/verify-action-pins.sh",
       "scripts/actions_yaml_inspector.rb",
       "actions/verify-live-headers/action.yml",
-      "actions/verify-live-headers/verify-live-headers.sh",
-      "actions/verify-ghost-managed-edge/action.yml",
-      "actions/verify-ghost-managed-edge/verify-ghost-managed-edge.sh"
+      "actions/verify-live-headers/verify-live-headers.sh"
     ][]; . as $required | ($paths | index($required)) != null))
 ' >/dev/null || die "current fleet release does not contain every required action path"
 

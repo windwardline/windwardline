@@ -89,7 +89,7 @@ jobs:
 
       # Runs AFTER the mint so it can use the App token. On a private repo the
       # Dependabot-scoped GITHUB_TOKEN cannot list a PR's commits — this step
-      # 403ed on grown-men-grow (2026-08-17) and killed the job before the token
+      # 403ed on a private repo (2026-08-17) and killed the job before the token
       # was ever minted, which read as an App failure and was not one. Outputs
       # populate only when the PR carries solely Dependabot commits with a
       # verified signature, so a human fixup means owning the merge.

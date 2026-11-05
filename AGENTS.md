@@ -26,7 +26,6 @@ gate: ruby tests/actions-yaml-inspector-test.rb
 gate: ruby tests/github-app-key-verifier-test.rb
 gate: bash tests/dependabot-auto-merge-test.sh
 gate: bash tests/verify-action-pins-test.sh
-gate: bash tests/verify-ghost-managed-edge-test.sh
 gate: bash tests/verify-live-headers-test.sh
 gate: bash tests/preview-telemetry-check-test.sh
 gate: ruby tests/media-provenance-test.rb

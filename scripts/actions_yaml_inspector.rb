@@ -257,7 +257,6 @@ module ActionsYamlInspector
 
     osv = []
     headers = []
-    managed_edges = []
     semgrep = []
     secret_scans = []
     live_jobs = []
@@ -288,19 +287,6 @@ module ActionsYamlInspector
           "schedule_live" => schedule_live,
           "ref" => job.fetch("header_ref"),
           "url" => job.fetch("header_url")
-        }
-        live_jobs << job_id if schedule_live
-      end
-      if job.fetch("managed_edge")
-        valid = workflow_runner_safe && job.fetch("managed_edge_valid")
-        schedule_live = event_live.call(job_id, "daily") && valid
-        managed_edges << {
-          "id" => job_id,
-          "valid" => valid,
-          "live" => schedule_live,
-          "push_live" => event_live.call(job_id, "push") && valid,
-          "schedule_live" => schedule_live,
-          "ref" => job.fetch("managed_edge_ref")
         }
         live_jobs << job_id if schedule_live
       end
@@ -345,7 +331,6 @@ module ActionsYamlInspector
       "live_jobs" => live_jobs.uniq,
       "osv" => osv,
       "headers" => headers,
-      "managed_edges" => managed_edges,
       "semgrep" => semgrep,
       "secret_scans" => secret_scans,
       "actor_guard" => actor_guard,
@@ -548,20 +533,6 @@ module ActionsYamlInspector
                    header_url.match?(%r{\Ahttps://(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,63}/?\z}) &&
                    !probe.fetch("if_present") && !probe.fetch("continue_present")
 
-    managed_edge = job_id == "ghost-managed-edge" || name == "Ghost managed edge"
-    managed_edge_ref = probe ? probe.fetch("uses") : ""
-    managed_edge_valid = managed_edge && job_id == "ghost-managed-edge" && name == "Ghost managed edge" &&
-                         runner_present && raw["runs-on"] == "ubuntu-latest" && !reusable &&
-                         exact_keys?(raw, %w[name if needs runs-on steps timeout-minutes]) &&
-                         weekly_excluded_header_condition?(condition) &&
-                         raw["timeout-minutes"] == "12" &&
-                         steps.length == 1 && probe.fetch("name") == "Verify the managed Ghost production edge" &&
-                         probe.fetch("run").empty? &&
-                         managed_edge_ref.match?(%r{\Awindwardline/windwardline/actions/verify-ghost-managed-edge@#{FULL_SHA}\z}) &&
-                         exact_keys?(probe.fetch("raw"), %w[name uses]) &&
-                         probe.fetch("with").empty? &&
-                         !probe.fetch("if_present") && !probe.fetch("continue_present")
-
     {
       "raw" => raw,
       "name" => name,
@@ -583,10 +554,7 @@ module ActionsYamlInspector
       "header" => header,
       "header_valid" => header_valid,
       "header_ref" => header_ref,
-      "header_url" => header_url.sub(%r{/\z}, ""),
-      "managed_edge" => managed_edge,
-      "managed_edge_valid" => managed_edge_valid,
-      "managed_edge_ref" => managed_edge_ref
+      "header_url" => header_url.sub(%r{/\z}, "")
     }
   end
 

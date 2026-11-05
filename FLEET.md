@@ -33,7 +33,7 @@ enforces it now:
 | Dimension | Origin | Enforced by |
 |---|---|---|
 | Security scan mechanics (Semgrep, gitleaks, OSV) | pathfinder `security.yml` | `security.yml` in every repo; scan jobs are required checks |
-| Live posture verification (prod headers) | levelflow `deploy.yml` polling | Exact `Headers live` or registered managed-edge job on post-merge push + daily cron in every prod-facing repo; never a PR-required check |
+| Live posture verification (prod headers) | levelflow `deploy.yml` polling | Exact `Headers live` job on post-merge push + daily cron in every prod-facing repo; never a PR-required check |
 | Test-enforced design contracts | craft (palette/contrast tests) | Each repo's own suite; pattern replicated in header contract tests |
 | TDD law and run-capture evidence | fleet-wide | Repo operating contracts |
 | Spec governance (§-law amendments) | levelflow | Repo operating contracts |
@@ -102,12 +102,10 @@ enforces it now:
   one root GitHub Actions lane; cooldown days are strict integers of at least
   seven. A production repo
   is derived from the one concrete, non-placeholder HTTPS origin in its live
-  `SECURITY.md`. Each derived origin either uses the canonical header probe or
-  appears as the exact full row in the managed-edge register below. Deleting an
-  origin and its probe therefore cannot
-  shrink both the subject and its measurement to green: canonical header
-  probes plus managed-edge probes must equal the independently derived
-  production population. `Headers live` is one 12-minute job with one step,
+  `SECURITY.md`. Each derived origin uses the canonical header probe. Deleting
+  an origin and its probe therefore cannot shrink both the subject and its
+  measurement to green: canonical header probes must equal the independently
+  derived production population. `Headers live` is one 12-minute job with one step,
   named exactly `Assert the seven security headers on production` and calling
   `windwardline/windwardline/actions/verify-live-headers@<current release SHA>`,
   with a literal `url:` equal to that origin and no inline replacement. **The
@@ -169,9 +167,9 @@ enforces it now:
   in a file nobody reads is the exact failure this exists to prevent, and it
   is invisible until the scan happens to run. An entry suppresses a finding;
   it does not fix one, so it is written only where there is nothing to
-  upgrade to. Precedent: grown-men-grow and craft, both for `extract-zip`,
-  which has published no release since 2023. Never a blanket ignore, never an
-  entry without a date.
+  upgrade to. Precedent: craft and a since-retired repo, both for
+  `extract-zip`, which has published no release since 2023. Never a blanket
+  ignore, never an entry without a date.
 - `.github/workflows/claude-review.yml` — the thin caller of exactly
   `windwardline/windwardline/.github/workflows/claude-review.yml@main`, the
   fleet's sole mutable `uses:` reference. The central ref is deliberate: one
@@ -442,12 +440,9 @@ nothing that accumulates, and it is as reviewable as any other row.
 | Provider | Creates on its own | Reaped by |
 |---|---|---|
 | `anthropic` | none — API and OAuth credentials only | — |
-| `bluesky` | none — posts are content, not provisioned resources | — |
-| `buffer` | none — scheduling queue held by the vendor | — |
 | `cloudflare` | **yes** — R2 objects, in two buckets. `windwardline-backups` holds scheduled daily copies under `<repo>/<dataset>/<YYYY>/<MM>/`: levelflow-cloud's minute bank and, since 2026-09-14, its Postgres dump at 13.4 MB a day. `windwardline-archives` (created 2026-09-21) holds permanent, write-once archives under `<repo>/<dataset>/`, uploaded by hand and never on a schedule | `windwardline-backups`: each writer's own remote prune (minute-bank keeps 60, postgres keeps 60), then the bucket's `expire-backups-after-365-days` lifecycle rule over every object (prefix `""`, set 2026-09-03). `windwardline-archives`: nothing, by design — no lifecycle expiry, an indefinite bucket lock, and no script that deletes from it. Each archive is proven before it is written by levelflow-cloud's `scripts/ops/push-archive-offbox.sh` — extracted in staging and `diff -rq` against the source, then uploaded with `copyto --ignore-existing` under a per-key lock, then streamed back to match md5, because under the lock a proof that failed after the upload would spend the key. Not `--immutable`: rclone checks it only when walking a directory, and `copyto` of one file replaced a different object with exit 0 (v1.75.1, 2026-09-22) — and gets a row in that repo's `docs/offbox-archives.md`. Why two buckets: `windwardline-backups` expires every object at 365 days, so the minute bank's `minute-bank-20260823.tar.zst`, spared by name from its writer's prune, still expires around 2027-09-02. One bucket, one uniform rule set — the weekly assertion is then total, and no permanent exception lives inside a bucket whose job is deletion. Whether a prefix-scoped lock rule outranks a catch-all lifecycle rule is **unverified**; the first cadence run answers it, and either answer keeps the split. The lock detects, it does not prevent: `cloudflare-r2-backup` is account-scoped R2 Storage Write and both daily writers hold it, so an account-scoped credential can drop the lock and then delete — the weekly read finds that up to seven days later. Object-scoped keys per bucket would prevent it; owner call, not taken. Nothing bounds the archive bucket's size but the uploads, and `ops/cost-ceiling-check.sh` sizes `windwardline-backups` against 8 GB alone, so account storage can pass R2's 10 GB free allowance with that check green. CADENCE step 5 asserts both buckets' rules and the archive objects weekly, and the monthly cadence streams each archive back for its md5. Workers, Durable Objects, Queues and Cron are paid-tier reachable but zero are deployed; a first Worker needs this row revisited |
 | `fmp` | none — request quota, nothing provisioned | — |
-| `ghost` | none — managed-edge content | — |
-| `github` | **yes** — Actions artifacts and logs | GitHub's own retention, 90 days by default. Free on public repos. Of the private repos, `ops` and `commis-goods` run no workflows; `social-presence` runs CI, so its minutes and any artifacts count against the account's included Actions allowance, under the same 90-day retention. Revisited 2026-09-27 when that repo was reserved; any other private repo that gains CI needs this row revisited again |
+| `github` | **yes** — Actions artifacts and logs | GitHub's own retention, 90 days by default. Free on public repos. The one private repo, `ops`, runs no workflows, so no private repo spends the account's included Actions minutes today; any private repo that gains CI needs this row revisited |
 | `groq` | none — per-token inference, nothing provisioned | — |
 | `levelflow` | none — an application token | — |
 | `local` | none — a local Jupyter token | — |
@@ -455,40 +450,6 @@ nothing that accumulates, and it is as reviewable as any other row.
 | `resend` | none — sends are events, not provisioned resources | — |
 | `stripe` | none — read-only key against vendor-held records | — |
 | `supabase` | **yes, once branching is enabled** — preview branches per pull request, and persistent branches that survive merge and close by design | **Nothing yet, and nothing needs one yet: zero branches exist and no project has branching configured.** A reaper is required *before* the first project enables it. Preview branches bill ~$0.01344/hour (~$10/branch-month) and, per Supabase's own docs, branches sit **outside the Spend Cap** — so the cap that makes Supabase look safe does not cover this failure. Do not rely on its delete-on-PR-close default: that is vendor retention, and it does not apply to persistent branches at all |
-
-## Managed-edge header exception
-
-The owner approved one capability-specific exception on 2026-08-24. Ghost(Pro)
-[requires Cloudflare DNS records to remain DNS-only](https://ghost.org/help/cloudflare-domain-setup/),
-so Windward Line cannot add the house response headers at Cloudflare without
-replacing Ghost's supported edge topology. This waives only the live seven-header
-result for the named origin. It does not waive CI, security scans, the local
-header policy artifact, DNS integrity, action pins, rulesets, or any other fleet
-control.
-
-| Repo | Approved | Managed origin | Required proof | Expiry |
-|---|---|---|---|---|
-| `grown-men-grow` | 2026-08-24 | `https://grownmengrow.com` on Ghost(Pro) | Exact 12-minute `Ghost managed edge` one-step job on push + daily, its step named exactly `Verify the managed Ghost production edge`, calling `windwardline/windwardline/actions/verify-ghost-managed-edge@<current release SHA>` | Fails once all seven headers appear; remove this row and restore `Headers live` |
-
-The shared probe has no caller-controlled subject and no secrets. It resolves
-the apex and `grown-men-grow.ghost.io` through the same public resolver and
-requires identical nonempty IPv4 sets. It requires `www.grownmengrow.com` to
-resolve only to `178.128.137.126` and redirect exactly to the apex. From the
-final apex response, not an intermediate redirect, it rejects `cf-ray`,
-`cf-cache-status`, and a Cloudflare `server`; requires the observed Ghost
-`ghost-fastly: true;production` marker and Fastly/Varnish path marker; and
-requires at least one of the fleet's seven headers to remain absent. Once all
-seven arrive, the exception premise is stale and the job deliberately fails.
-The checker derives this table and requires exact full-row equality with its
-executable register. Every other test of that equality compares the checker to a
-FIXTURE `FLEET.md` the suite writes itself, which can only prove the checker
-agrees with the fixture: on 2026-08-31 this row was edited here, the harness
-stayed green at 203/203, and a live run aborted on the first read. One case in
-`tests/fleet-conformance-test.sh` therefore reads the shipped document and the
-shipped script directly, so that divergence fails in the suite rather than
-waiting for someone to run the fleet. It also derives the nonempty production-origin population
-from live security policies and proves that canonical header probes plus the
-managed-edge rows equal that population exactly.
 
 **Scratch copies of a repository are made by `scripts/scratch-clone.sh`, never
 by hand.** Every repo carries it, byte-identical to `templates/scratch-clone.sh`
@@ -812,9 +773,9 @@ endpoint — the listing endpoint returns `null` for this field and would read a
 No branch sits ahead of its repository's default branch without a pull request.
 Pushed and never offered for merge is the one state no other control sees: the
 cadence's open-PR sweep needs a PR to find, and a daily that says "done" is not
-a merge. On 2026-10-20 social-presence's Decisions 4–13 had sat three weeks on
+a merge. On 2026-10-20 one private repository's owner rulings had sat three weeks on
 such a branch while `docs/HANDOFF.md` on main, the project's state of record,
-stopped at Decision 3. A closed PR satisfies the rule, because closing is how
+stopped short of them. A closed PR satisfies the rule, because closing is how
 work is parked on purpose and the closed PR keeps its commits reachable after
 the branch goes. `scripts/fleet-conformance.sh` reads every non-archived
 repository's branch list, compares each non-default branch to the default, and
@@ -980,7 +941,7 @@ Two traps that ordinary code walks into, both held by that script:
 
 ### Worked example: a premise that died quietly
 
-Grown Men Grow ran on SMTP2GO from 2026-08-13 to 2026-09-15 under one
+One since-retired site ran on SMTP2GO from 2026-08-13 to 2026-09-15 under one
 justification — Resend's free tier allowed a single verified domain and
 `windwardline.com` held it. Resend moved that tier to three domains on
 2026-09-02 and the exception outlived its reason by thirteen days.
@@ -1019,7 +980,7 @@ embed one and records which candidate tools do. The same rule opens the global
   changed or if a marker survived. Video colour and rotation live in the
   stream, which exiftool does not touch; it may move an MP4's index to the
   front of the file, which is harmless. Until 2026-09-28 the tool claimed the
-  colour fields and dropped PNG sRGB, gamma and density: the grown-men-grow#223
+  colour fields and dropped PNG sRGB, gamma and density: a since-retired repo's
   review caught the unproven claim, and none of the 80 files stripped at
   landing carried those chunks. A file whose name lies
   about its type (mimic's JPEG saved as `opengraph-image.png`) is stripped as a
@@ -1052,9 +1013,9 @@ Closure. Codified here; enforced by the audit in pathway 1; applied to every
 existing repo because the audit sweeps the whole account; and it reaches every
 future repo the same way, the moment GitHub creates it, so fleet-template needs
 no copy of anything. The first audit, on 2026-09-27, failed 80 of 1,335 files:
-78 editorial images in grown-men-grow, mimic's Open Graph image and
+78 editorial images in a since-retired repo, mimic's Open Graph image and
 proper-form's tutorial video. Each was stripped in its own repo
-(grown-men-grow#223, mimic#81, proper-form#44), with pixels and frames proven
+(mimic#81, proper-form#44, and the retired repo's own PR), with pixels and frames proven
 unchanged, before this section landed, so the rule met a fleet that already
 satisfied it.
 
@@ -1081,8 +1042,6 @@ nonexistent private-by-design reservation.
 | Repo | Why it stays private |
 |---|---|
 | `ops` | Third-party personal data (another organization's federal Tax ID, named individuals' contact details), credential-incident history, and the machine's full Keychain inventory. No workflows, so it costs nothing. |
-| `social-presence` | Unlaunched personal social presence (owner-ruled 2026-09-27): its source plans carry the owner's name and personal details, the go-to-market is not public, and it will hold likeness work. Runs CI at about 5 to 8 Actions minutes per pull-request push, measured on a comparable repo, against the account's included minutes. |
-| `commis-goods` | Unlaunched brand (Commis Goods, renamed from `venture` 2026-10-15): product range, pricing, and go-to-market not yet public. No workflows, so it costs nothing. |
 
 Checked both directions. A repo that drops to private starts billing minutes; a
 registered-private repo that turns public is an irreversible disclosure. The
@@ -1090,10 +1049,9 @@ second is the more expensive mistake, so both fail the checker.
 
 Adding or removing a row here means amending this table and the checker's
 `PRIVATE_BY_DESIGN` list in the same change set. The checker parses this table
-and aborts if those populations differ. `grown-men-grow` left the register on
-2026-08-18: it was the one private repo still running CI, and its
-652 runs in 18 days took the account to 100% of the allowance. The owner chose
-disclosure over the bill; the repo's decision log records it.
+and aborts if those populations differ. One public repo left the register on
+2026-08-18: it was the one private repo still running CI, and its 652 runs in
+18 days took the account to 100% of the allowance.
 
 ## Held repos
 
@@ -1125,7 +1083,6 @@ merely because its record exists here.
 | Repo | Exception | Why |
 |---|---|---|
 | `windwardline` (this repo) | No CI on its own content; PRs merge manually. Hosts the fleet reusable, this standard, and the conformance checker; those workflows serve or audit the fleet rather than gate this repo. | Meta/standards home |
-| `commis-goods` | No CI, ruleset, or auto-merge lane; universal account checks still apply | Private brand outside the Windward Line family |
 | `ops` | No CI, no ruleset; snapshots land by PR, merged manually | Private meta-layer archive (canonical standards file, agent config, hooks, memory) — holds no application code |
 
 This register is mechanized: the conformance checker's exemption list mirrors it
@@ -1185,8 +1142,8 @@ drift, reported per repo and named for what it is.
    inside `Secret scan`; both Dependabot App secret names; every update lane's
    structurally nested cooldown; the catch-all header route; the exact current
    live-header action and SECURITY.md origin for the independently derived,
-   nonempty production population; exact managed-edge register rows; canonical
-   security-workflow root permissions; and daily-scan cron, exact tree-derived
+   nonempty production population; canonical security-workflow
+   root permissions; and daily-scan cron, exact tree-derived
    lockfile inputs, exact Dependabot ecosystem/directory lanes, and job
    liveness. It validates ruleset
    depth: active, default-branch-only, strict off, linear history plus the
@@ -1244,8 +1201,9 @@ drift, reported per repo and named for what it is.
    false.** It ran `typecheck` or `check`, `lint`, and `test` or `test:run`
    inferred from `package.json` — so a session editing `levelflow-cloud` was not
    held to `check:migrations`, `check:bundle`, `build` or `npm audit`, one
-   editing `pathfinder` skipped its documentation validator, and `grown-men-grow`
-   and `ops` were not gated at all, having no root `package.json` to infer from.
+   editing `pathfinder` skipped its documentation validator, and `ops` and a
+   since-retired repo were not gated at all, having no root `package.json` to
+   infer from.
    The sentence was written on 2026-08-19 in the same change that corrected the
    older "typecheck + lint + tests" wording, and it recorded an intention as
    though it were a mechanism: every archived revision of the hook in the `ops`
@@ -1291,8 +1249,8 @@ drift, reported per repo and named for what it is.
    The individual gate steps were removed rather than kept beside it; two lists
    that must agree, with nothing making them, is the drift this closes.
 
-   It is a step and not a shared action on purpose. Three action refs — the pin
-   gate, the header probe, the managed-edge probe — are held to the current
+   It is a step and not a shared action on purpose. Two action refs — the pin
+   gate and the header probe — are held to the current
    release SHA, so cutting a release to host this would red fourteen repos until
    every pin was chased. A step needs no release. The cost is a copy in each
    repo, which is why the checker compares it byte for byte, exactly as it does

@@ -36,32 +36,14 @@ command -v ruby >/dev/null 2>&1 || { echo "ERROR: ruby is required for fail-clos
 [ -r "$PIN_AUDITOR" ] || { echo "ERROR: action-pin auditor is missing: $PIN_AUDITOR" >&2; exit 2; }
 [ -r "$MEDIA_AUDITOR" ] || { echo "ERROR: published-media auditor is missing: $MEDIA_AUDITOR" >&2; exit 2; }
 [ -r "$SUPABASE_AUDITOR" ] || { echo "ERROR: Supabase grants auditor is missing: $SUPABASE_AUDITOR" >&2; exit 2; }
-EXEMPT="windwardline commis-goods ops"   # mirrors FLEET.md's exceptions register exactly
-PRIVATE_BY_DESIGN="commis-goods ops social-presence"     # mirrors FLEET.md's private-by-design register
+EXEMPT="windwardline ops"   # mirrors FLEET.md's exceptions register exactly
+PRIVATE_BY_DESIGN="ops"     # mirrors FLEET.md's private-by-design register
 # Repos the owner has reserved, which therefore lag a fleet-wide change. Named
 # and reported every run rather than skipped: a skip list that cannot say why
 # is how fleet-template sat exempt while merging eight PRs through no gate.
 # Empty this the moment the hold lifts — see FLEET.md's held-repos note.
 LANE_HELD="craft"
 DEPSCAN_HELD="craft"
-# Capability-specific live-header exception. This is not a fleet exemption:
-# grown-men-grow remains in every other audit population. The full governing
-# table row and this executable copy are asserted byte-for-byte below.
-GHOST_MANAGED_EDGE_ROW='| `grown-men-grow` | 2026-08-24 | `https://grownmengrow.com` on Ghost(Pro) | Exact 12-minute `Ghost managed edge` one-step job on push + daily, its step named exactly `Verify the managed Ghost production edge`, calling `windwardline/windwardline/actions/verify-ghost-managed-edge@<current release SHA>` | Fails once all seven headers appear; remove this row and restore `Headers live` |'
-if [ -n "${GHOST_MANAGED_EDGE_REPOS_OVERRIDE+x}" ]; then
-  [ -n "${FLEET_MD_LOCAL:-}" ] \
-    || { echo "ERROR: GHOST_MANAGED_EDGE_REPOS_OVERRIDE is test-only and requires FLEET_MD_LOCAL." >&2; exit 2; }
-  if [ "$GHOST_MANAGED_EDGE_REPOS_OVERRIDE" = _NONE_ ]; then
-    GHOST_MANAGED_EDGE_ROW=""
-  else
-    case "$GHOST_MANAGED_EDGE_REPOS_OVERRIDE" in
-      ''|*[!A-Za-z0-9._\ -]*) echo "ERROR: GHOST_MANAGED_EDGE_REPOS_OVERRIDE contains an invalid repository name." >&2; exit 2 ;;
-    esac
-    GHOST_MANAGED_EDGE_ROW="| \`$GHOST_MANAGED_EDGE_REPOS_OVERRIDE\` | 2026-08-24 | \`https://grownmengrow.com\` on Ghost(Pro) | Exact 12-minute \`Ghost managed edge\` one-step job on push + daily, its step named exactly \`Verify the managed Ghost production edge\`, calling \`windwardline/windwardline/actions/verify-ghost-managed-edge@<current release SHA>\` | Fails once all seven headers appear; remove this row and restore \`Headers live\` |"
-  fi
-fi
-GHOST_MANAGED_EDGE_REPOS=$(printf '%s\n' "$GHOST_MANAGED_EDGE_ROW" | awk -F '|' 'NF > 2 { cell=$2; gsub(/[`[:space:]]/, "", cell); print cell }')
-GHOST_MANAGED_EDGE_ORIGIN=$(printf '%s\n' "$GHOST_MANAGED_EDGE_ROW" | awk -F '|' 'NF > 4 { cell=$4; gsub(/`/, "", cell); sub(/ on Ghost\(Pro\).*/, "", cell); gsub(/^[[:space:]]+|[[:space:]]+$/, "", cell); print cell }')
 FILES="AGENTS.md CLAUDE.md LICENSE SECURITY.md .github/dependabot.yml .github/workflows/ci.yml .github/workflows/security.yml .github/workflows/claude-review.yml"
 # Detectable parallel-stack markers (FLEET.md Preferred stack). A recorded
 # "Stack exception (owner-approved" line in the repo's AGENTS.md waives them.
@@ -880,23 +862,6 @@ register_rows() {
   printf '%s\n' "$rows" | awk 'NF' | LC_ALL=C sort -u
 }
 
-register_full_rows() {
-  local heading="$1"
-  printf '%s\n' "$LIVE_STANDARD" | awk -v heading="$heading" '
-    $0 == heading { sections++; insection=1; next }
-    insection && /^## / { exit }
-    insection && /^\|/ {
-      split($0, columns, "|")
-      cell=columns[2]
-      gsub(/`/, "", cell)
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", cell)
-      if (cell == "Repo" || cell ~ /^-+$/) next
-      print $0
-    }
-    END { if (sections != 1) exit 3 }
-  '
-}
-
 normalize_words() {
   tr ' ' '\n' | awk 'NF' | LC_ALL=C sort -u
 }
@@ -911,16 +876,11 @@ doc_lane_held=$(register_rows '## Held repos' 'auto-merge lane') \
   || die_incomplete "FLEET.md Held repos register was missing or duplicated."
 doc_scan_held=$(register_rows '## Held repos' 'dependency-scan') \
   || die_incomplete "FLEET.md Held repos register was missing or duplicated."
-doc_ghost_managed=$(register_rows '## Managed-edge header exception') \
-  || die_incomplete "FLEET.md managed-edge header exception register was missing or duplicated."
-doc_ghost_managed_rows=$(register_full_rows '## Managed-edge header exception') \
-  || die_incomplete "FLEET.md managed-edge header exception register was missing or duplicated."
 code_exempt=$(printf '%s\n' "$EXEMPT" | normalize_words)
 code_private=$(printf '%s\n' "$PRIVATE_BY_DESIGN" | normalize_words)
 code_held=$(printf '%s\n%s\n' "$LANE_HELD" "$DEPSCAN_HELD" | normalize_words)
 code_lane_held=$(printf '%s\n' "$LANE_HELD" | normalize_words)
 code_scan_held=$(printf '%s\n' "$DEPSCAN_HELD" | normalize_words)
-code_ghost_managed=$(printf '%s\n' "$GHOST_MANAGED_EDGE_REPOS" | normalize_words)
 [ "$doc_exempt" = "$code_exempt" ] \
   || die_incomplete "FLEET.md Exceptions register does not match checker EXEMPT."
 [ "$doc_private" = "$code_private" ] \
@@ -931,11 +891,7 @@ code_ghost_managed=$(printf '%s\n' "$GHOST_MANAGED_EDGE_REPOS" | normalize_words
   || die_incomplete "FLEET.md auto-merge held rows do not match checker LANE_HELD."
 [ "$doc_scan_held" = "$code_scan_held" ] \
   || die_incomplete "FLEET.md dependency-scan held rows do not match checker DEPSCAN_HELD."
-[ "$doc_ghost_managed" = "$code_ghost_managed" ] \
-  || die_incomplete "FLEET.md managed-edge header exception register does not match checker GHOST_MANAGED_EDGE_REPOS."
-[ "$doc_ghost_managed_rows" = "$GHOST_MANAGED_EDGE_ROW" ] \
-  || die_incomplete "FLEET.md managed-edge header exception full row does not match checker policy."
-registered_repos=$(printf '%s\n%s\n%s\n%s\n%s\n' "$EXEMPT" "$PRIVATE_BY_DESIGN" "$LANE_HELD" "$DEPSCAN_HELD" "$GHOST_MANAGED_EDGE_REPOS" \
+registered_repos=$(printf '%s\n%s\n%s\n%s\n' "$EXEMPT" "$PRIVATE_BY_DESIGN" "$LANE_HELD" "$DEPSCAN_HELD" \
   | normalize_words)
 for registered_repo in $registered_repos; do
   capture_repo_snapshot "$registered_repo"
@@ -999,9 +955,7 @@ printf '%s' "$JSON" | jq -e '
     "scripts/verify-action-pins.sh",
     "scripts/actions_yaml_inspector.rb",
     "actions/verify-live-headers/action.yml",
-    "actions/verify-live-headers/verify-live-headers.sh",
-    "actions/verify-ghost-managed-edge/action.yml",
-    "actions/verify-ghost-managed-edge/verify-ghost-managed-edge.sh"
+    "actions/verify-live-headers/verify-live-headers.sh"
   ][]; . as $required | ($paths | index($required)) != null)
 ' >/dev/null 2>&1 \
   || die_incomplete "current fleet-action release does not contain every required action path."
@@ -1340,7 +1294,6 @@ fi
 echo
 production_seen=0
 header_probe_seen=0
-managed_edge_probe_seen=0
 printf '%-22s %s\n' "REPO" "DRIFT (empty = conformant)"
 printf '%-22s %s\n' "----" "----"
 
@@ -1601,7 +1554,7 @@ EOF
     [ "$security_workflow_state" = active ] \
       || drift="$drift security-workflow:$security_workflow_state"
   else
-    sy_analysis='{"root_permissions":{},"root_permissions_valid":false,"pull_request_trigger":false,"push_trigger":false,"daily_crons":[],"weekly_crons":[],"live_jobs":[],"osv":[],"headers":[],"managed_edges":[],"semgrep":[],"secret_scans":[],"actor_guard":false,"secret_scan_jobs":0,"pin_gates":0,"pin_gate_refs":[]}'
+    sy_analysis='{"root_permissions":{},"root_permissions_valid":false,"pull_request_trigger":false,"push_trigger":false,"daily_crons":[],"weekly_crons":[],"live_jobs":[],"osv":[],"headers":[],"semgrep":[],"secret_scans":[],"actor_guard":false,"secret_scan_jobs":0,"pin_gates":0,"pin_gate_refs":[]}'
   fi
   printf '%s' "$sy_analysis" | jq -e '
     type == "object"
@@ -1637,12 +1590,6 @@ EOF
       and (.push_live | type == "boolean") and (.schedule_live | type == "boolean")
       and (.ref | type == "string")
       and (.url | type == "string"))
-    and (.managed_edges | type == "array")
-    and all(.managed_edges[];
-      (.id | type == "string" and length > 0)
-      and (.valid | type == "boolean") and (.live | type == "boolean")
-      and (.push_live | type == "boolean") and (.schedule_live | type == "boolean")
-      and (.ref | type == "string"))
   ' >/dev/null 2>&1 || die_incomplete "$r security.yml inspector returned an unexpected response shape."
   [ "$(printf '%s' "$sy_analysis" | jq -r '.root_permissions_valid')" = true ] \
     || drift="$drift security-yml:root-permissions-not-canonical"
@@ -1701,50 +1648,9 @@ EOF
 
   # Production membership is derived from each live SECURITY.md. The derived
   # population is non-vacuous and each member gets exactly one
-  # current-release probe: the canonical seven-header action, except for the one
-  # owner-approved Ghost managed-edge row. That row is capability-specific and
-  # receives the fixed, self-expiring topology probe instead.
+  # current-release probe: the canonical seven-header action.
   header_count=$(printf '%s' "$sy_analysis" | jq -r '.headers | length')
-  managed_edge_count=$(printf '%s' "$sy_analysis" | jq -r '.managed_edges | length')
-  managed_edge_registered=0
-  case " $GHOST_MANAGED_EDGE_REPOS " in *" $r "*) managed_edge_registered=1 ;; esac
-  if [ "$managed_edge_registered" -eq 1 ]; then
-    [ "$header_count" -eq 0 ] \
-      || drift="$drift security-yml:headers-live-conflicts-with-managed-edge"
-    if [ -z "$DEPLOYMENT_URL" ]; then
-      drift="$drift managed-edge:no-production-origin"
-    elif [ "$DEPLOYMENT_URL" != "$GHOST_MANAGED_EDGE_ORIGIN" ]; then
-      drift="$drift managed-edge:origin-mismatch"
-    fi
-    if [ "$managed_edge_count" -ne 1 ]; then
-      drift="$drift security-yml:ghost-managed-edge-job-count-$managed_edge_count"
-    else
-      managed_valid=$(printf '%s' "$sy_analysis" | jq -r '.managed_edges[0].valid')
-      managed_push_live=$(printf '%s' "$sy_analysis" | jq -r '.managed_edges[0].push_live')
-      managed_schedule_live=$(printf '%s' "$sy_analysis" | jq -r '.managed_edges[0].schedule_live')
-      managed_ref=$(printf '%s' "$sy_analysis" | jq -r '.managed_edges[0].ref')
-      expected_managed_ref="$OWNER/windwardline/actions/verify-ghost-managed-edge@$PIN_ACTION_RELEASE_SHA"
-      [ "$managed_valid" = true ] \
-        || drift="$drift security-yml:ghost-managed-edge-not-canonical"
-      [ "$managed_push_live" = true ] \
-        || drift="$drift security-yml:ghost-managed-edge-not-push-live"
-      [ "$managed_schedule_live" = true ] \
-        || drift="$drift security-yml:ghost-managed-edge-not-daily-live"
-      [ "$managed_ref" = "$expected_managed_ref" ] \
-        || drift="$drift security-yml:ghost-managed-edge-not-current-$PIN_ACTION_RELEASE_TAG"
-      daily_managed_crons=$(printf '%s' "$sy_analysis" | jq -r '.daily_crons | length')
-      [ "$daily_managed_crons" -gt 0 ] \
-        || drift="$drift security-yml:ghost-managed-edge-no-daily-cron"
-      if [ -n "$DEPLOYMENT_URL" ] && [ "$DEPLOYMENT_URL" = "$GHOST_MANAGED_EDGE_ORIGIN" ] \
-        && [ "$header_count" -eq 0 ] && [ "$managed_valid" = true ] \
-        && [ "$managed_push_live" = true ] && [ "$managed_schedule_live" = true ] \
-        && [ "$managed_ref" = "$expected_managed_ref" ] && [ "$daily_managed_crons" -gt 0 ]; then
-        managed_edge_probe_seen=$((managed_edge_probe_seen + 1))
-      fi
-    fi
-  elif [ -n "$DEPLOYMENT_URL" ]; then
-    [ "$managed_edge_count" -eq 0 ] \
-      || drift="$drift security-yml:unregistered-ghost-managed-edge"
+  if [ -n "$DEPLOYMENT_URL" ]; then
     expected_header_ref="$OWNER/windwardline/actions/verify-live-headers@$PIN_ACTION_RELEASE_SHA"
     if [ "$header_count" -ne 1 ]; then
       drift="$drift security-yml:headers-live-job-count-$header_count"
@@ -1776,8 +1682,6 @@ EOF
   else
     [ "$header_count" -eq 0 ] \
       || drift="$drift security-yml:headers-live-without-production-origin"
-    [ "$managed_edge_count" -eq 0 ] \
-      || drift="$drift security-yml:ghost-managed-edge-without-registration-and-origin"
   fi
 
   # Repo settings
@@ -2064,21 +1968,14 @@ EOF
   fi
 done
 
-managed_edge_expected=$(printf '%s\n' "$GHOST_MANAGED_EDGE_REPOS" | awk 'NF { n++ } END { print n+0 }')
-header_probe_expected=$((production_seen - managed_edge_expected))
-if [ "$header_probe_expected" -lt 0 ]; then
-  die_incomplete "managed-edge register exceeds the derived production population."
-fi
 [ "$production_seen" -gt 0 ] \
   || die_incomplete "derived production-origin population is zero; refusing a vacuous header audit."
-if [ "$header_probe_seen" -ne "$header_probe_expected" ] \
-  || [ "$managed_edge_probe_seen" -ne "$managed_edge_expected" ] \
-  || [ $((header_probe_seen + managed_edge_probe_seen)) -ne "$production_seen" ]; then
+if [ "$header_probe_seen" -ne "$production_seen" ]; then
   printf '%-22s %s\n' "production-register" \
-    "canonical-header-probes:$header_probe_seen/$header_probe_expected managed-edge-probes:$managed_edge_probe_seen/$managed_edge_expected total:$((header_probe_seen + managed_edge_probe_seen))/$production_seen"
+    "canonical-header-probes:$header_probe_seen/$production_seen"
   fail=1
 else
-  echo "Production probes conformant — $header_probe_seen canonical header job(s) + $managed_edge_probe_seen managed-edge job(s) = $production_seen derived origin(s)."
+  echo "Production probes conformant — $header_probe_seen canonical header job(s) = $production_seen derived origin(s)."
 fi
 
 # The CONVERGE citation and the gate enumeration, across EVERY non-archived
@@ -2531,9 +2428,9 @@ fi
 # branch with no pull request in any state is work that was pushed and never
 # offered for merge, and nothing else in the fleet can see it: the open-PR
 # sweep needs a PR to find, and a daily that says "done" is not a merge.
-# Run fifteen (2026-10-20) found social-presence's Decisions 4-13 on such a
+# Run fifteen (2026-10-20) found a private repo's owner rulings on such a
 # branch for three weeks while main's HANDOFF.md, the state of record, stopped
-# at Decision 3. A closed PR counts as acknowledged: that is how work is parked
+# short of them. A closed PR counts as acknowledged: that is how work is parked
 # on purpose (craft's Lighthouse gate), and its commits stay reachable.
 echo
 unl_rows=$DEFAULT_BRANCH_ROWS
@@ -2685,9 +2582,8 @@ fi
 # scan population is itself non-vacuous.
 
 # The YAML inspector decodes the workflow grammar before applying the proof. A
-# live daily subject is the exact reusable OSV job, canonical Headers probe, or
-# registered Ghost managed-edge probe; an unrelated checkout/echo cannot mask a
-# guarded subject. Runner jobs need executable schedule-live steps, and every
+# live daily subject is the exact reusable OSV job or canonical Headers probe;
+# an unrelated checkout/echo cannot mask a guarded subject. Runner jobs need executable schedule-live steps, and every
 # `needs` edge must lead to the same proof. Quoted/escaped keys, flow sequences,
 # and block scalars therefore have their YAML meaning instead of a regex
 # approximation.
@@ -2742,7 +2638,7 @@ for r in $ALL; do
       scan_fail=1
     fi
   else
-    job_analysis='{"root_permissions":{},"root_permissions_valid":false,"pull_request_trigger":false,"push_trigger":false,"daily_crons":[],"weekly_crons":[],"live_jobs":[],"osv":[],"headers":[],"managed_edges":[],"semgrep":[],"secret_scans":[],"actor_guard":false,"secret_scan_jobs":0,"pin_gates":0,"pin_gate_refs":[]}'
+    job_analysis='{"root_permissions":{},"root_permissions_valid":false,"pull_request_trigger":false,"push_trigger":false,"daily_crons":[],"weekly_crons":[],"live_jobs":[],"osv":[],"headers":[],"semgrep":[],"secret_scans":[],"actor_guard":false,"secret_scan_jobs":0,"pin_gates":0,"pin_gate_refs":[]}'
   fi
   printf '%s' "$job_analysis" | jq -e '
     type == "object" and (.daily_crons | type == "array")

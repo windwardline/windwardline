@@ -249,9 +249,9 @@ case "$1 ${2:-}" in
     ;;
   'api repos/windwardline/windwardline/git/trees/a7df3fb364021d34f501cd1aa3a481f39135c034?recursive=1')
     if [ "${BOOTSTRAP_TEST_RELEASE_PATH_MISSING:-0}" = 1 ]; then
-      printf '%s\n' '{"sha":"a7df3fb364021d34f501cd1aa3a481f39135c034","truncated":false,"tree":[{"path":"actions/verify-action-pins/action.yml","type":"blob"},{"path":"scripts/verify-action-pins.sh","type":"blob"},{"path":"scripts/actions_yaml_inspector.rb","type":"blob"},{"path":"actions/verify-live-headers/action.yml","type":"blob"},{"path":"actions/verify-live-headers/verify-live-headers.sh","type":"blob"},{"path":"actions/verify-ghost-managed-edge/action.yml","type":"blob"}]}'
+      printf '%s\n' '{"sha":"a7df3fb364021d34f501cd1aa3a481f39135c034","truncated":false,"tree":[{"path":"actions/verify-action-pins/action.yml","type":"blob"},{"path":"scripts/verify-action-pins.sh","type":"blob"},{"path":"scripts/actions_yaml_inspector.rb","type":"blob"},{"path":"actions/verify-live-headers/action.yml","type":"blob"}]}'
     else
-      printf '%s\n' '{"sha":"a7df3fb364021d34f501cd1aa3a481f39135c034","truncated":false,"tree":[{"path":"actions/verify-action-pins/action.yml","type":"blob"},{"path":"scripts/verify-action-pins.sh","type":"blob"},{"path":"scripts/actions_yaml_inspector.rb","type":"blob"},{"path":"actions/verify-live-headers/action.yml","type":"blob"},{"path":"actions/verify-live-headers/verify-live-headers.sh","type":"blob"},{"path":"actions/verify-ghost-managed-edge/action.yml","type":"blob"},{"path":"actions/verify-ghost-managed-edge/verify-ghost-managed-edge.sh","type":"blob"}]}'
+      printf '%s\n' '{"sha":"a7df3fb364021d34f501cd1aa3a481f39135c034","truncated":false,"tree":[{"path":"actions/verify-action-pins/action.yml","type":"blob"},{"path":"scripts/verify-action-pins.sh","type":"blob"},{"path":"scripts/actions_yaml_inspector.rb","type":"blob"},{"path":"actions/verify-live-headers/action.yml","type":"blob"},{"path":"actions/verify-live-headers/verify-live-headers.sh","type":"blob"}]}'
     fi
     ;;
   'api apps/github-actions') printf '{"id":15368,"slug":"github-actions","name":"GitHub Actions"}\n' ;;
