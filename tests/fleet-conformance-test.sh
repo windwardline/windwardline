@@ -5,7 +5,6 @@ set -u
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/fleet-conformance-test.XXXXXX")
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
-export GHOST_MANAGED_EDGE_REPOS_OVERRIDE=_NONE_
 
 mkdir -p "$TMP/subject/scripts" "$TMP/subject/templates" "$TMP/bin"
 cp "$ROOT/scripts/fleet-conformance.sh" "$TMP/subject/scripts/fleet-conformance.sh"
@@ -432,7 +431,6 @@ security_body() {
         uses: windwardline/windwardline/actions/verify-live-headers@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa # v1.0.0
         with:
           url: https://fixture.example.com'
-  managed_edge=''
   dependency='  dependency-scan:
     name: Dependency scan
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb # v2.5.0
@@ -525,31 +523,6 @@ security_body() {
       ;;
     header_wrong_url)
       header=${header/https:\/\/fixture.example.com/https:\/\/other.example.com}
-      ;;
-    ghost_valid|ghost_stale_ref|ghost_inline|ghost_header_conflict|ghost_unregistered)
-      managed_edge='  ghost-managed-edge:
-    name: Ghost managed edge
-    if: github.event_name != '\''pull_request'\''
-    timeout-minutes: 12
-    runs-on: ubuntu-latest
-    steps:
-      - name: Verify the managed Ghost production edge
-        uses: windwardline/windwardline/actions/verify-ghost-managed-edge@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa # v1.0.0'
-      [ "$MOCK_SCENARIO" = ghost_header_conflict ] || header=''
-      [ "$MOCK_SCENARIO" = ghost_stale_ref ] \
-        && managed_edge=${managed_edge/verify-ghost-managed-edge@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/verify-ghost-managed-edge@dddddddddddddddddddddddddddddddddddddddd}
-      [ "$MOCK_SCENARIO" = ghost_inline ] \
-        && managed_edge='  ghost-managed-edge:
-    name: Ghost managed edge
-    if: github.event_name != '\''pull_request'\''
-    timeout-minutes: 12
-    runs-on: ubuntu-latest
-    steps:
-      - name: Verify the managed Ghost production edge
-        run: curl https://grownmengrow.com'
-      ;;
-    ghost_missing)
-      header=''
       ;;
     dependent_on_guarded)
       dependency='  prep:
@@ -710,7 +683,6 @@ $daily"
     "$gitleaks_step" \
     "$pin" \
     "$header" \
-    "$managed_edge" \
     "$dependency" \
     "$dependency_if"
 }
@@ -1175,9 +1147,6 @@ extra' ;;
       # craft's real SECURITY.md carries an arrow here. Under a scheduled task
       # (LANG unset) ruby reads this as US-ASCII and String#scan raises.
       emit 200 "$(content_json 'Report via the workflow (Security → Advisories) for https://fixture.example.com')"
-    elif [ "${MOCK_SCENARIO#ghost_}" != "$MOCK_SCENARIO" ] \
-      && [ "$MOCK_SCENARIO" != ghost_unregistered ]; then
-      emit 200 "$(content_json 'This repository and the deployment at https://grownmengrow.com')"
     else
       emit 200 "$(content_json 'This repository and the deployment at https://fixture.example.com')"
     fi
@@ -1200,9 +1169,9 @@ extra' ;;
     ;;
   repos/windwardline/windwardline/git/trees/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\?recursive=1)
     if [ "$MOCK_SCENARIO" = release_action_missing ]; then
-      release_paths='[{"path":"actions/verify-action-pins/action.yml","type":"blob"},{"path":"scripts/verify-action-pins.sh","type":"blob"},{"path":"scripts/actions_yaml_inspector.rb","type":"blob"},{"path":"actions/verify-live-headers/action.yml","type":"blob"},{"path":"actions/verify-live-headers/verify-live-headers.sh","type":"blob"},{"path":"actions/verify-ghost-managed-edge/action.yml","type":"blob"}]'
+      release_paths='[{"path":"actions/verify-action-pins/action.yml","type":"blob"},{"path":"scripts/verify-action-pins.sh","type":"blob"},{"path":"scripts/actions_yaml_inspector.rb","type":"blob"},{"path":"actions/verify-live-headers/action.yml","type":"blob"}]'
     else
-      release_paths='[{"path":"actions/verify-action-pins/action.yml","type":"blob"},{"path":"scripts/verify-action-pins.sh","type":"blob"},{"path":"scripts/actions_yaml_inspector.rb","type":"blob"},{"path":"actions/verify-live-headers/action.yml","type":"blob"},{"path":"actions/verify-live-headers/verify-live-headers.sh","type":"blob"},{"path":"actions/verify-ghost-managed-edge/action.yml","type":"blob"},{"path":"actions/verify-ghost-managed-edge/verify-ghost-managed-edge.sh","type":"blob"}]'
+      release_paths='[{"path":"actions/verify-action-pins/action.yml","type":"blob"},{"path":"scripts/verify-action-pins.sh","type":"blob"},{"path":"scripts/actions_yaml_inspector.rb","type":"blob"},{"path":"actions/verify-live-headers/action.yml","type":"blob"},{"path":"actions/verify-live-headers/verify-live-headers.sh","type":"blob"}]'
     fi
     emit 200 "{\"sha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"truncated\":false,\"tree\":$release_paths}"
     ;;
@@ -1343,7 +1312,7 @@ extra' ;;
   repos/windwardline/levelflow-cloud/branches/main)
     emit 200 '{"name":"main","commit":{"sha":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}}'
     ;;
-  repos/windwardline/craft|repos/windwardline/ops|repos/windwardline/social-presence|repos/windwardline/commis-goods|repos/windwardline/windwardline)
+  repos/windwardline/craft|repos/windwardline/ops|repos/windwardline/windwardline)
     repo_name=${endpoint##*/}
     [ "$MOCK_SCENARIO" = registered_repo_missing ] && [ "$repo_name" = craft ] \
       && { emit 404 '{"message":"Not Found"}'; exit $?; }
@@ -1355,7 +1324,7 @@ extra' ;;
     fi
     emit 200 "{\"name\":\"$repo_name\",\"archived\":false,\"default_branch\":\"$default_branch\"}"
     ;;
-  repos/windwardline/craft/branches/*|repos/windwardline/ops/branches/*|repos/windwardline/social-presence/branches/*|repos/windwardline/commis-goods/branches/*|repos/windwardline/windwardline/branches/*)
+  repos/windwardline/craft/branches/*|repos/windwardline/ops/branches/*|repos/windwardline/windwardline/branches/*)
     repo_and_branch=${endpoint#repos/windwardline/}
     repo_name=${repo_and_branch%%/*}
     encoded_branch=${endpoint##*/}
@@ -1376,7 +1345,7 @@ extra' ;;
     esac
     emit 200 "{\"sha\":\"dddddddddddddddddddddddddddddddddddddddd\",\"truncated\":false,\"tree\":$tree}"
     ;;
-  repos/windwardline/commis-goods/git/trees/dddddddddddddddddddddddddddddddddddddddd\?recursive=1|repos/windwardline/windwardline/git/trees/dddddddddddddddddddddddddddddddddddddddd\?recursive=1)
+  repos/windwardline/windwardline/git/trees/dddddddddddddddddddddddddddddddddddddddd\?recursive=1)
     emit 200 '{"sha":"dddddddddddddddddddddddddddddddddddddddd","truncated":false,"tree":[]}'
     ;;
   repos/windwardline/ops/contents/.github/workflows\?ref=dddddddddddddddddddddddddddddddddddddddd)
@@ -1448,7 +1417,7 @@ jobs: {}')"
       emit 404 '{"message":"Not Found"}'
     fi
     ;;
-  repos/windwardline/windwardline/contents/.github/workflows\?ref=dddddddddddddddddddddddddddddddddddddddd|repos/windwardline/commis-goods/contents/.github/workflows\?ref=dddddddddddddddddddddddddddddddddddddddd)
+  repos/windwardline/windwardline/contents/.github/workflows\?ref=dddddddddddddddddddddddddddddddddddddddd)
     emit 404 '{"message":"Not Found"}'
     ;;
   repos/windwardline/ops/vulnerability-alerts)
@@ -1565,29 +1534,10 @@ MD
 - **No model identifiers.** Evidence.
 MD
   cat <<'MD'
-## Managed-edge header exception
-| Repo | Approved | Managed origin | Required proof | Expiry |
-|---|---|---|---|---|
-MD
-  case "$1" in
-    ghost_valid|ghost_stale_ref|ghost_inline|ghost_header_conflict|ghost_missing|ghost_register_mismatch)
-      cat <<'MD'
-| `fixture` | 2026-08-24 | `https://grownmengrow.com` on Ghost(Pro) | Exact 12-minute `Ghost managed edge` one-step job on push + daily, its step named exactly `Verify the managed Ghost production edge`, calling `windwardline/windwardline/actions/verify-ghost-managed-edge@<current release SHA>` | Fails once all seven headers appear; remove this row and restore `Headers live` |
-MD
-      ;;
-    ghost_register_field_mismatch)
-      cat <<'MD'
-| `fixture` | 2026-08-25 | `https://grownmengrow.com` on Ghost(Pro) | Exact 12-minute `Ghost managed edge` one-step job on push + daily, its step named exactly `Verify the managed Ghost production edge`, calling `windwardline/windwardline/actions/verify-ghost-managed-edge@<current release SHA>` | Fails once all seven headers appear; remove this row and restore `Headers live` |
-MD
-      ;;
-  esac
-  cat <<'MD'
 ## Repository visibility
 | Repo | Why |
 |---|---|
 | `ops` | Private |
-| `social-presence` | Private |
-| `commis-goods` | Private |
 ## Held repos
 | Repo | Behind |
 |---|---|
@@ -1596,7 +1546,6 @@ MD
 | Repo | Exception |
 |---|---|
 | `windwardline` | No CI |
-| `commis-goods` | Outside fleet |
 MD
   # The Exceptions register's conditional row must close BEFORE the next heading
   # opens, or it lands in the wrong section and every register comparison fails.
@@ -1654,12 +1603,6 @@ run_case() {
   scenario=$2
   expected_rc=$3
   pattern=$4
-  managed_edge_override=_NONE_
-  case "$scenario" in
-    ghost_valid|ghost_stale_ref|ghost_inline|ghost_header_conflict|ghost_missing|ghost_register_field_mismatch)
-      managed_edge_override=fixture
-      ;;
-  esac
   standard "$scenario" >"$TMP/standard-$name.md"
   : >"$TMP/log-$name"
   PATH="$TMP/bin:$PATH" \
@@ -1667,7 +1610,6 @@ run_case() {
     MOCK_LOG="$TMP/log-$name" \
     MOCK_SUBJECT="$TMP/subject" \
     FLEET_MD_LOCAL="$TMP/standard-$name.md" \
-    GHOST_MANAGED_EDGE_REPOS_OVERRIDE="$managed_edge_override" \
     run_with_timeout bash "$TMP/subject/scripts/fleet-conformance.sh" >"$TMP/out-$name" 2>&1
   rc=$?
   if [ "$rc" -eq "$expected_rc" ] && grep -qE "$pattern" "$TMP/out-$name"; then
@@ -1700,7 +1642,6 @@ run_locale_independence_case() {
     MOCK_LOG="$TMP/log-$name" \
     MOCK_SUBJECT="$TMP/subject" \
     FLEET_MD_LOCAL="$TMP/standard-$name.md" \
-    GHOST_MANAGED_EDGE_REPOS_OVERRIDE=_NONE_ \
     run_with_timeout bash "$TMP/subject/scripts/fleet-conformance.sh"
   ) >"$TMP/out-$name" 2>&1
   rc=$?
@@ -2268,14 +2209,6 @@ run_case header-probe-must-use-current-release header_stale_ref 1 'headers-live-
 run_case header-probe-url-matches-security-scope header_wrong_url 1 'headers-live-url-mismatch'
 run_case header-needs-chain-must-admit-push header_push_blocked 1 'headers-live-not-push-live'
 run_case production-origin-population-is-derived-and-nonvacuous security_origin_missing 2 'derived production-origin population is zero'
-run_case registered-ghost-edge-is-conformant ghost_valid 0 '0 canonical header job\(s\) \+ 1 managed-edge job\(s\) = 1 derived origin'
-run_case registered-ghost-edge-job-is-required ghost_missing 1 'ghost-managed-edge-job-count-0|managed-edge-probes:0/1'
-run_case ghost-edge-probe-must-use-current-release ghost_stale_ref 1 'ghost-managed-edge-not-current-v1.0.0'
-run_case inline-ghost-edge-probe-is-not-evidence ghost_inline 1 'ghost-managed-edge-not-canonical|managed-edge-probes:0/1'
-run_case managed-edge-cannot-coexist-with-header-probe ghost_header_conflict 1 'headers-live-conflicts-with-managed-edge'
-run_case unregistered-repo-cannot-claim-ghost-edge ghost_unregistered 1 'unregistered-ghost-managed-edge'
-run_case managed-edge-table-must-match-code ghost_register_mismatch 2 'managed-edge header exception register does not match checker'
-run_case managed-edge-full-row-must-match-code ghost_register_field_mismatch 2 'managed-edge header exception full row does not match checker policy'
 run_case actor-guard-syntax-cannot-escape actor_guard_variant 1 'security-yml:skips-dependabot'
 run_case actor-guard-negated-equality-cannot-escape actor_guard_negated 1 'security-yml:skips-dependabot'
 run_case actor-guard-reversed-negated-equality-cannot-escape actor_guard_negated_reverse 1 'security-yml:skips-dependabot'
@@ -2330,8 +2263,8 @@ run_case supabase-auditor-drift-fails supabase_auditor_drift 1 'public.widgets h
 run_case supabase-auditor-incomplete-preserves-exit-two supabase_auditor_incomplete 2 'SUPABASE GRANTS AUDIT INCOMPLETE'
 # The registers the checker hardcodes are compared, in every other test, against
 # a FIXTURE FLEET.md this suite writes itself. That can only ever prove the
-# checker agrees with the fixture. On 2026-08-31 the managed-edge row was edited
-# in the real FLEET.md and the suite stayed green at 203/203 while a live run
+# checker agrees with the fixture. On 2026-08-31 a register row was edited in
+# the real FLEET.md and the suite stayed green at 203/203 while a live run
 # aborted on the first read — the third time in this effort that a green harness
 # was measuring something other than the subject. This case reads the shipped
 # document and the shipped script, so document-versus-checker divergence fails
@@ -2341,19 +2274,27 @@ run_register_matches_document_case() {
   if [ -n "$CASE_FILTER" ]; then
     case "$name" in *"$CASE_FILTER"*) ;; *) return ;; esac
   fi
-  doc_row=$(awk '/^\| *`grown-men-grow` *\| *2026-/ { print; exit }' "$ROOT/FLEET.md")
-  code_row=$(awk -F "'" '/^GHOST_MANAGED_EDGE_ROW=/ { print $2; exit }' \
-    "$ROOT/scripts/fleet-conformance.sh")
-  if [ -z "$doc_row" ] || [ -z "$code_row" ]; then
-    printf 'not ok - %s (a row read empty: doc=%s bytes, code=%s bytes)\n' \
-      "$name" "${#doc_row}" "${#code_row}"
-    failures=$((failures + 1))
-  elif [ "$doc_row" = "$code_row" ]; then
+  mismatch=''
+  for pair in 'EXEMPT:## Exceptions register' 'PRIVATE_BY_DESIGN:## Repository visibility'; do
+    var=${pair%%:*}
+    heading=${pair#*:}
+    doc_set=$(awk -v heading="$heading" '
+      $0 == heading { insection=1; next }
+      insection && /^## / { exit }
+      insection && /^\| *`/ { split($0, c, "`"); print c[2] }' "$ROOT/FLEET.md" | LC_ALL=C sort -u | tr '\n' ' ')
+    code_set=$(awk -F '"' -v var="$var" '$0 ~ "^" var "=\"" { print $2; exit }' \
+      "$ROOT/scripts/fleet-conformance.sh" | tr ' ' '\n' | awk 'NF' | LC_ALL=C sort -u | tr '\n' ' ')
+    if [ -z "$doc_set" ] || [ -z "$code_set" ]; then
+      mismatch="$mismatch $var(read-empty doc='$doc_set' code='$code_set')"
+    elif [ "$doc_set" != "$code_set" ]; then
+      mismatch="$mismatch $var(doc='$doc_set' code='$code_set')"
+    fi
+  done
+  if [ -z "$mismatch" ]; then
     printf 'ok - %s\n' "$name"
     passes=$((passes + 1))
   else
-    printf 'not ok - %s (FLEET.md row and GHOST_MANAGED_EDGE_ROW differ)\n' "$name"
-    printf '  doc : %s\n  code: %s\n' "$doc_row" "$code_row"
+    printf 'not ok - %s (%s)\n' "$name" "$mismatch"
     failures=$((failures + 1))
   fi
 }

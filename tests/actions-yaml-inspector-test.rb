@@ -8,7 +8,6 @@ class ActionsYamlInspectorTest < Minitest::Test
   GITLEAKS_REF = "gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e"
   PIN_REF = "windwardline/windwardline/actions/verify-action-pins@0123456789abcdef0123456789abcdef01234567"
   HEADER_REF = "windwardline/windwardline/actions/verify-live-headers@0123456789abcdef0123456789abcdef01234567"
-  GHOST_EDGE_REF = "windwardline/windwardline/actions/verify-ghost-managed-edge@0123456789abcdef0123456789abcdef01234567"
   OSV_REF = "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@0123456789abcdef0123456789abcdef01234567"
   SEMGREP_IMAGE = "semgrep/semgrep@sha256:2b33f46ba66cf8cc2ad59ccfa7d22951fd00c632c38f1339e84ec8e6e641a942"
 
@@ -102,24 +101,6 @@ class ActionsYamlInspectorTest < Minitest::Test
               uses: #{HEADER_REF}
               with:
                 url: https://example.com
-    YAML
-  end
-
-  def canonical_ghost_edge_source
-    <<~YAML
-      on:
-        push:
-        schedule:
-          - cron: "17 13 * * *"
-      jobs:
-        ghost-managed-edge:
-          name: Ghost managed edge
-          if: github.event_name != 'pull_request'
-          runs-on: ubuntu-latest
-          timeout-minutes: 12
-          steps:
-            - name: Verify the managed Ghost production edge
-              uses: #{GHOST_EDGE_REF}
     YAML
   end
 
@@ -544,73 +525,6 @@ class ActionsYamlInspectorTest < Minitest::Test
       refute header.fetch("push_live"), label
       refute header.fetch("schedule_live"), label
     end
-  end
-
-  def test_ghost_managed_edge_probe_is_exact_push_and_daily_evidence
-    analysis = ActionsYamlInspector.security_analysis(parse(canonical_ghost_edge_source))
-    edge = analysis.fetch("managed_edges").fetch(0)
-
-    assert edge.fetch("valid")
-    assert edge.fetch("live")
-    assert edge.fetch("push_live")
-    assert edge.fetch("schedule_live")
-    assert_equal GHOST_EDGE_REF, edge.fetch("ref")
-    assert_includes analysis.fetch("live_jobs"), "ghost-managed-edge"
-  end
-
-  def test_ghost_managed_edge_probe_rejects_runtime_controls_and_substitutes
-    mutations = {
-      "workflow env" => ["on:\n", "env: { BASH_ENV: ./forge.sh }\non:\n"],
-      "wrong job id" => ["  ghost-managed-edge:\n", "  edge-check:\n"],
-      "wrong name" => ["    name: Ghost managed edge\n", "    name: Managed edge\n"],
-      "wrong condition" => ["    if: github.event_name != 'pull_request'\n", "    if: github.event_name == 'schedule'\n"],
-      "self hosted" => ["    runs-on: ubuntu-latest\n", "    runs-on: self-hosted\n"],
-      "wrong timeout" => ["    timeout-minutes: 12\n", "    timeout-minutes: 10\n"],
-      "inline probe" => ["      - name: Verify the managed Ghost production edge\n        uses: #{GHOST_EDGE_REF}\n",
-                         "      - name: Verify the managed Ghost production edge\n        run: curl https://grownmengrow.com\n"],
-      "caller input" => ["        uses: #{GHOST_EDGE_REF}\n", "        uses: #{GHOST_EDGE_REF}\n        with: { apex: 'https://example.com' }\n"],
-      "step condition" => ["      - name: Verify the managed Ghost production edge\n", "      - name: Verify the managed Ghost production edge\n        if: true\n"],
-      "continue on error" => ["  ghost-managed-edge:\n", "  ghost-managed-edge:\n    continue-on-error: true\n"]
-    }
-
-    mutations.each do |label, (needle, replacement)|
-      source = canonical_ghost_edge_source.sub(needle, replacement)
-      refute_equal canonical_ghost_edge_source, source, "mutation fixture did not change for #{label}"
-      edges = ActionsYamlInspector.security_analysis(parse(source)).fetch("managed_edges")
-      assert_equal 1, edges.length, label
-      refute edges.first.fetch("valid"), label
-      refute edges.first.fetch("push_live"), label
-      refute edges.first.fetch("schedule_live"), label
-    end
-  end
-
-  def test_ghost_managed_edge_needs_chain_must_admit_push_and_schedule
-    source = <<~YAML
-      on:
-        push:
-        schedule:
-          - cron: "17 13 * * *"
-      jobs:
-        prep:
-          if: github.event_name == 'schedule'
-          runs-on: ubuntu-latest
-          steps:
-            - run: echo prep
-        ghost-managed-edge:
-          name: Ghost managed edge
-          if: github.event_name != 'pull_request'
-          needs: prep
-          runs-on: ubuntu-latest
-          timeout-minutes: 12
-          steps:
-            - name: Verify the managed Ghost production edge
-              uses: #{GHOST_EDGE_REF}
-    YAML
-    edge = ActionsYamlInspector.security_analysis(parse(source)).fetch("managed_edges").first
-
-    assert edge.fetch("valid")
-    assert edge.fetch("schedule_live")
-    refute edge.fetch("push_live")
   end
 
   def test_canonical_semgrep_secret_and_pin_jobs_are_proved_on_every_required_trigger
