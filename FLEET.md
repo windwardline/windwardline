@@ -1313,7 +1313,7 @@ drift, reported per repo and named for what it is.
    authority, and a new repository enters its derived population the moment
    GitHub creates it.
 6. **The weekly fleet-health cadence** — `CADENCE.md` (this repo), executed by
-   a Claude Code scheduled task every Monday 09:00 ET, in this order:
+   a Claude Code scheduled task every Monday 06:00 ET, in this order:
    conformance; Actions failures; open issues and PRs; production and preview
    runtime errors; permission, config, agent-exit, MCP, exact service-baseline,
    symlink, and GitHub-auth guardrails; stray repos; trajectory; then the meta-layer snapshot to private
