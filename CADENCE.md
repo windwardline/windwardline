@@ -1,6 +1,6 @@
 # Weekly fleet-health cadence
 
-Fires every Monday 09:00 ET as a Claude Code scheduled task. This file is the
+Fires every Monday 06:00 ET as a Claude Code scheduled task. This file is the
 checklist the task executes; the task is only the trigger. Changing the cadence
 is a PR here. Results are reported in-chat as tables — drift first,
 owner-decision items last. Its eight steps are the complete pathway named by
