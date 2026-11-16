@@ -178,7 +178,13 @@ owner-decision items last. Its eight steps are the complete pathway named by
    A failed read is exit 2, never a pass. Run thirteen found five apps with no
    preview rows. Four were proven by the probe; levelflow is static.
 5. **Guardrail drift** — every check below. A check with no script names the
-   read it makes instead.
+   read it makes instead. First run `updater-idle-wait.sh` in
+   `windwardline/ops` (private) and start only on exit 0. The daily
+   toolchain updater fires near login, as this run does, and a check that reads
+   tooling mid-reinstall reports a fault the next minute cannot reproduce: run
+   nineteen's `mcp-health.sh` read a half-written mcp-remote that way. Exit 1
+   means the updater is still running after 15 minutes or is wedged; report it
+   and do not read step 5 as clean.
    - Permission surface: `scripts/permission-audit.sh` (this repo) exits
      clean — no interpreter or task-runner wildcards on standing allow,
      credential reads ask-gated, no fence-defeating local wildcards, no
