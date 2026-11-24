@@ -83,6 +83,10 @@ enforces it now:
 - `.github/workflows/ci.yml` — the repo's real gates.
 - `.github/workflows/security.yml` — Semgrep CE + Secret scan on pull requests,
   pushes, and the exact weekly cron; those jobs skip the daily trigger.
+  Secret scan runs `actions/secret-scan` (this repo): gitleaks from a
+  checksum-verified release over the full history, failing on a finding and on
+  a scan that read zero commits. It replaced gitleaks-action on 2026-11-24,
+  which failed the check whenever its pre-scan GitHub API lookup timed out.
   `Dependency scan / osv-scan` runs on pull requests, pushes, and a **daily**
   cron when the repo has a lockfile. It has no schedule guard, so the weekly
   workflow invocation reaches it too. `Headers live` runs on pushes and the

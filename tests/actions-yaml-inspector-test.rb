@@ -5,7 +5,8 @@ require_relative "../scripts/actions_yaml_inspector"
 
 class ActionsYamlInspectorTest < Minitest::Test
   CHECKOUT_REF = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
-  GITLEAKS_REF = "gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e"
+  SCAN_REF = "windwardline/windwardline/actions/secret-scan@45d0e5d0c1ca1d32f1807ca1efea42956fcd3a10"
+  OLD_GITLEAKS_REF = "gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e"
   PIN_REF = "windwardline/windwardline/actions/verify-action-pins@0123456789abcdef0123456789abcdef01234567"
   HEADER_REF = "windwardline/windwardline/actions/verify-live-headers@0123456789abcdef0123456789abcdef01234567"
   OSV_REF = "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@0123456789abcdef0123456789abcdef01234567"
@@ -53,9 +54,7 @@ class ActionsYamlInspectorTest < Minitest::Test
               with:
                 fetch-depth: 0
                 persist-credentials: false
-            - uses: #{GITLEAKS_REF}
-              env:
-                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            - uses: #{SCAN_REF}
             - uses: #{PIN_REF}
       #{extra_jobs}
     YAML
@@ -599,7 +598,10 @@ class ActionsYamlInspectorTest < Minitest::Test
                                    "  secret-scan:\n    name: Secret scan\n    if: github.event_name == 'push'\n"],
       "pin step if" => [:secret, "      - uses: #{PIN_REF}\n", "      - uses: #{PIN_REF}\n        if: true\n"],
       "pin step env" => [:secret, "      - uses: #{PIN_REF}\n", "      - uses: #{PIN_REF}\n        env: { LD_PRELOAD: ./forge.so }\n"],
-      "gitleaks continue" => [:secret, "      - uses: #{GITLEAKS_REF}\n", "      - uses: #{GITLEAKS_REF}\n        continue-on-error: false\n"],
+      "scan continue" => [:secret, "      - uses: #{SCAN_REF}\n", "      - uses: #{SCAN_REF}\n        continue-on-error: false\n"],
+      "scan env" => [:secret, "      - uses: #{SCAN_REF}\n", "      - uses: #{SCAN_REF}\n        env: { GITLEAKS_CONFIG: ./allow-all.toml }\n"],
+      "scan with" => [:secret, "      - uses: #{SCAN_REF}\n", "      - uses: #{SCAN_REF}\n        with: { args: detect }\n"],
+      "old gitleaks action" => [:secret, "      - uses: #{SCAN_REF}\n", "      - uses: #{OLD_GITLEAKS_REF}\n        env:\n          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n"],
       "self hosted secret" => [:secret, "    runs-on: ubuntu-latest\n    timeout-minutes: 10\n    steps:\n", "    runs-on: self-hosted\n    timeout-minutes: 10\n    steps:\n"]
     }
 

@@ -125,9 +125,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: windwardline/windwardline/actions/secret-scan@45d0e5d0c1ca1d32f1807ca1efea42956fcd3a10 # v1.2.0
       - uses: windwardline/windwardline/actions/verify-action-pins@a7df3fb364021d34f501cd1aa3a481f39135c034 # v1.0.0
 EOF
 

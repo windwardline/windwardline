@@ -417,9 +417,7 @@ security_body() {
   dependency_if=''
   unrelated_cron_job=''
   semgrep_command='        run: semgrep scan --config auto --error'
-  gitleaks_step='      - uses: gitleaks/gitleaks-action@cccccccccccccccccccccccccccccccccccccccc # v3.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}'
+  gitleaks_step='      - uses: windwardline/windwardline/actions/secret-scan@cccccccccccccccccccccccccccccccccccccccc # v1.2.0'
   pin='      - uses: windwardline/windwardline/actions/verify-action-pins@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa # v1.0.0'
   header='  headers-live:
     name: Headers live

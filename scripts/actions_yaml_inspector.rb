@@ -631,11 +631,14 @@ module ActionsYamlInspector
     return false unless weekly_security_condition?(raw["if"])
     return false unless steps.length == 3
 
-    checkout, gitleaks, pin_gate = steps
+    # The scan is the fleet composite, not gitleaks-action (2026-11-24): the
+    # action failed the check on a GitHub API timeout before scanning, and its
+    # container replacement passed on 0 commits. The composite takes no inputs,
+    # so the step carries no env or with for a caller to steer it.
+    checkout, scan, pin_gate = steps
     canonical_checkout_step?(checkout, secret: true) &&
-      exact_keys?(gitleaks.fetch("raw"), %w[name uses env]) &&
-      gitleaks.fetch("uses").match?(%r{\Agitleaks/gitleaks-action@#{FULL_SHA}\z}) &&
-      gitleaks.fetch("raw")["env"] == { "GITHUB_TOKEN" => "${{ secrets.GITHUB_TOKEN }}" } &&
+      exact_keys?(scan.fetch("raw"), %w[name uses]) &&
+      scan.fetch("uses").match?(%r{\Awindwardline/windwardline/actions/secret-scan@#{FULL_SHA}\z}) &&
       exact_keys?(pin_gate.fetch("raw"), %w[name uses]) &&
       pin_gate.fetch("uses").match?(%r{\Awindwardline/windwardline/actions/verify-action-pins@#{FULL_SHA}\z})
   end
