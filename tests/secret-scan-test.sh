@@ -1,10 +1,10 @@
 #!/bin/bash
 # Tests for scripts/secret-scan.sh, the fleet's required Secret scan.
 #
-# The scanner it replaced passed on a scan of nothing twice over: gitleaks-action
-# failed closed on a GitHub API timeout (red for a week with no leak), and the
-# first replacement, gitleaks' own container image, went green on "0 commits
-# scanned" because git in the container refused the checkout. So the cases that
+# Both scanners before it reported the wrong result with no leak present:
+# gitleaks-action failed on a GitHub API timeout (red for a week), and the first
+# replacement, gitleaks' own container image, went green on "0 commits scanned"
+# because git in the container refused the checkout. So the cases that
 # matter most are the ones where gitleaks exits 0 having looked at nothing.
 #
 # gitleaks is replaced by a fake packed into a real tarball, so the download,
