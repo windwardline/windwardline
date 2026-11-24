@@ -1,0 +1,91 @@
+name: Secret scan
+description: >
+  gitleaks over the repository's full history, from a checksum-verified release
+  binary. Fails on any finding, on a download or checksum failure, and on a scan
+  that examined no commits.
+
+# A composite step inside each repository's already-required `Secret scan` job,
+# for the same reason as verify-action-pins: no ruleset change. It replaced
+# gitleaks-action, whose pre-scan GitHub API lookup fails the check on a timeout,
+# and gitleaks' container image, which passed on a scan of zero commits.
+# scripts/secret-scan.sh says why; tests/secret-scan-test.sh holds both cases.
+runs:
+  using: composite
+  steps:
+    - name: gitleaks
+      # The calling job controls the environment of every step, so start Bash
+      # with startup hooks disabled and give the scan an allowlisted environment
+      # and a private HOME, exactly as verify-action-pins does.
+      shell: /bin/bash --noprofile --norc -euo pipefail {0}
+      env:
+        BASH_ENV: /dev/null
+        ENV: /dev/null
+        BASHOPTS: ""
+        SHELLOPTS: ""
+        BASH_LOADABLES_PATH: ""
+        BASH_COMPAT: ""
+        CDPATH: ""
+        GLOBIGNORE: ""
+        PS4: ""
+        LD_PRELOAD: ""
+        LD_LIBRARY_PATH: ""
+        LD_AUDIT: ""
+        LD_DEBUG: ""
+        LD_DEBUG_OUTPUT: ""
+        LD_PROFILE: ""
+        LD_PROFILE_OUTPUT: ""
+        LD_ORIGIN_PATH: ""
+        GLIBC_TUNABLES: ""
+        DYLD_INSERT_LIBRARIES: ""
+        DYLD_LIBRARY_PATH: ""
+        DYLD_FRAMEWORK_PATH: ""
+        DYLD_FALLBACK_LIBRARY_PATH: ""
+        DYLD_FALLBACK_FRAMEWORK_PATH: ""
+        DYLD_ROOT_PATH: ""
+        DYLD_IMAGE_SUFFIX: ""
+        DYLD_VERSIONED_LIBRARY_PATH: ""
+        DYLD_VERSIONED_FRAMEWORK_PATH: ""
+        DYLD_SHARED_CACHE_DIR: ""
+        DYLD_PRINT_TO_FILE: ""
+        CURL_HOME: ""
+        GIT_CONFIG: ""
+        GIT_CONFIG_GLOBAL: ""
+        GIT_CONFIG_SYSTEM: ""
+        GIT_CONFIG_PARAMETERS: ""
+        GIT_CONFIG_COUNT: "0"
+        RUBYOPT: ""
+        RUBYLIB: ""
+        GEM_HOME: ""
+        GEM_PATH: ""
+        GEMRC: ""
+        BUNDLE_GEMFILE: ""
+        BUNDLE_PATH: ""
+        BUNDLE_USER_CONFIG: ""
+        SCAN_ACTION_PATH: ${{ github.action_path }}
+        SCAN_WORKSPACE: ${{ github.workspace }}
+        SCAN_RUNNER_TEMP: ${{ runner.temp }}
+      run: |
+        unset LD_SHOW_AUXV
+        scan_home=$(/usr/bin/mktemp -d "${SCAN_RUNNER_TEMP:?SCAN_RUNNER_TEMP is required}/fleet-scan-home.XXXXXX")
+        if /usr/bin/env -i \
+            PATH=/usr/bin:/bin \
+            LC_ALL=C \
+            HOME="$scan_home" \
+            TMPDIR="$SCAN_RUNNER_TEMP" \
+            GIT_CONFIG_NOSYSTEM=1 \
+            GIT_CONFIG_GLOBAL=/dev/null \
+            GIT_CONFIG_SYSTEM=/dev/null \
+            GIT_CONFIG_COUNT=0 \
+            GIT_TERMINAL_PROMPT=0 \
+            GIT_NO_REPLACE_OBJECTS=1 \
+            /bin/bash --noprofile --norc \
+            "$SCAN_ACTION_PATH/../../scripts/secret-scan.sh" "$SCAN_WORKSPACE"; then
+          scan_rc=0
+        else
+          scan_rc=$?
+        fi
+        /bin/rm -rf -- "$scan_home"
+        case "$scan_rc" in
+          0) ;;
+          *) /usr/bin/false ;;
+        esac
