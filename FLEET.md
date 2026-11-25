@@ -238,7 +238,8 @@ enforces it now:
   non-skipped PR-running CI and scan job by name; strict up-to-date checking
   off; linear history; blocked force pushes through GitHub's separate
   `non_fast_forward` rule; no bypass actors. Cancelled jobs are completed and
-  therefore sampled. Skipped jobs are not gate candidates, but their names are
+  therefore sampled. Completion is read from each run, never from the API's
+  `status` filter, whose index omitted a completed run on 2026-11-24. Skipped jobs are not gate candidates, but their names are
   retained as evidence that a required context is a GitHub Actions job. Every
   required context must appear in that sampled Actions population and carry the
   live GitHub Actions App's `integration_id`. A matching context name from any

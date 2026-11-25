@@ -1241,6 +1241,13 @@ extra' ;;
   repos/windwardline/fixture/actions/runs\?head_sha=cccccccccccccccccccccccccccccccccccccccc*)
     if [ "$MOCK_SCENARIO" = empty_sample ]; then
       emit 200 '{"total_count":0,"workflow_runs":[]}'
+    elif [ "$MOCK_SCENARIO" = stale_status_index ] && printf '%s' "$endpoint" | grep -q 'status=completed'; then
+      # GitHub's status filter can omit a completed run for minutes or longer
+      # (windwardline-media#46, 2026-11-24). A checker that asks the API to
+      # filter sees no CI run and reports its required check as drift.
+      emit 200 '{"total_count":0,"workflow_runs":[]}'
+    elif [ "$MOCK_SCENARIO" = run_in_progress_present ]; then
+      emit 200 '{"total_count":2,"workflow_runs":[{"event":"pull_request","status":"completed","id":9,"path":".github/workflows/ci.yml"},{"event":"pull_request","status":"in_progress","id":11,"path":".github/workflows/ci.yml"}]}'
     elif [ "$MOCK_SCENARIO" = run_repeated_page ]; then
       page_body=$(jq -nc '[range(1;101) | {event:"pull_request",status:"completed",id:.,path:".github/workflows/ci.yml"}] | {total_count:200,workflow_runs:.}')
       emit 200 "$page_body"
@@ -2104,6 +2111,8 @@ run_case repeated-actions-secret-page-aborts actions_secret_repeated_page 2 'Act
 run_case repeated-dependabot-secret-page-aborts dependabot_secret_repeated_page 2 'Dependabot secret listing.*repeated pagination identity|pagination made no progress'
 run_case pending-job-aborts pending_job 2 'unfinished job|evidence is not final'
 run_case workflow-run-total-overflow-aborts run_total_overflow 2 'workflow run pagination exceeded total_count'
+run_case stale-status-index-cannot-hide-a-run stale_status_index 0 'Fleet conformant'
+run_case in-progress-run-is-excluded-not-read run_in_progress_present 0 'Fleet conformant'
 run_case job-total-overflow-aborts job_total_overflow 2 'jobs pagination exceeded total_count'
 run_case duplicate-actions-job-name-is-drift duplicate_job_name 1 'duplicate-actions-job:CI'
 run_case weekly-only-dependency-scan-fails weekly_only 1 'daily-cron|daily cron'

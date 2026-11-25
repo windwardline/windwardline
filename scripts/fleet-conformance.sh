@@ -1099,10 +1099,14 @@ audit_required_checks() {
   run_rows=""
   PAGER_SEEN=""
   while :; do
-    required_json "repos/$OWNER/$repo/actions/runs?head_sha=$sha&event=pull_request&status=completed&per_page=100&page=$page" \
+    # No server-side status filter. GitHub's `status=completed` index can omit
+    # a run that has completed: on 2026-11-24 it hid windwardline-media#46's CI
+    # run, and the required `verify` check read as not an Actions job. Every run
+    # is read and incomplete ones are dropped here instead.
+    required_json "repos/$OWNER/$repo/actions/runs?head_sha=$sha&event=pull_request&per_page=100&page=$page" \
       "$repo PR workflow runs page $page for $sha"
     json_shape "$repo PR workflow runs page $page" \
-      'type == "object" and (.total_count | type == "number" and . >= 0 and floor == .) and (.workflow_runs | type == "array") and all(.workflow_runs[]; (.id | type == "number" and . > 0 and floor == .) and .event == "pull_request" and .status == "completed" and (.path | type == "string" and length > 0))'
+      'type == "object" and (.total_count | type == "number" and . >= 0 and floor == .) and (.workflow_runs | type == "array") and all(.workflow_runs[]; (.id | type == "number" and . > 0 and floor == .) and .event == "pull_request" and (.status | type == "string" and length > 0) and (.path | type == "string" and length > 0))'
     count=$(printf '%s' "$JSON" | jq -r '.workflow_runs | length')
     total=$(printf '%s' "$JSON" | jq -r '.total_count')
     [ "$count" -le 100 ] \
@@ -1120,12 +1124,15 @@ audit_required_checks() {
       || die_incomplete "$repo PR workflow run pagination exceeded total_count: read $run_total of $expected_run_total runs."
     [ "$page" -ne 1 ] || [ "$total" -gt 0 ] \
       || die_incomplete "$repo required-check sample has no PR-triggered workflow runs."
-    rows=$(printf '%s' "$JSON" | jq -r '.workflow_runs[] | [.id, .path] | @tsv') \
+    rows=$(printf '%s' "$JSON" | jq -r '.workflow_runs[] | [.id, .path, .status] | @tsv') \
       || die_incomplete "$repo PR workflow run rows could not be extracted."
     emitted_count=$(printf '%s\n' "$rows" | awk 'NF { n++ } END { print n+0 }') \
       || die_incomplete "$repo PR workflow run rows could not be counted."
     [ "$emitted_count" -eq "$count" ] \
       || die_incomplete "$repo PR workflow run page $page emitted $emitted_count of $count rows."
+    # Every row is counted against the page above; only completed runs are sampled.
+    rows=$(printf '%s\n' "$rows" | awk -F '\t' -v OFS='\t' 'NF && $3 == "completed" { print $1, $2 }') \
+      || die_incomplete "$repo PR workflow run rows could not be filtered to completed runs."
     [ -z "$rows" ] || run_rows="$run_rows
 $rows"
     [ "$run_total" -eq "$expected_run_total" ] && break
