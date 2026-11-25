@@ -345,9 +345,11 @@ owner-decision items last. Its eight steps are the complete pathway named by
      100 data files, 3,516,278 bars restored, equal to live. First pinned run
      2026-09-25: `minute-bank-20260925`, 4,615,702 bars. Exit 1 names every
      reason it does not restore.
-   - R2 retention rules, then the archive objects: no script. Read both
-     buckets through the Cloudflare MCP (`cloudflare-api` `execute`) on
-     account `c8da9a44c29c435205b2ec133ee05f20`, GET only:
+   - R2 retention rules, then the archive objects: `r2-rules-check.sh` in
+     `windwardline/ops` (private) exits 0, run as
+     `wl-secret cloudflare-r2-backup=R2_TOKEN -- ./r2-rules-check.sh --levelflow-checkout ~/Projects/levelflow-cloud`.
+     It replaced a hand read through the Cloudflare MCP, whose session lapsed
+     on run twenty, and asserts everything below: both buckets'
      `/accounts/{account_id}/r2/buckets/{bucket}/lifecycle` and `.../lock`.
      Each answers `result.rules`. An absent `rules`, or `success: false`, is
      incomplete, not clean; an empty list is a real answer and backups must
